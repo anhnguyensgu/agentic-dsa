@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "curriculum_version": "2026-09-20",
+  "concepts": [
+    {"id":"foundations","title":"Foundations","prerequisites":[],"outcomes":["trace control flow","reason about integer bounds","estimate time and space"]},
+    {"id":"arrays-strings","title":"Arrays and strings","prerequisites":["foundations"],"outcomes":["traverse safely","reason about indices","maintain local state"]},
+    {"id":"maps-sets","title":"Maps and sets","prerequisites":["arrays-strings"],"outcomes":["use keyed lookup","count frequencies","handle duplicates"]},
+    {"id":"sorting-search","title":"Sorting and search","prerequisites":["arrays-strings","foundations"],"outcomes":["state ordering assumptions","derive search boundaries","prove termination"]},
+    {"id":"prefix-window","title":"Prefix sums, two pointers, and windows","prerequisites":["arrays-strings","foundations"],"outcomes":["reuse aggregates","justify moving boundaries","maintain a window invariant"]},
+    {"id":"linear-structures","title":"Stacks and queues","prerequisites":["arrays-strings"],"outcomes":["choose stack or queue semantics","reason about processing order","maintain structure invariants"]},
+    {"id":"recursion-backtracking","title":"Recursion and backtracking","prerequisites":["foundations","arrays-strings"],"outcomes":["define state and base cases","show progress","undo choices correctly"]},
+    {"id":"trees-graphs","title":"Trees and graphs","prerequisites":["linear-structures","recursion-backtracking"],"outcomes":["choose a representation","traverse without repetition","reason about reachability"]},
+    {"id":"heap-greedy-dsu","title":"Heaps, greedy methods, and disjoint sets","prerequisites":["sorting-search","trees-graphs"],"outcomes":["choose an ordering rule","justify a local choice","maintain components"]},
+    {"id":"dynamic-programming","title":"Dynamic programming","prerequisites":["recursion-backtracking","foundations"],"outcomes":["derive state and transitions","choose evaluation order","bound time and space"]}
+  ]
+}

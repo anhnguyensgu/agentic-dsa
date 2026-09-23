@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.algolearn/schemas/envelope-v1.json",
+  "title": "Algorithm Learning response envelope",
+  "type": "object",
+  "required": ["schema_version", "request_id", "workspace_revision", "status", "data", "warnings", "error", "next_actions"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "request_id": {"type": "string"},
+    "workspace_revision": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["completed", "pending", "error"]},
+    "data": {"type": "object"},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "error": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": true}
+      ]
+    },
+    "next_actions": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

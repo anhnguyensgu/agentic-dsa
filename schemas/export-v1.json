@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.algolearn/schemas/export-v1.json",
+  "title": "Algorithm Learning portable export",
+  "type": "object",
+  "required": ["schema_version", "export_version", "export_id", "workspace_id", "workspace_revision", "scope", "excluded"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "export_version": {"const": "1"},
+    "export_id": {"type": "string"},
+    "workspace_id": {"type": "string"},
+    "workspace_revision": {"type": "integer", "minimum": 0},
+    "scope": {"enum": ["profile_history", "handoff"]},
+    "excluded": {"type": "array", "items": {"type": "string"}},
+    "events": {"type": "array", "items": {"$ref": "event-v1.json"}},
+    "sources": {"type": "array"},
+    "handoff": {"type": "object"}
+  },
+  "additionalProperties": true
+}

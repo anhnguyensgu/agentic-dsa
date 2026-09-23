@@ -1,0 +1,127 @@
+// Generated local example runner. Edit solution.odin and cases.json.
+package main
+
+import "core:encoding/json"
+import "core:fmt"
+import "core:mem"
+import "core:os"
+import "core:math"
+
+Case :: struct {
+	name: string,
+	input: []json.Value,
+	expected: json.Value,
+	check: bool,
+	unordered: bool,
+}
+
+decode :: proc(v: json.Value, target: ^$T) {
+	b, me := json.marshal(v)
+	if me != nil { panic("cannot encode input") }
+	if e := json.unmarshal(b, target, .JSON); e != nil { panic("input does not match the solution parameter type") }
+}
+encode :: proc(v: $T) -> json.Value {
+	b, me := json.marshal(v)
+	if me != nil { panic("cannot encode output") }
+	out, pe := json.parse(b, .JSON, parse_integers=true)
+	if pe != nil { panic("cannot parse output") }
+	return out
+}
+invoke :: proc(input: []json.Value) -> json.Value {
+// GENERATED_ADAPTER
+}
+
+equal :: proc(a, b: json.Value, unordered := false) -> bool {
+	// Compare JSON structures, not serialization order. Floats use a small
+	// relative/absolute tolerance; integers retain exact 64-bit equality.
+	if x, ok := a.(json.Integer); ok {
+		if y, same := b.(json.Integer); same { return x == y }
+		if y, same := b.(json.Float); same { return math.abs(f64(x)-y) <= 1e-6 * max(1.0, math.abs(y)) }
+	}
+	if x, ok := a.(json.Float); ok {
+		if y, same := b.(json.Integer); same { return math.abs(x-f64(y)) <= 1e-6 * max(1.0, math.abs(x)) }
+		if y, same := b.(json.Float); same { return math.abs(x-y) <= 1e-6 * max(1.0, math.abs(y)) }
+	}
+	#partial switch x in a {
+	case json.Null: _, ok := b.(json.Null); return ok
+	case string: y, ok := b.(string); return ok && x == y
+	case bool: y, ok := b.(bool); return ok && x == y
+	case json.Array:
+		y, ok := b.(json.Array)
+		if !ok || len(x) != len(y) { return false }
+		used := make([]bool,len(y))
+		for v, i in x {
+			if !unordered { if !equal(v,y[i]) { return false }; continue }
+			found := false
+			for w, j in y { if !used[j] && equal(v,w) { used[j] = true; found = true; break } }
+			if !found { return false }
+		}
+		return true
+	case json.Object:
+		y, ok := b.(json.Object)
+		if !ok || len(x) != len(y) { return false }
+		for k, v in x { w, present := y[k]; if !present || !equal(v,w) { return false } }
+		return true
+	}
+	return false
+}
+
+execute_cases :: proc(as_json := false) -> int {
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	context.allocator = mem.dynamic_arena_allocator(&arena)
+	context.temp_allocator = context.allocator
+	if len(os.args) < 2 || len(os.args) > 3 { fmt.eprintln("expected cases.json path and optional --json"); return 1 }
+	data, re := os.read_entire_file(os.args[1], context.allocator)
+	if re != nil { fmt.eprintln("cannot read cases.json"); return 1 }
+	cases: []Case
+	if e := json.unmarshal(data, &cases, .JSON); e != nil || len(cases) == 0 {
+		fmt.eprintln("cases.json must be a nonempty array of test cases"); return 1
+	}
+	failed, checked, unchecked := 0, 0, 0
+	results := make(json.Array)
+	for c in cases {
+		actual := invoke(c.input)
+		encoded, _ := json.marshal(actual)
+		item := make(json.Object)
+		item["name"], item["actual"], item["verified"] = c.name, actual, c.check
+		if !c.check {
+			if !as_json { fmt.printf("UNVERIFIED %s: %s\n", c.name, string(encoded)) }
+			item["passed"] = false
+			append(&results, item)
+			unchecked += 1
+			continue
+		}
+		checked += 1
+		passed := equal(actual,c.expected,c.unordered)
+		item["passed"], item["expected"] = passed, c.expected
+		append(&results, item)
+		if passed {
+			if !as_json { fmt.printf("PASS %s\n",c.name) }
+		} else {
+			expected, _ := json.marshal(c.expected)
+			if !as_json { fmt.printf("FAIL %s\n  expected: %s\n  actual:   %s\n", c.name,string(expected),string(encoded)) }
+			failed += 1
+		}
+	}
+	if as_json {
+		report := make(json.Object)
+		outcome := "passed"
+		if failed > 0 { outcome = "failed" } else if unchecked > 0 || checked == 0 { outcome = "unverified" }
+		report["schema_version"], report["outcome"] = json.Integer(1), outcome
+		report["verified_passed"], report["verified_failed"], report["unchecked"] = json.Integer(checked-failed), json.Integer(failed), json.Integer(unchecked)
+		report["cases"] = results
+		body, _ := json.marshal(report)
+		fmt.println(string(body))
+	} else {
+		fmt.printf("%d/%d checked cases passed; %d unverified\n", checked-failed,checked,unchecked)
+	}
+	if failed > 0 { return 3 }
+	if unchecked > 0 { return 4 }
+	return 0
+}
+main :: proc() {
+	as_json := len(os.args) == 3 && os.args[2] == "--json"
+	if code := execute_cases(as_json); code != 0 { os.exit(code) }
+}
