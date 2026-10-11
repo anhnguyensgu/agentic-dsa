@@ -2,287 +2,323 @@ package learning
 
 // Immutable submission intents and recoverable remote jobs (section 13).
 // Preparation is local. Sending happens once, only with an authorization
-// reference supplied by the host after the learner requested that action.
+// reference supplied by the host after the learner asked for it.
 
-import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 import "core:strings"
+import "core:time"
+import "../../safeio"
+
+PROVIDER_SEND_TIMEOUT :: 30 * time.Second
 
 Submission_Intent :: struct {
-	found:          bool,
-	id:             string,
-	attempt_id:     string,
-	session_id:     string,
-	provider:       string,
-	problem_key:    string,
-	provider_id:    string,
-	slug:           string,
-	language:       string,
-	source_path:    string,
-	source_hash:    string,
-	snapshot_path:  string,
-	account_alias:  string,
-	sent:           bool,
+	using prepared:  Submission_Prepared,
+	attempt_id:      string,
+	session_id:      string,
+	sent:            bool,
 	outcome_unknown: bool,
 }
 
 Remote_Job :: struct {
-	found:       bool,
-	id:          string,
-	intent_id:   string,
-	provider:    string,
-	remote_id:   string,
-	problem_key: string,
-	language:    string,
-	source_hash: string,
-	state:       string,
+	using sent: Submission_Sent,
+	state:      string, // queued | pending | terminal
 }
 
-find_intent :: proc(store: ^Store, intent_id: string) -> Submission_Intent {
-	out: Submission_Intent
+find_intent :: proc(store: ^Store, intent_id: string) -> (intent: Submission_Intent, found: bool) {
 	for ev in store.events {
-		payload, err := json.parse(ev.payload, .JSON, parse_integers = true)
-		if err != nil { continue }
-		if ev.type == "submission_prepared" && jstr(jget(payload, "intent_id")) == intent_id {
-			out = Submission_Intent{
-				found         = true,
-				id            = intent_id,
-				attempt_id    = ev.attempt_id,
-				session_id    = ev.session_id,
-				provider      = jstr(jget(payload, "provider")),
-				problem_key   = jstr(jget(payload, "problem_key")),
-				provider_id   = jstr(jget(payload, "provider_id")),
-				slug          = jstr(jget(payload, "slug")),
-				language      = jstr(jget(payload, "language")),
-				source_path   = jstr(jget(payload, "source_path")),
-				source_hash   = jstr(jget(payload, "source_hash")),
-				snapshot_path = jstr(jget(payload, "snapshot_path")),
-				account_alias = jstr(jget(payload, "account_alias")),
+		kind, _ := parse_enum(EVENT_TYPE_NAMES, ev.type)
+		#partial switch kind {
+		case .Submission_Prepared:
+			p: Submission_Prepared
+			if decode(string(ev.payload), &p) && p.intent_id == intent_id {
+				intent = {prepared = p, attempt_id = ev.attempt_id, session_id = ev.session_id}
+				found = true
 			}
-		} else if jstr(jget(payload, "intent_id")) == intent_id {
-			if ev.type == "submission_sent" { out.sent = true }
-			if ev.type == "submission_outcome_unknown" { out.outcome_unknown = true }
+		case .Submission_Sent, .Submission_Outcome_Unknown:
+			ref: struct {
+				intent_id: string,
+			}
+			if decode(string(ev.payload), &ref) && ref.intent_id == intent_id {
+				intent.sent ||= kind == .Submission_Sent
+				intent.outcome_unknown ||= kind == .Submission_Outcome_Unknown
+			}
 		}
 	}
-	return out
+	return
 }
 
-find_job :: proc(store: ^Store, job_id: string) -> Remote_Job {
-	out: Remote_Job
+find_job :: proc(store: ^Store, job_id: string) -> (job: Remote_Job, found: bool) {
 	for ev in store.events {
-		if ev.type != "submission_sent" && ev.type != "job_observed" { continue }
-		payload, err := json.parse(ev.payload, .JSON, parse_integers = true)
-		if err != nil || jstr(jget(payload, "job_id")) != job_id { continue }
-		if ev.type == "submission_sent" {
-			out = Remote_Job{
-				found       = true,
-				id          = job_id,
-				intent_id   = jstr(jget(payload, "intent_id")),
-				provider    = jstr(jget(payload, "provider")),
-				remote_id   = jstr(jget(payload, "remote_id")),
-				problem_key = jstr(jget(payload, "problem_key")),
-				language    = jstr(jget(payload, "language")),
-				source_hash = jstr(jget(payload, "source_hash")),
-				state       = "queued",
+		kind, _ := parse_enum(EVENT_TYPE_NAMES, ev.type)
+		#partial switch kind {
+		case .Submission_Sent:
+			p: Submission_Sent
+			if decode(string(ev.payload), &p) && p.job_id == job_id {
+				job = {sent = p, state = "queued"}
+				found = true
 			}
-		} else {
-			out.state = jstr(jget(payload, "state"))
+		case .Job_Observed:
+			p: Job_Observed
+			if decode(string(ev.payload), &p) && p.job_id == job_id {
+				job.state = p.state
+			}
 		}
 	}
-	return out
+	return
 }
 
-op_submission_prepare :: proc(ctx: ^Context, store: ^Store, input: json.Value, req: Request) -> Result {
-	if fail := require_fields(input, {"attempt_id"}, {"account_alias"}); fail.status == .Error { return fail }
-	attempt_id := jstr(jget(input, "attempt_id"))
+// provider_binary finds the provider CLI in the workspace or on PATH. The
+// provider name comes from the event log, which may have been imported, so
+// only known providers are ever turned into a path.
+provider_binary :: proc(workspace, provider: string) -> (path: string, err: Op_Error) {
+	known := PROVIDERS
+	if !contains(known[:], provider) {
+		return "", fail(.Unsupported_Capability, "the compatible provider binary is unavailable")
+	}
+	path = find_executable(workspace, provider)
+	if path == "" {
+		return "", fail(.Unsupported_Capability, "the compatible provider binary is unavailable")
+	}
+	return path, nil
+}
+
+// -- submission_prepare --------------------------------------------------------
+
+Submission_Prepare_Params :: struct {
+	attempt_id:    string,
+	account_alias: string,
+}
+
+op_submission_prepare :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+	p := params(input, Submission_Prepare_Params) or_return
 	st := fold(store)
-	ai := state_attempt_index(&st, attempt_id)
-	if ai < 0 { return error_result(.Not_Found, "attempt does not exist") }
-	a := &st.attempts[ai]
-	problem, found := catalog_find(a.problem_key)
-	if !found { return error_result(.Not_Found, "attempt problem is missing from the catalogue") }
-	provider := jstr(jget(problem, "provider"))
-	if provider == "leetcode" && a.language == "odin" {
-		return error_result(.Unsupported_Capability, "LeetCode does not judge Odin; preserve this attempt and create a separately tracked supported-language attempt for remote submission")
+	attempt := find_attempt(&st, p.attempt_id)
+	if attempt == nil {
+		return {}, fail(.Not_Found, "attempt does not exist")
 	}
-	source_abs := join({ctx.workspace, a.source_path})
-	source_hash, herr := read_source_hash(source_abs)
-	if herr != .None { return error_result(.Not_Found, "attempt source is missing") }
+	problem, found := catalog_find(attempt.problem_key)
+	if !found {
+		return {}, fail(.Not_Found, "attempt problem is missing from the catalogue")
+	}
+	if problem.provider == "leetcode" && attempt.language == "odin" {
+		return {}, fail(.Unsupported_Capability, "LeetCode does not judge Odin; preserve this attempt and create a separately tracked supported-language attempt for remote submission")
+	}
+	source, read_err := os.read_entire_file(join(ctx.workspace, attempt.source_path), context.allocator)
+	if read_err != nil {
+		return {}, fail(.Not_Found, "attempt source is missing")
+	}
+
+	// The exact bytes to send are frozen now; sending checks they still match.
 	intent_id := fmt_id("intent", store.revision + 1)
-	ext := os.ext(a.source_path)
-	if ext == "" { ext = ".txt" }
-	snapshot_rel := join({LEARNING_DIR, "attempts", attempt_id, "submissions", fmt.aprintf("%s%s", intent_id, ext)})
-	bytes, read_err := os.read_entire_file(source_abs, context.allocator)
-	if read_err != nil { return error_result(.Not_Found, "attempt source could not be read") }
-	defer delete(bytes)
-	if write_private_file(join({ctx.workspace, snapshot_rel}), string(bytes)) != nil {
-		return error_result(.Storage_Error, "could not persist the immutable submission snapshot")
+	snapshot_path := join(LEARNING_DIR, "attempts", p.attempt_id, "submissions", strings.concatenate({intent_id, first_nonempty(os.ext(attempt.source_path), ".txt")}))
+	if write_private_file(join(ctx.workspace, snapshot_path), string(source)) != nil {
+		return {}, fail(.Storage_Error, "could not persist the immutable submission snapshot")
 	}
-	p := obj_new()
-	defer obj_free(&p)
-	obj_field_str(&p, "intent_id", intent_id)
-	obj_field_str(&p, "provider", provider)
-	obj_field_str(&p, "problem_key", a.problem_key)
-	obj_field_str(&p, "provider_id", jstr(jget(problem, "native_id")))
-	obj_field_str(&p, "slug", jstr(jget(problem, "slug")))
-	obj_field_str(&p, "language", a.language)
-	obj_field_str(&p, "source_path", a.source_path)
-	obj_field_str(&p, "source_hash", source_hash)
-	obj_field_str(&p, "snapshot_path", snapshot_rel)
-	obj_field_str(&p, "account_alias", get_opt_str(input, "account_alias"))
-	_, res := commit_and_project(store, ctx, req, "submission_prepared", a.session_id, attempt_id, obj_done(&p))
-	if res.status == .Error { return res }
-	obj_field_str(&res.data, "intent_id", intent_id)
-	obj_field_str(&res.data, "provider", provider)
-	obj_field_str(&res.data, "problem_key", a.problem_key)
-	obj_field_str(&res.data, "language", a.language)
-	obj_field_str(&res.data, "source_hash", source_hash)
-	obj_field_str(&res.data, "snapshot_path", snapshot_rel)
+	payload := Submission_Prepared{
+		intent_id     = intent_id,
+		provider      = problem.provider,
+		problem_key   = attempt.problem_key,
+		provider_id   = problem.native_id,
+		slug          = problem.slug,
+		language      = attempt.language,
+		source_path   = attempt.source_path,
+		source_hash   = hash_hex(string(source)),
+		snapshot_path = snapshot_path,
+		account_alias = p.account_alias,
+	}
+	ev, replayed := commit(ctx, store, req, .Submission_Prepared, payload, attempt.session_id, p.attempt_id) or_return
+	if replayed {
+		decode(string(ev.payload), &payload)
+	}
+
+	Data :: struct {
+		replayed:      Replayed `json:",omitempty"`,
+		intent_id:     string,
+		provider:      string,
+		problem_key:   string,
+		language:      string,
+		source_hash:   string,
+		snapshot_path: string,
+	}
+	res = mutation_result(replayed)
+	res.data = to_json(Data{replayed_flag(replayed), payload.intent_id, payload.provider, payload.problem_key, payload.language, payload.source_hash, payload.snapshot_path})
 	append(&res.next_actions, "send this exact intent only after the learner has authorized the described provider, problem, language, account, and source")
-	return res
+	return
 }
 
-record_unknown_submission :: proc(ctx: ^Context, store: ^Store, req: Request, intent: ^Submission_Intent, reason: string) -> Result {
-	p := obj_new()
-	defer obj_free(&p)
-	obj_field_str(&p, "intent_id", intent.id)
-	obj_field_str(&p, "reason", reason)
-	_, committed := commit_and_project(store, ctx, req, "submission_outcome_unknown", intent.session_id, intent.attempt_id, obj_done(&p))
-	if committed.status == .Error { return committed }
-	res := error_result(.Submission_Outcome_Unknown, "the request may have reached the provider but no durable remote id was captured; do not resend automatically")
-	append(&res.next_actions, "reconcile through provider submission history, then attach the matching receipt or ask the learner before preparing a new send")
-	return res
+// -- submission_send -----------------------------------------------------------
+
+Submission_Send_Params :: struct {
+	intent_id:               string,
+	authorization_reference: string,
 }
 
-op_submission_send :: proc(ctx: ^Context, store: ^Store, input: json.Value, req: Request) -> Result {
-	if fail := require_fields(input, {"intent_id", "authorization_reference"}, {}); fail.status == .Error { return fail }
-	intent_id := jstr(jget(input, "intent_id"))
-	authorization := jstr(jget(input, "authorization_reference"))
-	if intent_id == "" || authorization == "" { return bad_input("intent_id and authorization_reference must be non-empty strings") }
-	intent := find_intent(store, intent_id)
-	if !intent.found { return error_result(.Not_Found, "submission intent does not exist") }
-	if intent.sent { return error_result(.Request_Conflict, "this intent was already sent; use job_check instead of submitting again") }
-	if intent.outcome_unknown { return error_result(.Submission_Outcome_Unknown, "this intent has an unknown send outcome and must be reconciled before any new submission") }
-	current_hash, herr := read_source_hash(join({ctx.workspace, intent.source_path}))
-	if herr != .None || current_hash != intent.source_hash {
-		return error_result(.Stale_Source, "the working source changed after preparation; prepare a new immutable intent")
+op_submission_send :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+	p := params(input, Submission_Send_Params) or_return
+	if p.intent_id == "" || p.authorization_reference == "" {
+		return {}, invalid("intent_id and authorization_reference must be non-empty strings")
 	}
-	binary := find_executable(ctx.workspace, "leetcode")
-	if intent.provider == "kattis" { binary = find_executable(ctx.workspace, "kattis.bin") }
-	if binary == "" { return error_result(.Unsupported_Capability, "the compatible provider binary is unavailable") }
-	snapshot_abs := join({ctx.workspace, intent.snapshot_path})
+	intent, found := find_intent(store, p.intent_id)
+	switch {
+	case !found:
+		return {}, fail(.Not_Found, "submission intent does not exist")
+	case intent.sent:
+		return {}, fail(.Request_Conflict, "this intent was already sent; use job_check instead of submitting again")
+	case intent.outcome_unknown:
+		return {}, fail(.Submission_Outcome_Unknown, "this intent has an unknown send outcome and must be reconciled before any new submission")
+	}
+	if current_hash, hash_err := read_source_hash(join(ctx.workspace, intent.source_path)); hash_err != nil || current_hash != intent.source_hash {
+		return {}, fail(.Stale_Source, "the working source changed after preparation; prepare a new immutable intent")
+	}
+	binary := provider_binary(ctx.workspace, intent.provider) or_return
+
+	snapshot := join(ctx.workspace, intent.snapshot_path)
 	command := make([dynamic]string)
-	defer delete(command)
 	if intent.provider == "leetcode" {
-		append(&command, binary, "submit-start", intent.slug, snapshot_abs, "--lang", intent.language, "--json", "--timeout", "15")
+		append(&command, binary, "submit-start", intent.slug, snapshot, "--lang", intent.language, "--json", "--timeout", "15")
 	} else {
-		append(&command, binary, "submit-start", intent.provider_id, snapshot_abs)
-		if intent.language != "odin" { append(&command, intent.language) }
+		append(&command, binary, "submit-start", intent.provider_id, snapshot)
+		if intent.language != "odin" {
+			append(&command, intent.language)
+		}
 		append(&command, "--json")
 	}
-	obs := run_bounded(command[:], "", 30, MAX_CAPTURE_BYTES, true)
-	if obs.start_failed { return error_result(.Unsupported_Capability, "could not launch the provider adapter") }
-	if obs.timed_out || obs.output_exceeded {
-		return record_unknown_submission(ctx, store, req, &intent, "provider process ended without a durable job id")
+	run := safeio.run(command[:], timeout = PROVIDER_SEND_TIMEOUT, keep_credentials = true)
+	if run.start_failed {
+		return {}, fail(.Unsupported_Capability, "could not launch the provider adapter")
 	}
-	response, parse_err := json.parse(strings.trim_space(obs.stdout), .JSON, parse_integers = true)
+	if run.timed_out || run.output_exceeded {
+		return {}, record_unknown_submission(ctx, store, req, intent, "provider process ended without a durable job id")
+	}
+	response, _ := parse_json(run.stdout)
 	remote_id := jstr(jget(response, "job_id"))
-	if parse_err != nil || remote_id == "" {
-		if strings.contains(strings.to_lower(obs.stderr), "sign") || strings.contains(strings.to_lower(obs.stderr), "credential") {
-			return error_result(.Auth_Required, "provider authentication is required; use the provider's existing login flow")
+	if remote_id == "" {
+		diagnostic := strings.to_lower(run.stderr)
+		if strings.contains(diagnostic, "sign") || strings.contains(diagnostic, "credential") {
+			return {}, fail(.Auth_Required, "provider authentication is required; use the provider's existing login flow")
 		}
-		return record_unknown_submission(ctx, store, req, &intent, "provider response did not contain a valid job id")
+		return {}, record_unknown_submission(ctx, store, req, intent, "provider response did not contain a valid job id")
 	}
-	job_id := fmt_id("job", store.revision + 1)
-	p := obj_new()
-	defer obj_free(&p)
-	obj_field_str(&p, "job_id", job_id)
-	obj_field_str(&p, "intent_id", intent.id)
-	obj_field_str(&p, "authorization_reference", authorization)
-	obj_field_str(&p, "provider", intent.provider)
-	obj_field_str(&p, "remote_id", remote_id)
-	obj_field_str(&p, "problem_key", intent.problem_key)
-	obj_field_str(&p, "language", intent.language)
-	obj_field_str(&p, "source_hash", intent.source_hash)
-	_, res := commit_and_project(store, ctx, req, "submission_sent", intent.session_id, intent.attempt_id, obj_done(&p))
-	if res.status == .Error { return res }
-	job_doc := obj_new()
-	defer obj_free(&job_doc)
-	obj_field_int(&job_doc, "schema_version", SCHEMA_VERSION)
-	obj_field_str(&job_doc, "job_id", job_id)
-	obj_field_str(&job_doc, "intent_id", intent.id)
-	obj_field_str(&job_doc, "provider", intent.provider)
-	obj_field_str(&job_doc, "remote_id", remote_id)
-	obj_field_str(&job_doc, "problem_key", intent.problem_key)
-	obj_field_str(&job_doc, "language", intent.language)
-	obj_field_str(&job_doc, "source_hash", intent.source_hash)
-	obj_field_str(&job_doc, "state", "queued")
-	if write_private_file(join({ctx.workspace, LEARNING_DIR, "jobs", fmt.aprintf("%s.json", job_id)}), obj_done(&job_doc)) != nil {
+
+	payload := Submission_Sent{
+		job_id                  = fmt_id("job", store.revision + 1),
+		intent_id               = intent.intent_id,
+		authorization_reference = p.authorization_reference,
+		provider                = intent.provider,
+		remote_id               = remote_id,
+		problem_key             = intent.problem_key,
+		language                = intent.language,
+		source_hash             = intent.source_hash,
+	}
+	_, replayed := commit(ctx, store, req, .Submission_Sent, payload, intent.session_id, intent.attempt_id) or_return
+
+	res = mutation_result(replayed)
+	Job_File :: struct {
+		schema_version: int,
+		job_id:         string,
+		intent_id:      string,
+		provider:       string,
+		remote_id:      string,
+		problem_key:    string,
+		language:       string,
+		source_hash:    string,
+		state:          string,
+	}
+	job_file := Job_File{SCHEMA_VERSION, payload.job_id, payload.intent_id, payload.provider, remote_id, payload.problem_key, payload.language, payload.source_hash, "queued"}
+	if write_private_file(learning_path(ctx.workspace, "jobs", strings.concatenate({payload.job_id, ".json"})), string(to_json(job_file))) != nil {
 		append(&res.warnings, "job event was committed but its convenience projection could not be written")
 	}
-	obj_field_str(&res.data, "job_id", job_id)
-	obj_field_str(&res.data, "remote_id", remote_id)
-	obj_field_str(&res.data, "state", "queued")
+
+	Data :: struct {
+		replayed:  Replayed `json:",omitempty"`,
+		job_id:    string,
+		remote_id: string,
+		state:     string,
+	}
+	res.data = to_json(Data{replayed_flag(replayed), payload.job_id, remote_id, "queued"})
 	res.status = .Pending
 	append(&res.next_actions, "resume this exact job with job_check; do not submit the source again")
-	return res
+	return
 }
 
-op_job_check :: proc(ctx: ^Context, store: ^Store, input: json.Value, req: Request) -> Result {
-	if fail := require_fields(input, {"job_id"}, {"wait_seconds"}); fail.status == .Error { return fail }
-	job_id := jstr(jget(input, "job_id"))
-	wait_seconds := jint(jget(input, "wait_seconds"))
-	if wait_seconds == 0 { wait_seconds = 5 }
-	if wait_seconds < 1 || wait_seconds > 30 { return bad_input("wait_seconds must be between 1 and 30") }
-	job := find_job(store, job_id)
-	if !job.found { return error_result(.Not_Found, "remote job does not exist") }
-	if job.state == "terminal" { return error_result(.Request_Conflict, "job already has a terminal observation") }
-	intent := find_intent(store, job.intent_id)
-	binary := find_executable(ctx.workspace, "leetcode")
-	if job.provider == "kattis" { binary = find_executable(ctx.workspace, "kattis.bin") }
-	if binary == "" { return error_result(.Unsupported_Capability, "the compatible provider binary is unavailable") }
-	command := make([dynamic]string)
-	defer delete(command)
-	if job.provider == "leetcode" {
-		append(&command, binary, "check", job.remote_id, "--json", "--timeout", fmt.aprintf("%d", wait_seconds))
-	} else {
-		append(&command, binary, "check", job.remote_id, "--json")
+// record_unknown_submission records that a send may have reached the provider
+// without a durable id, which blocks automatic resending.
+record_unknown_submission :: proc(ctx: ^Context, store: ^Store, req: Request, intent: Submission_Intent, reason: string) -> Op_Error {
+	commit(ctx, store, req, .Submission_Outcome_Unknown, Submission_Outcome_Unknown{intent.intent_id, reason}, intent.session_id, intent.attempt_id) or_return
+	return Failure{
+		code        = .Submission_Outcome_Unknown,
+		message     = "the request may have reached the provider but no durable remote id was captured; do not resend automatically",
+		next_action = "reconcile through provider submission history, then attach the matching receipt or ask the learner before preparing a new send",
 	}
-	obs := run_bounded(command[:], "", wait_seconds + 5, MAX_CAPTURE_BYTES, true)
-	if obs.start_failed { return error_result(.Unsupported_Capability, "could not launch the provider adapter") }
-	provider_result, parse_err := json.parse(strings.trim_space(obs.stdout), .JSON, parse_integers = true)
-	state := "pending"
-	verdict := ""
-	if parse_err == nil {
+}
+
+// -- job_check -----------------------------------------------------------------
+
+DEFAULT_WAIT_SECONDS :: 5
+MAX_WAIT_SECONDS :: 30
+
+Job_Check_Params :: struct {
+	job_id:       string,
+	wait_seconds: int,
+}
+
+op_job_check :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+	p := params(input, Job_Check_Params) or_return
+	wait_seconds := first_nonzero(p.wait_seconds, DEFAULT_WAIT_SECONDS)
+	if wait_seconds < 1 || wait_seconds > MAX_WAIT_SECONDS {
+		return {}, invalid("wait_seconds must be between 1 and 30")
+	}
+	job, found := find_job(store, p.job_id)
+	if !found {
+		return {}, fail(.Not_Found, "remote job does not exist")
+	}
+	if job.state == "terminal" {
+		return {}, fail(.Request_Conflict, "job already has a terminal observation")
+	}
+	intent, _ := find_intent(store, job.intent_id)
+	binary := provider_binary(ctx.workspace, job.provider) or_return
+
+	command := make([dynamic]string)
+	append(&command, binary, "check", job.remote_id, "--json")
+	if job.provider == "leetcode" {
+		append(&command, "--timeout", fmt.tprint(wait_seconds))
+	}
+	run := safeio.run(command[:], timeout = time.Duration(wait_seconds + 5) * time.Second, keep_credentials = true)
+	if run.start_failed {
+		return {}, fail(.Unsupported_Capability, "could not launch the provider adapter")
+	}
+
+	// Providers report differently: Kattis returns {state, verdict}; LeetCode
+	// returns its raw check result, which is final once state is SUCCESS.
+	provider_output := strings.trim_space(run.stdout)
+	state, verdict := "pending", ""
+	if result, ok := parse_json(provider_output); ok {
 		if job.provider == "kattis" {
-			state = jstr(jget(provider_result, "state"))
-			verdict = jstr(jget(provider_result, "verdict"))
-		} else {
-			provider_state := jstr(jget(provider_result, "state"))
-			if provider_state == "SUCCESS" { state = "terminal"; verdict = jstr(jget(provider_result, "status_msg")) }
+			state, verdict = jstr(jget(result, "state")), jstr(jget(result, "verdict"))
+		} else if jstr(jget(result, "state")) == "SUCCESS" {
+			state, verdict = "terminal", jstr(jget(result, "status_msg"))
 		}
 	}
-	if obs.timed_out || strings.contains(strings.to_lower(obs.stderr), "pending") { state = "pending" }
-	p := obj_new()
-	defer obj_free(&p)
-	obj_field_str(&p, "job_id", job.id)
-	obj_field_str(&p, "intent_id", job.intent_id)
-	obj_field_str(&p, "provider", job.provider)
-	obj_field_str(&p, "remote_id", job.remote_id)
-	obj_field_str(&p, "state", state)
-	obj_field_str(&p, "verdict", verdict)
-	obj_field_str(&p, "source_hash", job.source_hash)
-	obj_field_str(&p, "provider_result", strings.trim_space(obs.stdout))
-	_, res := commit_and_project(store, ctx, req, "job_observed", intent.session_id, intent.attempt_id, obj_done(&p))
-	if res.status == .Error { return res }
-	obj_field_str(&res.data, "job_id", job.id)
-	obj_field_str(&res.data, "state", state)
-	obj_field_str(&res.data, "verdict", verdict)
-	obj_field_str(&res.data, "source_hash", job.source_hash)
+	if run.timed_out || strings.contains(strings.to_lower(run.stderr), "pending") {
+		state = "pending"
+	}
+
+	payload := Job_Observed{job.job_id, job.intent_id, job.provider, job.remote_id, state, verdict, job.source_hash, provider_output}
+	_, replayed := commit(ctx, store, req, .Job_Observed, payload, intent.session_id, intent.attempt_id) or_return
+
+	Data :: struct {
+		replayed:    Replayed `json:",omitempty"`,
+		job_id:      string,
+		state:       string,
+		verdict:     string,
+		source_hash: string,
+	}
+	res = mutation_result(replayed)
+	res.data = to_json(Data{replayed_flag(replayed), job.job_id, state, verdict, job.source_hash})
 	if state != "terminal" {
 		res.status = .Pending
 		append(&res.next_actions, "check this same job later; no new submission was created")
 	}
-	return res
+	return
 }

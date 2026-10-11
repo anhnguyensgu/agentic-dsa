@@ -25,9 +25,36 @@ make install                 # ~/.local/bin/{leetcode,kattis,algolearn}
 # Or: make install PREFIX=/your/prefix
 ```
 
-Add `~/.local/bin` to your shell's `PATH` if necessary. The CLI is one native
-executable; Python is needed only for the integration tests. The implementation
-is in `leetcode/`. The earlier experiment in `tools/` is not the CLI entry point.
+Add `~/.local/bin` to your shell's `PATH` if necessary. Each CLI is one native
+executable; Python is needed only for the integration tests. `make check`
+type-checks every package with `-vet -strict-style`; `make test` runs it along
+with the unit and integration suites.
+
+## Project layout
+
+Each directory is one Odin package. The executables import the shared
+package by relative path, so plain `odin build <dir>` works without
+collection flags.
+
+| Package | Kind | Contents |
+| --- | --- | --- |
+| `leetcode/` | executable | LeetCode CLI: `cli.odin` (command and flag tables), `api.odin` (curl transport), `problems.odin`, `judge.odin`, `workspace.odin` (scaffolding and local tests), `account.odin`, login in `auth_server.odin`, `cookies.odin`, `config.odin`, `verify.odin` |
+| `kattis/` | executable | Kattis CLI: `cli.odin`, `http.odin`, `html.odin` (page parsers), `problems.odin`, `local_test.odin`, `auth.odin`, `submit.odin` |
+| `algolearn/` | executable | Learning engine front ends: `main.odin` (CLI) and `mcp.odin` (MCP stdio server) |
+| `algolearn/learning/` | library | The engine: event store (`store.odin`, `events.odin`), projection (`projection.odin`), operation registry (`operations.odin`), and one file per operation group |
+| `safeio/` | library | Shared OS safety code: owner-only atomic file writes and bounded child processes with a credential-free environment |
+
+Conventions used throughout:
+
+- Errors are small enums or unions whose zero value is `nil`, propagated with `or_return`.
+  Each tool prints details at the failure site and a one-line summary from `run`.
+- `main` calls `run`, which owns an arena for the whole command and returns the
+  exit code. Nothing is freed individually. The MCP server gives each message
+  and each tool call its own arena.
+- Lookup tables are enumerated arrays (`[Command]Command_Spec`, `[Error]string`),
+  and flag sets are `bit_set`s.
+- JSON documents are typed structs marshaled with `core:encoding/json`. Struct
+  field order is the wire order.
 
 ## Find a problem
 

@@ -1,16 +1,72 @@
 # Engine operations
 
-Every mutation includes a stable `request_id` and the `expected_revision` returned by the last envelope. Repeating the same request and payload is safe; reusing an ID for different content fails. Read operations accept `{}` unless their schema requires a selector.
+Call the engine when the learner needs stored state, new external information, execution, or a meaningful durable change. Reuse information already returned. A learning conversation is not a checklist to rerun on each message.
 
-Common flow:
+## Choose calls by need
 
-1. `doctor`
-2. `workspace_init` or `session_resume`
-3. `plan_next`, then `session_start`
-4. `problem_get`, then `attempt_start`
-5. `hint_record`, `case_add`, `test_run`, and `assessment_record` as work occurs
-6. `session_checkpoint` during interruption or `session_close` after reflection
-7. `review_due` and `progress_get`
+| Situation | Calls |
+| --- | --- |
+| Enter an existing learning workspace or recover lost context | `session_resume` once; its handoff includes profile, latest attempt, hints, results, and pending jobs. |
+| First setup or tooling failure | `doctor`; initialize only after required profile fields are known. |
+| Learner asks for today's problem | Fetch the provider daily problem once. Reuse its statement; call `problem_get` only if curated metadata is needed. |
+| Learner asks what to practise next | `plan_next`, or `review_due` for review work. |
+| Start a learning session | `session_start` once with one objective and the accepted problem. |
+| Learner begins implementation or registers work | For a requested LeetCode starter, `leetcode pick --lang` into a fresh directory; then `attempt_start` once with the correct language and source path. Reuse an existing learner file when supplied. |
+| Ordinary discussion of the same problem | Usually no calls; collect routine hints as described in `tutor-protocol.md`. |
+| Testing or assessment | Flush pending assistance, then record the actual cases, execution, or assessment needed. |
+| Interruption, handoff, substantial activity change, or context loss | Flush pending assistance, then `session_checkpoint`. |
+| Finished learning session or requested progress report | `session_close` after reflection; `progress_get` when reporting progress. |
+
+Keep `workspace_revision`, active IDs, schemas, and the strongest recorded assistance level in the current context. Perform dependent mutations sequentially, using the revision returned by the preceding call. Related necessary calls may share one host tool invocation; never parallelize mutations against the same revision. Refresh state after a revision conflict or a known change by another host.
+
+## Schemas and requests
+
+Use exposed MCP input schemas. In CLI-only hosts such as Pi, discover unknown schemas with the native MCP server once, then retain the relevant fields and required values in context. This read-only exchange exits at stdin EOF:
+
+```sh
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"skill-schema","version":"1"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  | algolearn serve --workspace /path/to/practice
+```
+
+Do not read the executable as text or write a discovery program on every turn. The schemas list fields and required inputs; string enums may need the quick reference below or the matching handler source. After `invalid_input`, inspect the schema and error before one corrected retry. If it still fails, report the specific tooling obstacle and continue any tutoring that does not depend on it. Do not try a series of guessed payloads.
+
+Quick reference for engine 0.2.0; live schemas and validation take precedence:
+
+| Operation | Inputs that commonly cause mistakes |
+| --- | --- |
+| `workspace_init` | Required: `goal`, `language`, `timezone`, `experience`, `time_budget_minutes` (integer 5–480). Optional: `explanation_language`. Collect missing preferences together before calling. |
+| `problem_get` | Required: `problem_key`, such as `leetcode:valid-parentheses`. Optional `audience`: `learning` or `assessment`. Other accepted fields: `offline`, `refresh`. |
+| `session_start` | Required: `objective`, `mode`. Modes: `guided`, `independent`, `assessment`, `review`, `worked_example`. Accepts `problem_key`. |
+| `session_checkpoint` | Required: `session_id`, `activity`, `summary`, `next_action`. Activities: `understanding`, `planning`, `implementing`, `testing`, `reflecting`, `reviewing`. |
+| `hint_record` | Required: `session_id`, integer `level` (0–4). Optional: `attempt_id`, `content`, `concept_ids`. |
+| `attempt_start` | Required: `session_id`, `problem_key`, `language`. `action`: `fresh` or `register_existing`. `runner_kind`: `stdin_stdout`, `odin_test_package`, or `provider_workspace`. `register_existing` needs an existing workspace-relative `source_path`. |
+
+Every mutation also includes a stable `request_id` and the `expected_revision` returned by the last envelope. Repeating the same request and payload is safe; reusing an ID for different content fails. Read operations accept `{}` unless their schema requires a selector. Write learner text and JSON through a structured tool argument, a file, or safely supplied stdin rather than interpolating it into shell code.
+
+## Requested language
+
+The current guaranteed local runner and `action: fresh` scaffold are Odin. Setting `language: typescript` with `runner_kind: provider_workspace` does not change the fresh scaffold's extension.
+
+For LeetCode languages offered by the problem, fetch the provider's starter rather than creating an empty file or using the engine's Odin scaffold. Reuse `codeSnippets` from an already fetched problem to check language support; call `leetcode languages <problem> --json` only when that information is missing. The language selector is the provider's `langSlug`, such as `typescript` or `python3`.
+
+When the learner wants a starter workspace, use a fresh destination inside the practice workspace:
+
+```sh
+leetcode pick valid-parentheses --lang typescript \
+  --workspace /path/to/practice \
+  --dir /path/to/practice/problems/leetcode/valid-parentheses/typescript-attempt-1 --json
+```
+
+`pick` writes the provider starter as `solution.ts` in this example, along with the statement, metadata, and example cases. It refuses an existing destination. Reuse the fetched problem and examples; no additional `problem_get` is needed unless curated metadata is missing.
+
+Register the generated source, or the learner's existing file, with `action: register_existing`, its workspace-relative `source_path`, the requested `language`, and `runner_kind: provider_workspace`. Check the returned source path before directing the learner to it. Preserve earlier work and let the learner write the solution. For a provider without starter support, an empty file at a fresh destination remains an option when file creation is requested.
+
+This registration does not provide a verified local runner for that language and is not marked as a fresh attempt by the engine. Do not award fresh-attempt credit or claim local execution support from it. If the catalogue lacks the selected provider problem, explain that tracking limitation and continue with the provider statement rather than substituting a different problem.
+
+## Remote and data operations
 
 Remote flow:
 

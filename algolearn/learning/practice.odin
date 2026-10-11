@@ -3,49 +3,10 @@ package learning
 // Attempt preparation and versioned local cases. Provider identity is stored
 // explicitly and never inferred from a directory name (sections 10-12).
 
-import "core:encoding/json"
-import "core:fmt"
 import "core:os"
 import "core:strings"
 
-safe_relative_path :: proc(path: string) -> bool {
-	if path == "" || os.is_absolute_path(path) { return false }
-	normalized, _ := strings.replace_all(path, "\\", "/")
-	for part in strings.split(normalized, "/") {
-		if part == "" || part == "." || part == ".." { return false }
-	}
-	return true
-}
-
-path_is_within_workspace :: proc(workspace, path: string) -> bool {
-	workspace_abs, werr := os.get_absolute_path(workspace, context.allocator)
-	if werr != nil { return false }
-	path_abs, perr := os.get_absolute_path(path, context.allocator)
-	if perr != nil { return false }
-	prefix := strings.concatenate({workspace_abs, os.Path_Separator_String}) or_else workspace_abs
-	return path_abs == workspace_abs || strings.has_prefix(path_abs, prefix)
-}
-
-read_source_hash :: proc(path: string) -> (string, Engine_Error) {
-	bytes, err := os.read_entire_file(path, context.allocator)
-	if err != nil { return "", .Not_Found }
-	defer delete(bytes)
-	return hash_hex(string(bytes)), .None
-}
-
-state_session_index :: proc(st: ^State, session_id: string) -> int {
-	for _, i in st.sessions { if st.sessions[i].id == session_id { return i } }
-	return -1
-}
-
-state_attempt_index :: proc(st: ^State, attempt_id: string) -> int {
-	for _, i in st.attempts { if st.attempts[i].id == attempt_id { return i } }
-	return -1
-}
-
-attempt_source_template :: proc(provider: string) -> string {
-	if provider == "kattis" {
-		return `package main
+KATTIS_TEMPLATE :: `package main
 
 import "core:fmt"
 
@@ -54,8 +15,8 @@ main :: proc() {
 	fmt.eprintln("Learner solution not implemented yet")
 }
 `
-	}
-	return `package main
+
+LOCAL_TEMPLATE :: `package main
 
 import "core:fmt"
 
@@ -65,139 +26,241 @@ main :: proc() {
 	fmt.eprintln("Learner solution not implemented yet")
 }
 `
+
+// safe_relative_path accepts only plain relative paths inside a workspace.
+safe_relative_path :: proc(path: string) -> bool {
+	if path == "" || os.is_absolute_path(path) {
+		return false
+	}
+	normalized, _ := strings.replace_all(path, "\\", "/")
+	for part in strings.split(normalized, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
-op_attempt_start :: proc(ctx: ^Context, store: ^Store, input: json.Value, req: Request) -> Result {
-	if fail := require_fields(input, {"session_id", "problem_key", "language"}, {"action", "source_path", "runner_kind", "previous_attempt_id"}); fail.status == .Error { return fail }
-	session_id := jstr(jget(input, "session_id"))
-	problem_key := jstr(jget(input, "problem_key"))
-	language := jstr(jget(input, "language"))
-	if session_id == "" || problem_key == "" || language == "" { return bad_input("session_id, problem_key, and language must be non-empty strings") }
-	action := get_opt_str(input, "action")
-	if action == "" { action = "fresh" }
-	if action != "fresh" && action != "register_existing" { return bad_input("action must be fresh or register_existing") }
-	runner_kind := get_opt_str(input, "runner_kind")
-	if runner_kind == "" { runner_kind = "stdin_stdout" }
-	if runner_kind != "stdin_stdout" && runner_kind != "odin_test_package" && runner_kind != "provider_workspace" {
-		return bad_input("runner_kind must be stdin_stdout, odin_test_package, or provider_workspace")
+// path_is_within_workspace resolves symlinks before comparing.
+path_is_within_workspace :: proc(workspace, path: string) -> bool {
+	workspace_abs, workspace_err := os.get_absolute_path(workspace, context.allocator)
+	path_abs, path_err := os.get_absolute_path(path, context.allocator)
+	if workspace_err != nil || path_err != nil {
+		return false
 	}
-	if language != "odin" && runner_kind != "provider_workspace" {
-		return error_result(.Unsupported_Capability, "the guaranteed local runner is Odin; use provider_workspace for another language")
+	prefix := strings.concatenate({workspace_abs, os.Path_Separator_String})
+	return path_abs == workspace_abs || strings.has_prefix(path_abs, prefix)
+}
+
+read_source_hash :: proc(path: string) -> (string, Engine_Error) {
+	data, err := os.read_entire_file(path, context.allocator)
+	if err != nil {
+		return "", .Not_Found
 	}
-	problem, found := catalog_find(problem_key)
-	if !found { return error_result(.Not_Found, "problem is not present in the bundled catalogue") }
+	return hash_hex(string(data)), nil
+}
+
+// -- attempt_start -------------------------------------------------------------
+
+Attempt_Start_Params :: struct {
+	session_id:          string,
+	problem_key:         string,
+	language:            string,
+	action:              string, // fresh (default) | register_existing
+	source_path:         string,
+	runner_kind:         string, // stdin_stdout (default) | odin_test_package | provider_workspace
+	previous_attempt_id: string,
+}
+
+op_attempt_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+	p := params(input, Attempt_Start_Params) or_return
+	if p.session_id == "" || p.problem_key == "" || p.language == "" {
+		return {}, invalid("session_id, problem_key, and language must be non-empty strings")
+	}
+	action := first_nonempty(p.action, "fresh")
+	if action != "fresh" && action != "register_existing" {
+		return {}, invalid("action must be fresh or register_existing")
+	}
+	runner_kind := first_nonempty(p.runner_kind, "stdin_stdout")
+	switch runner_kind {
+	case "stdin_stdout", "odin_test_package", "provider_workspace":
+	case:
+		return {}, invalid("runner_kind must be stdin_stdout, odin_test_package, or provider_workspace")
+	}
+	if p.language != "odin" && runner_kind != "provider_workspace" {
+		return {}, fail(.Unsupported_Capability, "the guaranteed local runner is Odin; use provider_workspace for another language")
+	}
+	problem, found := catalog_find(p.problem_key)
+	if !found {
+		return {}, fail(.Not_Found, "problem is not present in the bundled catalogue")
+	}
 	st := fold(store)
-	si := state_session_index(&st, session_id)
-	if si < 0 { return error_result(.Not_Found, "session does not exist") }
-	if st.sessions[si].status == "closed" { return error_result(.Request_Conflict, "cannot add an attempt to a closed session") }
+	session := find_session(&st, p.session_id)
+	if session == nil {
+		return {}, fail(.Not_Found, "session does not exist")
+	}
+	if session.status == .Closed {
+		return {}, fail(.Request_Conflict, "cannot add an attempt to a closed session")
+	}
 
 	attempt_id := fmt_id("att", store.revision + 1)
-	source_rel := get_opt_str(input, "source_path")
 	fresh := action == "fresh"
+	source_path := p.source_path
 	created_dir := ""
+	// A fresh directory that does not end up recorded is removed again.
+	defer if err != nil && created_dir != "" {
+		os.remove_all(created_dir)
+	}
 	if fresh {
-		provider := jstr(jget(problem, "provider"))
-		slug := jstr(jget(problem, "slug"))
-		dir_rel := join({"problems", provider, slug, attempt_id})
-		created_dir = join({ctx.workspace, dir_rel})
-		if os.is_file(created_dir) || os.is_directory(created_dir) {
-			return error_result(.Destination_Exists, "the fresh attempt destination already exists")
-		}
-		if err := os.make_directory_all(created_dir, os.perm(0o700)); err != nil && err != .Exist {
-			return error_result(.Storage_Error, "could not create the fresh attempt directory")
-		}
-		if !path_is_within_workspace(ctx.workspace, created_dir) {
-			os.remove_all(created_dir)
-			return bad_input("the fresh destination resolves outside the workspace through a symlink")
-		}
-		source_rel = join({dir_rel, "solution.odin"})
-		if err := write_private_file(join({ctx.workspace, source_rel}), attempt_source_template(provider)); err != nil {
-			os.remove_all(created_dir)
-			return error_result(.Storage_Error, "could not write the fresh source file")
-		}
-		if err := write_private_file(join({created_dir, "cases.json"}), "[]\n"); err != nil {
-			os.remove_all(created_dir)
-			return error_result(.Storage_Error, "could not initialize the local case file")
-		}
+		source_path = create_fresh_attempt(ctx.workspace, problem, attempt_id) or_return
+		created_dir = join(ctx.workspace, os.dir(source_path))
 	} else {
-		if !safe_relative_path(source_rel) { return bad_input("source_path must be a safe workspace-relative path") }
-		source_abs := join({ctx.workspace, source_rel})
-		if !os.is_file(source_abs) { return error_result(.Not_Found, "the source_path does not name a file in the workspace") }
-		if !path_is_within_workspace(ctx.workspace, source_abs) { return bad_input("source_path resolves outside the workspace through a symlink") }
+		if !safe_relative_path(source_path) {
+			return {}, invalid("source_path must be a safe workspace-relative path")
+		}
+		source_abs := join(ctx.workspace, source_path)
+		if !os.is_file(source_abs) {
+			return {}, fail(.Not_Found, "the source_path does not name a file in the workspace")
+		}
+		if !path_is_within_workspace(ctx.workspace, source_abs) {
+			return {}, invalid("source_path resolves outside the workspace through a symlink")
+		}
+	}
+	source_hash, hash_err := read_source_hash(join(ctx.workspace, source_path))
+	if hash_err != nil {
+		return {}, fail(hash_err, "could not hash the attempt source")
 	}
 
-	source_hash, herr := read_source_hash(join({ctx.workspace, source_rel}))
-	if herr != .None {
-		if created_dir != "" { os.remove_all(created_dir) }
-		return error_result(herr, "could not hash the attempt source")
+	payload := Attempt_Started{p.problem_key, p.language, source_path, source_hash, runner_kind, p.previous_attempt_id, fresh}
+	ev, replayed := commit(ctx, store, req, .Attempt_Started, payload, p.session_id, attempt_id) or_return
+	if replayed {
+		// The original request already created its attempt; report that one.
+		if created_dir != "" {
+			os.remove_all(created_dir)
+		}
+		decode(string(ev.payload), &payload)
 	}
-	p := obj_new()
-	defer obj_free(&p)
-	obj_field_str(&p, "problem_key", problem_key)
-	obj_field_str(&p, "language", language)
-	obj_field_str(&p, "source_path", source_rel)
-	obj_field_str(&p, "source_hash", source_hash)
-	obj_field_str(&p, "runner_kind", runner_kind)
-	obj_field_str(&p, "previous_attempt_id", get_opt_str(input, "previous_attempt_id"))
-	obj_field_bool(&p, "fresh", fresh)
 
-	_, res := commit_and_project(store, ctx, req, "attempt_started", session_id, attempt_id, obj_done(&p))
-	if res.status == .Error {
-		if created_dir != "" { os.remove_all(created_dir) }
-		return res
+	res = mutation_result(replayed)
+	Metadata :: struct {
+		schema_version:          int,
+		attempt_id:              string,
+		session_id:              string,
+		problem_key:             string,
+		language:                string,
+		source_path:             string,
+		source_hash_at_creation: string,
+		runner_kind:             string,
 	}
-	metadata := obj_new()
-	defer obj_free(&metadata)
-	obj_field_int(&metadata, "schema_version", SCHEMA_VERSION)
-	obj_field_str(&metadata, "attempt_id", attempt_id)
-	obj_field_str(&metadata, "session_id", session_id)
-	obj_field_str(&metadata, "problem_key", problem_key)
-	obj_field_str(&metadata, "language", language)
-	obj_field_str(&metadata, "source_path", source_rel)
-	obj_field_str(&metadata, "source_hash_at_creation", source_hash)
-	obj_field_str(&metadata, "runner_kind", runner_kind)
-	meta_path := join({ctx.workspace, LEARNING_DIR, "attempts", attempt_id, "metadata.json"})
-	if err := write_private_file(meta_path, obj_done(&metadata)); err != nil {
+	metadata := Metadata{SCHEMA_VERSION, ev.attempt_id, p.session_id, p.problem_key, p.language, payload.source_path, payload.source_hash, payload.runner_kind}
+	if write_private_file(learning_path(ctx.workspace, "attempts", ev.attempt_id, "metadata.json"), string(to_json(metadata))) != nil {
 		append(&res.warnings, "attempt was recorded but its convenience metadata file could not be written; event replay remains authoritative")
 	}
-	obj_field_str(&res.data, "attempt_id", attempt_id)
-	obj_field_str(&res.data, "source_path", source_rel)
-	obj_field_str(&res.data, "source_hash", source_hash)
-	obj_field_str(&res.data, "runner_kind", runner_kind)
+
+	Data :: struct {
+		replayed:    Replayed `json:",omitempty"`,
+		attempt_id:  string,
+		source_path: string,
+		source_hash: string,
+		runner_kind: string,
+	}
+	res.data = to_json(Data{replayed_flag(replayed), ev.attempt_id, payload.source_path, payload.source_hash, payload.runner_kind})
 	append(&res.next_actions, "review the statement and cases, then let the learner implement the solution")
-	return res
+	return
 }
 
-op_case_add :: proc(ctx: ^Context, store: ^Store, input: json.Value, req: Request) -> Result {
-	if fail := require_fields(input, {"attempt_id", "input", "comparator", "provenance"}, {"name", "expected", "oracle_verified", "oracle_basis"}); fail.status == .Error { return fail }
-	attempt_id := jstr(jget(input, "attempt_id"))
-	case_input := jstr(jget(input, "input"))
-	comparator := jstr(jget(input, "comparator"))
-	provenance := jstr(jget(input, "provenance"))
-	if attempt_id == "" || provenance == "" { return bad_input("attempt_id and provenance must be non-empty strings") }
-	if comparator != "exact" && comparator != "trimmed" && comparator != "tokens" { return bad_input("comparator must be exact, trimmed, or tokens") }
+// create_fresh_attempt makes problems/<provider>/<slug>/<attempt>/ with a
+// starter solution and an empty case file, removing it again on failure.
+@(private = "file")
+create_fresh_attempt :: proc(workspace: string, problem: Catalog_Problem, attempt_id: string) -> (source_path: string, err: Op_Error) {
+	dir := join("problems", problem.provider, problem.slug, attempt_id)
+	dir_abs := join(workspace, dir)
+	if os.exists(dir_abs) {
+		return "", fail(.Destination_Exists, "the fresh attempt destination already exists")
+	}
+	if mkdir_err := os.make_directory_all(dir_abs, os.perm(0o700)); mkdir_err != nil && mkdir_err != .Exist {
+		return "", fail(.Storage_Error, "could not create the fresh attempt directory")
+	}
+	defer if err != nil {
+		os.remove_all(dir_abs)
+	}
+	if !path_is_within_workspace(workspace, dir_abs) {
+		return "", invalid("the fresh destination resolves outside the workspace through a symlink")
+	}
+	source_path = join(dir, "solution.odin")
+	template := KATTIS_TEMPLATE if problem.provider == "kattis" else LOCAL_TEMPLATE
+	if write_private_file(join(workspace, source_path), template) != nil {
+		return "", fail(.Storage_Error, "could not write the fresh source file")
+	}
+	if write_private_file(join(dir_abs, "cases.json"), "[]\n") != nil {
+		return "", fail(.Storage_Error, "could not initialize the local case file")
+	}
+	return source_path, nil
+}
+
+// -- case_add ------------------------------------------------------------------
+
+Comparator :: enum {
+	Exact,
+	Trimmed,
+	Tokens,
+}
+
+COMPARATOR_NAMES := [Comparator]string {
+	.Exact   = "exact",
+	.Trimmed = "trimmed",
+	.Tokens  = "tokens",
+}
+
+Case_Add_Params :: struct {
+	attempt_id:      string,
+	input:           string,
+	comparator:      string,
+	provenance:      string,
+	name:            string,
+	expected:        Maybe(string),
+	oracle_verified: bool,
+	oracle_basis:    string,
+}
+
+op_case_add :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+	p := params(input, Case_Add_Params) or_return
+	if p.attempt_id == "" || p.provenance == "" {
+		return {}, invalid("attempt_id and provenance must be non-empty strings")
+	}
+	if _, ok := parse_enum(COMPARATOR_NAMES, p.comparator); !ok {
+		return {}, invalid("comparator must be exact, trimmed, or tokens")
+	}
 	st := fold(store)
-	ai := state_attempt_index(&st, attempt_id)
-	if ai < 0 { return error_result(.Not_Found, "attempt does not exist") }
-	expected_present := jget(input, "expected") != nil
-	expected := get_opt_str(input, "expected")
-	oracle_verified := jbool(jget(input, "oracle_verified")) && expected_present
-	p := obj_new()
-	defer obj_free(&p)
-	obj_field_str(&p, "case_id", fmt_id("case", store.revision + 1))
-	obj_field_str(&p, "name", get_opt_str(input, "name"))
-	obj_field_str(&p, "input", case_input)
-	if expected_present { obj_field_str(&p, "expected", expected) } else { obj_field_raw(&p, "expected", "null") }
-	obj_field_str(&p, "comparator", comparator)
-	obj_field_str(&p, "provenance", provenance)
-	obj_field_bool(&p, "oracle_verified", oracle_verified)
-	obj_field_str(&p, "oracle_basis", get_opt_str(input, "oracle_basis"))
-	_, res := commit_and_project(store, ctx, req, "case_added", st.attempts[ai].session_id, attempt_id, obj_done(&p))
-	if res.status == .Error { return res }
-	obj_field_str(&res.data, "case_id", fmt_id("case", store.revision))
-	obj_field_bool(&res.data, "verified_oracle", oracle_verified)
+	attempt := find_attempt(&st, p.attempt_id)
+	if attempt == nil {
+		return {}, fail(.Not_Found, "attempt does not exist")
+	}
+
+	// Only a case with an expected output can have a verified oracle.
+	_, has_expected := p.expected.?
+	oracle_verified := p.oracle_verified && has_expected
+	payload := Case_Added{
+		case_id         = fmt_id("case", store.revision + 1),
+		name            = p.name,
+		input           = p.input,
+		expected        = p.expected,
+		comparator      = p.comparator,
+		provenance      = p.provenance,
+		oracle_verified = oracle_verified,
+		oracle_basis    = p.oracle_basis,
+	}
+	ev, replayed := commit(ctx, store, req, .Case_Added, payload, attempt.session_id, p.attempt_id) or_return
+
+	Data :: struct {
+		replayed:        Replayed `json:",omitempty"`,
+		case_id:         string,
+		verified_oracle: bool,
+	}
+	res = mutation_result(replayed)
+	res.data = to_json(Data{replayed_flag(replayed), fmt_id("case", ev.sequence), oracle_verified})
 	if !oracle_verified {
 		append(&res.warnings, "this case has no verified oracle and cannot count as passing evidence")
 	}
-	return res
+	return
 }

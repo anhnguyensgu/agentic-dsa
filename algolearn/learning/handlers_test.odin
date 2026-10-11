@@ -5,345 +5,278 @@ package learning
 
 import "core:encoding/json"
 import "core:fmt"
-import "core:mem"
 import "core:os"
 import "core:strings"
 import "core:testing"
 import "core:time"
 
-parse_input :: proc(t: ^testing.T, text: string) -> json.Value {
-	v, err := json.parse(text, .JSON, parse_integers = true)
-	if !testing.expect(t, err == nil) {
-		return nil
-	}
-	return v
+Fixture :: struct {
+	ctx:   Context,
+	store: Store,
 }
 
-init_workspace :: proc(t: ^testing.T, ws: string) -> Result {
-	ctx := Context{workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
-	store, lerr := load_store(ws)
-	testing.expect_value(t, lerr, Engine_Error.None)
-	input := parse_input(t, `{"goal":"foundations","language":"odin","timezone":"UTC","experience":"beginner","time_budget_minutes":30}`)
-	req := Request{request_id = "init", request_hash = "hi", expected_revision = 0}
-	res, found := run_operation("workspace_init", &ctx, &store, input, req)
-	testing.expect(t, found)
+// setup initializes a temporary workspace; the caller removes ctx.workspace.
+setup :: proc(t: ^testing.T) -> (f: Fixture) {
+	ws := temp_workspace(t)
+	f.ctx = {workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
+	f.store, _ = load_store(ws)
+	res := call(t, &f, "workspace_init", `{"goal":"foundations","language":"odin","timezone":"UTC","experience":"beginner","time_budget_minutes":30}`, {"init", "h0", 0})
 	testing.expect_value(t, res.status, Status.Completed)
+	return
+}
+
+call :: proc(t: ^testing.T, f: ^Fixture, operation, text: string, req := Request{expected_revision = -1}) -> Result {
+	input, _, message := new_request(text)
+	testing.expect_value(t, message, "")
+	res, found := run_operation(operation, &f.ctx, &f.store, input, req)
+	testing.expect(t, found)
 	return res
+}
+
+has :: proc(res: Result, fragment: string) -> bool {
+	return strings.contains(string(res.data), fragment)
 }
 
 @(test)
 handlers_guided_session_records_assistance :: proc(t: ^testing.T) {
-	arena := with_arena(t)
-	defer mem.dynamic_arena_destroy(&arena)
-	freeze_clock(t)
-	defer unfreeze_clock()
-	ws := temp_workspace(t)
-	defer os.remove_all(ws)
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
 
-	ctx := Context{workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
-	init_workspace(t, ws)
-
-	store, _ := load_store(ws)
-
-	// Guided session with a level-2 hint: practicing, not independent.
-	start_input := parse_input(t, `{"objective":"trace loops","mode":"guided","concept_ids":["foundations-tracing"]}`)
-	req := Request{request_id = "s1", request_hash = "h1", expected_revision = 1}
-	res, _ := run_operation("session_start", &ctx, &store, start_input, req)
+	// A guided session with a level-2 hint: practicing, not independent.
+	res := call(t, &f, "session_start", `{"objective":"trace loops","mode":"guided","concept_ids":["foundations-tracing"]}`, {"s1", "h1", 1})
+	testing.expect_value(t, res.status, Status.Completed)
+	res = call(t, &f, "hint_record", `{"session_id":"sess_000002","level":2,"concept_ids":["foundations-tracing"],"content":"look for repeated work"}`, {"h1", "h2", 2})
+	testing.expect_value(t, res.status, Status.Completed)
+	close := `{"session_id":"sess_000002","reason":"completed"}`
+	res = call(t, &f, "session_close", close, {"c1", "h3", 3})
 	testing.expect_value(t, res.status, Status.Completed)
 
-	hint_input := parse_input(t, `{"session_id":"sess_000002","level":2,"concept_ids":["foundations-tracing"],"content":"look for repeated work"}`)
-	req = Request{request_id = "h1", request_hash = "h2", expected_revision = 2}
-	res, _ = run_operation("hint_record", &ctx, &store, hint_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-
-	close_input := parse_input(t, `{"session_id":"sess_000002","reason":"completed"}`)
-	req = Request{request_id = "c1", request_hash = "h3", expected_revision = 3}
-	res, _ = run_operation("session_close", &ctx, &store, close_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-
-	// The review item exists, is due tomorrow, and carries no independent credit.
-	st := fold(&store)
+	// The review item is due tomorrow and carries no independent credit.
+	st := fold(&f.store)
 	testing.expect_value(t, len(st.reviews), 1)
-	testing.expect_value(t, st.reviews[0].credit, "assisted")
+	testing.expect_value(t, st.reviews[0].credit, Credit.Assisted)
 	testing.expect_value(t, st.reviews[0].due_ts, "2025-09-20T16:40:00Z")
 
 	// Closing twice must not create another review item (section 6).
-	req = Request{request_id = "c2", request_hash = "h4", expected_revision = 4}
-	res, _ = run_operation("session_close", &ctx, &store, close_input, req)
-	testing.expect_value(t, res.status, Status.Error)
+	res = call(t, &f, "session_close", close, {"c2", "h4", 4})
 	testing.expect_value(t, res.err, Engine_Error.Request_Conflict)
-
-	st = fold(&store)
+	st = fold(&f.store)
 	testing.expect_value(t, len(st.reviews), 1)
 }
 
 @(test)
 handlers_independent_session_promotes_concept :: proc(t: ^testing.T) {
-	arena := with_arena(t)
-	defer mem.dynamic_arena_destroy(&arena)
-	freeze_clock(t)
-	defer unfreeze_clock()
-	ws := temp_workspace(t)
-	defer os.remove_all(ws)
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
 
-	ctx := Context{workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
-	init_workspace(t, ws)
-	store, _ := load_store(ws)
+	// Only a level-1 clarification; no solution exposure.
+	call(t, &f, "session_start", `{"objective":"two-pointer window","mode":"independent","concept_ids":["arrays-window"]}`, {"s1", "h1", 1})
+	call(t, &f, "hint_record", `{"session_id":"sess_000002","level":1,"content":"what happens with one element?"}`, {"h1", "h2", 2})
 
-	// Independent session: only a level-1 clarification, no solution exposure.
-	start_input := parse_input(t, `{"objective":"two-pointer window","mode":"independent","concept_ids":["arrays-window"]}`)
-	req := Request{request_id = "s1", request_hash = "h1", expected_revision = 1}
-	res, _ := run_operation("session_start", &ctx, &store, start_input, req)
+	// Independent credit needs a fresh attempt, verified behavior, and score-3
+	// evidence for approach, correctness, and complexity.
+	res := call(t, &f, "attempt_start", `{"session_id":"sess_000002","problem_key":"leetcode:two-sum","language":"odin","runner_kind":"stdin_stdout"}`, {"at1", "hat", 3})
 	testing.expect_value(t, res.status, Status.Completed)
-
-	hint_input := parse_input(t, `{"session_id":"sess_000002","level":1,"content":"what happens with one element?"}`)
-	req = Request{request_id = "h1", request_hash = "h2", expected_revision = 2}
-	res, _ = run_operation("hint_record", &ctx, &store, hint_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-
-
-	// Independent credit requires a fresh attempt, verified behavior, and
-	// score-3 evidence for approach, correctness, and complexity.
-	attempt_input := parse_input(t, `{"session_id":"sess_000002","problem_key":"leetcode:two-sum","language":"odin","runner_kind":"stdin_stdout"}`)
-	req = Request{request_id = "at1", request_hash = "hat", expected_revision = 3}
-	res, _ = run_operation("attempt_start", &ctx, &store, attempt_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-	source_path := join({ws, "problems", "leetcode", "two-sum", "att_000004", "solution.odin"})
-	testing.expect_value(t, write_private_file(source_path, "package main\nimport \"core:fmt\"\nmain :: proc() { fmt.println(3) }\n"), nil)
-
-	case_input := parse_input(t, `{"attempt_id":"att_000004","name":"verified","input":"","expected":"3\n","comparator":"exact","provenance":"manually_checked","oracle_verified":true,"oracle_basis":"constant trace"}`)
-	req = Request{request_id = "case1", request_hash = "hcase", expected_revision = 4}
-	res, _ = run_operation("case_add", &ctx, &store, case_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-
-	run_input := parse_input(t, `{"attempt_id":"att_000004","mode":"local"}`)
-	req = Request{request_id = "run1", request_hash = "hrun", expected_revision = 5}
-	res, _ = run_operation("test_run", &ctx, &store, run_input, req)
+	source := join(f.ctx.workspace, "problems", "leetcode", "two-sum", "att_000004", "solution.odin")
+	testing.expect_value(t, write_private_file(source, "package main\nimport \"core:fmt\"\nmain :: proc() { fmt.println(3) }\n"), nil)
+	call(t, &f, "case_add", `{"attempt_id":"att_000004","name":"verified","input":"","expected":"3\n","comparator":"exact","provenance":"manually_checked","oracle_verified":true,"oracle_basis":"constant trace"}`, {"case1", "hcase", 4})
+	res = call(t, &f, "test_run", `{"attempt_id":"att_000004","mode":"local"}`, {"run1", "hrun", 5})
 	testing.expect_value(t, res.status, Status.Completed)
 	testing.expect_value(t, res.cli_exit, 0)
-	evidence_id := store.events[len(store.events)-1].event_id
+	evidence_id := f.store.events[len(f.store.events) - 1].event_id
 
-	dimensions := [?]string{"approach", "correctness", "complexity"}
-	for dimension, i in dimensions {
-		/*
-		assessment_json := fmt.aprintf(`{"session_id":"sess_000002","concept_id":"arrays-window","dimension":"%s","score":3,"rationale":"learner independently justified this dimension","rubric_version":"1","evidence_ids":["ev_000006"]}`, dimension)
-		*/
-		/*
-		assessment_json := strings.concatenate({"{\\\"session_id\\\":\\\"sess_000002\\\",\\\"concept_id\\\":\\\"arrays-window\\\",\\\"dimension\\\":\\\"", dimension, "\\\",\\\"score\\\":3,\\\"rationale\\\":\\\"learner independently justified this dimension\\\",\\\"rubric_version\\\":\\\"1\\\",\\\"evidence_ids\\\":[\\\"ev_000006\\\"]}"})
-		*/
-		assessment := obj_new()
-		obj_field_str(&assessment, "session_id", "sess_000002")
-		obj_field_str(&assessment, "concept_id", "arrays-window")
-		obj_field_str(&assessment, "dimension", dimension)
-		obj_field_int(&assessment, "score", 3)
-		obj_field_str(&assessment, "rationale", "learner independently justified this dimension")
-		obj_field_str(&assessment, "rubric_version", "1")
-		obj_field_strs(&assessment, "evidence_ids", {evidence_id})
-		assessment_json := obj_done(&assessment)
-		obj_free(&assessment)
-		assess_input := parse_input(t, assessment_json)
-		req = Request{request_id = fmt.aprintf("a%d", i), request_hash = fmt.aprintf("ha%d", i), expected_revision = 6 + i}
-		res, _ = run_operation("assessment_record", &ctx, &store, assess_input, req)
+	for dimension, i in ([?]string{"approach", "correctness", "complexity"}) {
+		Assessment :: struct {
+			session_id, concept_id, dimension: string,
+			score:                             int,
+			rationale, rubric_version:         string,
+			evidence_ids:                      []string,
+		}
+		evidence := [?]string{evidence_id}
+		text, _ := json.marshal(Assessment{"sess_000002", "arrays-window", dimension, 3, "learner independently justified this dimension", "1", evidence[:]})
+		res = call(t, &f, "assessment_record", string(text), {fmt.aprintf("a%d", i), fmt.aprintf("ha%d", i), 6 + i})
 		testing.expect_value(t, res.status, Status.Completed)
 	}
 
-	close_input := parse_input(t, `{"session_id":"sess_000002","reason":"completed"}`)
-	req = Request{request_id = "c1", request_hash = "h3", expected_revision = 9}
-	res, _ = run_operation("session_close", &ctx, &store, close_input, req)
+	res = call(t, &f, "session_close", `{"session_id":"sess_000002","reason":"completed"}`, {"c1", "h3", 9})
 	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect(t, strings.contains(string(res.data.buf[:]), "\"independent\":true"))
+	testing.expect(t, has(res, `"independent":true`))
 
-	st := fold(&store)
+	st := fold(&f.store)
 	testing.expect_value(t, len(st.reviews), 1)
-	testing.expect_value(t, st.reviews[0].credit, "independent")
+	testing.expect_value(t, st.reviews[0].credit, Credit.Independent)
 	testing.expect_value(t, len(st.concepts), 1)
-	testing.expect_value(t, st.concepts[0].state, "independent")
+	testing.expect_value(t, st.concepts[0].state, Concept_Level.Independent)
 	testing.expect_value(t, st.concepts[0].independent_solves, 1)
 }
 
 @(test)
 handlers_heavy_hint_blocks_independence :: proc(t: ^testing.T) {
-	arena := with_arena(t)
-	defer mem.dynamic_arena_destroy(&arena)
-	freeze_clock(t)
-	defer unfreeze_clock()
-	ws := temp_workspace(t)
-	defer os.remove_all(ws)
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
 
-	ctx := Context{workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
-	init_workspace(t, ws)
-	store, _ := load_store(ws)
-
-	start_input := parse_input(t, `{"objective":"binary search boundary","mode":"independent","concept_ids":["sorting-search"]}`)
-	req := Request{request_id = "s1", request_hash = "h1", expected_revision = 1}
-	res, _ := run_operation("session_start", &ctx, &store, start_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-
+	call(t, &f, "session_start", `{"objective":"binary search boundary","mode":"independent","concept_ids":["sorting-search"]}`, {"s1", "h1", 1})
 	// A level-3 hint discloses the central invariant: no independent credit,
-	// even though the session mode was independent (sections 7 and 9).
-	hint_input := parse_input(t, `{"session_id":"sess_000002","level":3,"content":"the loop must keep the target inside [lo, hi)"}`)
-	req = Request{request_id = "h1", request_hash = "h2", expected_revision = 2}
-	res, _ = run_operation("hint_record", &ctx, &store, hint_input, req)
+	// even in an independent session (sections 7 and 9).
+	res := call(t, &f, "hint_record", `{"session_id":"sess_000002","level":3,"content":"the loop must keep the target inside [lo, hi)"}`, {"h1", "h2", 2})
 	testing.expect_value(t, res.status, Status.Completed)
 	testing.expect(t, len(res.warnings) > 0)
 
-	close_input := parse_input(t, `{"session_id":"sess_000002","reason":"completed"}`)
-	req = Request{request_id = "c1", request_hash = "h3", expected_revision = 3}
-	res, _ = run_operation("session_close", &ctx, &store, close_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect(t, strings.contains(string(res.data.buf[:]), "\"independent\":false"))
+	res = call(t, &f, "session_close", `{"session_id":"sess_000002","reason":"completed"}`, {"c1", "h3", 3})
+	testing.expect(t, has(res, `"independent":false`))
 
-	st := fold(&store)
-	testing.expect_value(t, st.reviews[0].credit, "assisted")
-	testing.expect_value(t, st.concepts[0].state, "practicing")
+	st := fold(&f.store)
+	testing.expect_value(t, st.reviews[0].credit, Credit.Assisted)
+	testing.expect_value(t, st.concepts[0].state, Concept_Level.Practicing)
 }
 
 @(test)
 handlers_review_due_and_snooze :: proc(t: ^testing.T) {
-	arena := with_arena(t)
-	defer mem.dynamic_arena_destroy(&arena)
-	freeze_clock(t)
-	defer unfreeze_clock()
-	ws := temp_workspace(t)
-	defer os.remove_all(ws)
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
 
-	ctx := Context{workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
-	init_workspace(t, ws)
-	store, _ := load_store(ws)
+	call(t, &f, "session_start", `{"objective":"window","mode":"independent","concept_ids":["arrays-window"]}`, {"s1", "h1", 1})
+	call(t, &f, "session_close", `{"session_id":"sess_000002","reason":"completed"}`, {"c1", "h3", 2})
 
-	start_input := parse_input(t, `{"objective":"window","mode":"independent","concept_ids":["arrays-window"]}`)
-	req := Request{request_id = "s1", request_hash = "h1", expected_revision = 1}
-	res, _ := run_operation("session_start", &ctx, &store, start_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
+	// Not due yet: the review is scheduled for tomorrow.
+	testing.expect(t, has(call(t, &f, "review_due", `{}`), `"count":0`))
 
-	close_input := parse_input(t, `{"session_id":"sess_000002","reason":"completed"}`)
-	req = Request{request_id = "c1", request_hash = "h3", expected_revision = 2}
-	res, _ = run_operation("session_close", &ctx, &store, close_input, req)
-	testing.expect_value(t, res.status, Status.Completed)
-
-	// Not due yet (review is scheduled for tomorrow).
-	due_input := parse_input(t, `{}`)
-	empty_req := Request{}
-	res, _ = run_operation("review_due", &ctx, &store, due_input, empty_req)
-	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect(t, strings.contains(string(res.data.buf[:]), "\"count\":0"))
-
-	// A day later it is due.
-	ctx.now = time.unix(1758300000 + 2 * 24 * 3600, 0)
-	res, _ = run_operation("review_due", &ctx, &store, due_input, empty_req)
-	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect(t, strings.contains(string(res.data.buf[:]), "\"count\":1"))
+	// Two days later it is due.
+	f.ctx.now = time.unix(FAKE_NOW + 2 * 24 * 3600, 0)
+	testing.expect(t, has(call(t, &f, "review_due", `{}`), `"count":1`))
 
 	// Snoozing hides it without pretending it was completed (section 9).
-	snooze_input := parse_input(t, `{"review_id":"rev_000003_0","action":"snooze"}`)
-	req = Request{request_id = "sn1", request_hash = "h9", expected_revision = 3}
-	res, _ = run_operation("review_update", &ctx, &store, snooze_input, req)
+	res := call(t, &f, "review_update", `{"review_id":"rev_000003_0","action":"snooze"}`, {"sn1", "h9", 3})
 	testing.expect_value(t, res.status, Status.Completed)
-
-	res, _ = run_operation("review_due", &ctx, &store, due_input, empty_req)
-	testing.expect(t, strings.contains(string(res.data.buf[:]), "\"count\":0"))
+	testing.expect(t, has(call(t, &f, "review_due", `{}`), `"count":0`))
 }
 
 @(test)
 handlers_reject_invalid_inputs :: proc(t: ^testing.T) {
-	arena := with_arena(t)
-	defer mem.dynamic_arena_destroy(&arena)
-	freeze_clock(t)
-	defer unfreeze_clock()
-	ws := temp_workspace(t)
-	defer os.remove_all(ws)
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
 
-	ctx := Context{workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
-	init_workspace(t, ws)
-	store, _ := load_store(ws)
+	cases := [?]struct {
+		operation, input: string,
+		expected:         Engine_Error,
+	}{
+		// Unexpected fields are rejected (section 11).
+		{"session_start", `{"objective":"x","mode":"guided","sneaky":"field"}`, .Invalid_Input},
+		// Invalid enums are rejected.
+		{"session_start", `{"objective":"x","mode":"speedrun"}`, .Invalid_Input},
+		// Hint levels are bounded 0..4 (section 7).
+		{"hint_record", `{"session_id":"sess_000002","level":9}`, .Invalid_Input},
+		// Wrongly typed fields are rejected.
+		{"hint_record", `{"session_id":"sess_000002","level":"high"}`, .Invalid_Input},
+		// Agents cannot produce tool evidence (section 11).
+		{"evidence_record", `{"session_id":"sess_000002","evidence_type":"run","producer":"tool"}`, .Invalid_Evidence},
+	}
+	for c in cases {
+		res := call(t, &f, c.operation, c.input, {"bad", c.input, 1})
+		testing.expectf(t, res.err == c.expected, "%s %s: got %v", c.operation, c.input, res.err)
+	}
+}
 
-	// Unexpected fields are rejected (section 11).
-	bad := parse_input(t, `{"objective":"x","mode":"guided","sneaky":"field"}`)
-	req := Request{request_id = "b1", request_hash = "hb", expected_revision = 1}
-	res, _ := run_operation("session_start", &ctx, &store, bad, req)
-	testing.expect_value(t, res.status, Status.Error)
-	testing.expect_value(t, res.err, Engine_Error.Invalid_Input)
+@(test)
+handlers_replay_returns_the_original_ids :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
 
-	// Invalid enums are rejected.
-	bad_mode := parse_input(t, `{"objective":"x","mode":"speedrun"}`)
-	req = Request{request_id = "b2", request_hash = "hc", expected_revision = 1}
-	res, _ = run_operation("session_start", &ctx, &store, bad_mode, req)
-	testing.expect_value(t, res.err, Engine_Error.Invalid_Input)
-
-	// Hint levels are bounded 0..4 (section 7).
-	bad_level := parse_input(t, `{"session_id":"sess_000002","level":9}`)
-	req = Request{request_id = "b3", request_hash = "hd", expected_revision = 1}
-	res, _ = run_operation("hint_record", &ctx, &store, bad_level, req)
-	testing.expect_value(t, res.err, Engine_Error.Invalid_Input)
-
-	// Agent-produced tool evidence is rejected (section 11).
-	fake_tool := parse_input(t, `{"session_id":"sess_000002","evidence_type":"run","producer":"tool"}`)
-	req = Request{request_id = "b4", request_hash = "he", expected_revision = 1}
-	res, _ = run_operation("evidence_record", &ctx, &store, fake_tool, req)
-	testing.expect_value(t, res.err, Engine_Error.Invalid_Evidence)
+	start := `{"objective":"trace loops","mode":"guided"}`
+	first := call(t, &f, "session_start", start, {"s1", "same", 1})
+	call(t, &f, "hint_record", `{"session_id":"sess_000002","level":0}`, {"h1", "h1", 2})
+	again := call(t, &f, "session_start", start, {"s1", "same", 3})
+	testing.expect(t, has(again, `"replayed":true`))
+	testing.expect(t, has(first, `"session_id":"sess_000002"`) && has(again, `"session_id":"sess_000002"`))
 }
 
 @(test)
 handlers_emit_structured_object_arrays :: proc(t: ^testing.T) {
-	arena := with_arena(t)
-	defer mem.dynamic_arena_destroy(&arena)
-	ws := temp_workspace(t)
-	defer os.remove_all(ws)
-	ctx := Context{workspace = ws, actor = "agent:test", host = "test", now = fake_now()}
-	init_workspace(t, ws)
-	store, _ := load_store(ws)
-	start := parse_input(t, `{"objective":"trace loops","mode":"guided","concept_ids":["foundations"]}`)
-	req := Request{request_id = "s1", request_hash = "hs", expected_revision = 1}
-	res, _ := run_operation("session_start", &ctx, &store, start, req)
-	testing.expect_value(t, res.status, Status.Completed)
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
 
-	state_input := parse_input(t, `{}`)
-	res, _ = run_operation("state_get", &ctx, &store, state_input, Request{})
-	encoded := obj_done(&res.data)
-	parsed, err := json.parse(encoded, .JSON, parse_integers = true)
-	testing.expect_value(t, err, nil)
-	sessions := jarray(jget(parsed, "sessions"))
-	testing.expect_value(t, len(sessions), 1)
-	_, session_is_object := sessions[0].(json.Object)
-	testing.expect(t, session_is_object)
+	call(t, &f, "session_start", `{"objective":"trace loops","mode":"guided","concept_ids":["foundations"]}`, {"s1", "hs", 1})
 
-	search := parse_input(t, `{"provider":"leetcode","limit":1}`)
-	res, _ = run_operation("problem_search", &ctx, &store, search, Request{})
-	encoded = obj_done(&res.data)
-	parsed, err = json.parse(encoded, .JSON, parse_integers = true)
-	testing.expect_value(t, err, nil)
-	problems := jarray(jget(parsed, "problems"))
-	testing.expect_value(t, len(problems), 1)
-	_, problem_is_object := problems[0].(json.Object)
-	testing.expect(t, problem_is_object)
+	State_Data :: struct {
+		sessions: []Session_View,
+	}
+	state: State_Data
+	testing.expect(t, decode(string(call(t, &f, "state_get", `{}`).data), &state))
+	testing.expect_value(t, len(state.sessions), 1)
+	testing.expect_value(t, state.sessions[0].mode, "guided")
+
+	Search_Data :: struct {
+		problems: []Problem_View,
+	}
+	search: Search_Data
+	testing.expect(t, decode(string(call(t, &f, "problem_search", `{"provider":"leetcode","limit":1}`).data), &search))
+	testing.expect_value(t, len(search.problems), 1)
+	testing.expect_value(t, search.problems[0].provider, "leetcode")
 }
 
 @(test)
 independent_eligibility_is_bound_to_current_verified_source :: proc(t: ^testing.T) {
-	arena := with_arena(t)
-	defer mem.dynamic_arena_destroy(&arena)
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
 	ws := temp_workspace(t)
 	defer os.remove_all(ws)
-	source_rel := "problems/local/eligibility/solution.odin"
-	source := join({ws, source_rel})
+
+	source_path := "problems/local/eligibility/solution.odin"
+	source := join(ws, source_path)
 	original := "package main\nmain :: proc() {}\n"
 	testing.expect_value(t, write_private_file(source, original), nil)
-	hash := hash_hex(original)
-	st := State{}
-	append(&st.attempts, Attempt_State{id = "a1", source_path = source_rel, fresh = true})
+	st: State
+	append(&st.attempts, Attempt_State{id = "a1", source_path = source_path, fresh = true})
 	session := Session_State{
-		mode = "independent", current_attempt_id = "a1", has_fresh_attempt = true,
-		verified_behavior = true, verified_source_hash = hash,
-		approach_score3 = true, correctness_score3 = true, complexity_score3 = true,
+		mode                 = .Independent,
+		current_attempt_id   = "a1",
+		has_fresh_attempt    = true,
+		verified_behavior    = true,
+		verified_source_hash = hash_hex(original),
+		approach_score3      = true,
+		correctness_score3   = true,
+		complexity_score3    = true,
 	}
 	testing.expect(t, qualifies_independent(&st, &session, ws))
-	changed := strings.concatenate({original, "// changed\n"})
-	testing.expect_value(t, write_private_file(source, changed), nil)
+
+	// Editing the source after verification removes eligibility.
+	testing.expect_value(t, write_private_file(source, strings.concatenate({original, "// changed\n"})), nil)
 	testing.expect(t, !qualifies_independent(&st, &session, ws))
 	testing.expect_value(t, write_private_file(source, original), nil)
+
 	session.max_hint_level = 3
 	testing.expect(t, !qualifies_independent(&st, &session, ws))
 	session.max_hint_level = 0
 	session.agent_authored_algorithm = true
 	testing.expect(t, !qualifies_independent(&st, &session, ws))
+}
+
+@(test)
+provider_names_from_the_log_never_become_paths :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	ws := temp_workspace(t)
+	defer os.remove_all(ws)
+
+	// An imported event could name any provider; only known ones resolve.
+	evil := join(ws, "evil")
+	testing.expect_value(t, write_private_file(evil, "#!/bin/sh\n"), nil)
+	for name in ([?]string{"../evil", "evil", "/bin/sh", ""}) {
+		_, err := provider_binary(ws, name)
+		testing.expectf(t, err != nil, "resolved provider %q", name)
+	}
 }

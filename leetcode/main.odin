@@ -1,31 +1,34 @@
 // leetcode-odin: terminal problem solving and local Odin practice.
 //
-// See print_usage and README.md for the complete command surface.
+// See USAGE and README.md for the complete command surface. Credentials live
+// at ~/.config/leetcode-odin/config.json (mode 0600).
 //
-// Config lives at ~/.config/leetcode-odin/config.json (mode 0600).
-//
-// Errors propagate with `or_return`; diagnostics stay at the failure site.
-// All command allocations live in run's arena. Returned strings and Config
-// fields are views into that storage and must not outlive the command.
+// Errors propagate with `or_return`; details are printed at the failure site
+// and run prints the summary. All command allocations live in run's arena:
+// returned strings and Config fields are views into it and must not outlive
+// the command.
 package main
 
 import "core:fmt"
-import "core:mem"
+import "core:mem/virtual"
 import "core:net"
 import "core:os"
 
 VERSION :: "leetcode-odin 0.2.0"
 
+CAPABILITIES :: `{"schema_version":1,"provider":"leetcode","version":"` + VERSION + `","structured":true,"local_test":{"implemented":true,"languages":["odin"],"json_report":true},"problem_search":{"implemented":true},"problem_get":{"implemented":true},"attempt_create":{"fresh_destination":true},"submission":{"prepare_send_check":true,"remote_odin":false,"reason":"LeetCode does not judge Odin"}}`
+
+// A single error enum needs no wrapper union: its zero value is nil.
 Error :: enum {
-	None, // nil / success; real errors must have nonzero values
-	No_Input, // paste: nothing (usable) on stdin
+	None,
+	No_Input,        // nothing usable on stdin or in a file
 	Callback_Failed, // loopback server / browser callback failed
-	Verify_Failed, // could not reach or parse leetcode.com
-	Not_Signed_In, // leetcode.com rejected the session
-	Config_Path, // cannot resolve the credentials location
-	Config_Read, // missing, corrupt, or empty credentials
-	Config_Write, // could not persist credentials
-	Config_Delete, // could not remove credentials
+	Verify_Failed,   // could not reach or parse leetcode.com
+	Not_Signed_In,   // leetcode.com rejected the session
+	Config_Path,     // cannot resolve the credentials location
+	Config_Read,     // missing, corrupt, or empty credentials
+	Config_Write,    // could not persist credentials
+	Config_Delete,   // could not remove credentials
 	Usage,
 	Network,
 	API,
@@ -39,40 +42,39 @@ Error :: enum {
 	Unchecked,
 }
 
-// A single error enum needs no wrapper union. Odin treats its zero as nil.
-error_message :: proc(err: Error) -> string {
-	switch err {
-	case .None:
-		return ""
-	case .No_Input:
-		return "no input"
-	case .Callback_Failed:
-		return "login failed; you can try `leetcode paste` instead"
-	case .Verify_Failed:
-		return "could not verify session (see details above)"
-	case .Not_Signed_In:
-		return "leetcode.com reports you are NOT signed in; the session is likely expired"
-	case .Config_Path:
-		return "could not resolve credentials location; check your home directory"
-	case .Config_Read:
-		return "no usable credentials; run `leetcode auth` or `leetcode paste` first"
-	case .Config_Write:
-		return "failed to save credentials (see details above)"
-	case .Config_Delete:
-		return "failed to remove credentials (see details above)"
-	case .Usage: return "invalid arguments; use `leetcode help`"
-	case .Network: return "request failed; check the network and curl installation"
-	case .API: return "unexpected LeetCode response (the service may have changed)"
-	case .Not_Found: return "problem or requested data was not found"
-	case .File: return "could not read or write the requested file"
-	case .Unsupported: return "unsupported operation (see details above)"
-	case .Judge_Failed: return "solution did not pass"
-	case .Timeout: return "time limit reached"
-	case .Output_Limit: return "process output exceeded the 256 KiB limit"
-	case .Offline: return "data is not cached; fetch it once while online"
-	case .Unchecked: return "some local cases have no expected result; edit cases.json and set check=true"
+ERROR_MESSAGES := [Error]string {
+	.None            = "",
+	.No_Input        = "no input",
+	.Callback_Failed = "login failed; you can try `leetcode paste` instead",
+	.Verify_Failed   = "could not verify session (see details above)",
+	.Not_Signed_In   = "leetcode.com reports you are NOT signed in; the session is likely expired",
+	.Config_Path     = "could not resolve credentials location; check your home directory",
+	.Config_Read     = "no usable credentials; run `leetcode auth` or `leetcode paste` first",
+	.Config_Write    = "failed to save credentials (see details above)",
+	.Config_Delete   = "failed to remove credentials (see details above)",
+	.Usage           = "invalid arguments; use `leetcode help`",
+	.Network         = "request failed; check the network and curl installation",
+	.API             = "unexpected LeetCode response (the service may have changed)",
+	.Not_Found       = "problem or requested data was not found",
+	.File            = "could not read or write the requested file",
+	.Unsupported     = "unsupported operation (see details above)",
+	.Judge_Failed    = "solution did not pass",
+	.Timeout         = "time limit reached",
+	.Output_Limit    = "process output exceeded the 256 KiB limit",
+	.Offline         = "data is not cached; fetch it once while online",
+	.Unchecked       = "some local cases have no expected result; edit cases.json and set check=true",
+}
+
+// Documented exit codes: 0 success, 1 operational error, 2 usage, 3 failed
+// solution, 4 local cases without expected results.
+exit_code :: proc(err: Error) -> int {
+	#partial switch err {
+	case .None:         return 0
+	case .Usage:        return 2
+	case .Judge_Failed: return 3
+	case .Unchecked:    return 4
 	}
-	return "unknown error"
+	return 1
 }
 
 main :: proc() {
@@ -83,120 +85,68 @@ main :: proc() {
 }
 
 run :: proc(args: []string) -> int {
-	arena: mem.Dynamic_Arena
-	mem.dynamic_arena_init(&arena)
-	defer mem.dynamic_arena_destroy(&arena)
-	context.allocator = mem.dynamic_arena_allocator(&arena)
+	arena: virtual.Arena
+	if virtual.arena_init_growing(&arena) != nil {
+		fmt.eprintln("leetcode: out of memory")
+		return 1
+	}
+	defer virtual.arena_destroy(&arena)
+	context.allocator = virtual.arena_allocator(&arena)
 	context.temp_allocator = context.allocator
 
 	if len(args) == 0 {
-		print_usage()
-		return 2
+		fmt.println(USAGE)
+		return exit_code(.Usage)
 	}
-
-	opts, parse_err := parse_options(args)
-	if parse_err != nil { fmt.eprintln(error_message(parse_err)); return 2 }
-	err: Error
-	switch opts.command {
-	case "help", "--help", "-h":
-		print_usage()
-	case "version", "--version":
-		fmt.println(VERSION)
-	case "capabilities":
-		fmt.println(`{"schema_version":1,"provider":"leetcode","version":"leetcode-odin 0.2.0","structured":true,"local_test":{"implemented":true,"languages":["odin"],"json_report":true},"problem_search":{"implemented":true},"problem_get":{"implemented":true},"attempt_create":{"fresh_destination":true},"submission":{"prepare_send_check":true,"remote_odin":false,"reason":"LeetCode does not judge Odin"}}`)
-	case "auth":
-		err = cmd_auth(opts.positionals[:])
-	case "paste":
-		err = cmd_paste()
-	case "status":
-		err = cmd_status(opts.json)
-	case "logout":
-		err = cmd_logout()
-	case:
-		err = dispatch(opts)
+	opts, err := parse_options(args)
+	if err == nil {
+		err = execute(opts)
 	}
-
 	if err != nil {
-		fmt.eprintln(error_message(err))
-		if err == .Usage { return 2 }
-		if err == .Judge_Failed { return 3 }
-		if err == .Unchecked { return 4 }
-		return 1
+		fmt.eprintln(ERROR_MESSAGES[err])
 	}
-	return 0
+	return exit_code(err)
 }
 
-print_usage :: proc() {
-	fmt.println(
-		`usage: leetcode <command> [arguments] [options]
-
-  auth [protocol path]             browser login with local callback
-  paste | status | logout          cookie login, verify, remove credentials
-  capabilities                     machine-readable provider capabilities
-  list [search]                    browse/search problems
-  show <id|slug|url>               problem description and examples
-  daily | random                  pick a problem
-  languages <problem>             available starter languages
-  open <problem>                  open problem in the browser
-  pick <problem> [--lang odin]     create a solution workspace
-  test <directory>                compile and run local Odin cases
-  run <problem> <file>            run code on LeetCode examples
-  submit <problem> <file>         submit code to LeetCode's judge
-  run-start/submit-start <problem> <file>
-                                  create a job and return without polling
-  check <submission-id>           wait for an existing judge result
-  submissions <problem>          your submission history
-  submission <submission-id>      submission details and code
-  stats [username]                solved counts and ranking
-
-  --json                         machine-readable output (data commands)
-  --offline                      use cached public data only
-  --refresh                      refresh cached problem data
-  --workspace <path>             workspace/cache root (default: ./problems)
-  --lang <slug>                  starter/submission language
-  --dir <path>                   destination directory for pick
-  --input <file>                 remote-run testcase input file
-  --timeout <seconds>            judge/local timeout (default: 60)
-  --difficulty Easy|Medium|Hard   list/random filter
-  --tag <slug>                   repeatable topic filter
-  --status ac|notac|todo          list/random progress filter
-  --free                         exclude paid-only questions
-  --limit <1..100> --skip <n>     list/history pagination
-
-Environment: LEETCODE_ODIN_CONFIG, LEETCODE_ODIN_WORKSPACE,
-             LEETCODE_ODIN_NO_BROWSER
-Exit codes: 0 success, 1 operational error, 2 usage, 3 failed solution,
-            4 local cases without expected results.
-Odin runs locally; remote languages must be offered by the problem.`,
-	)
+execute :: proc(o: Options) -> Error {
+	switch o.command {
+	case .Help:
+		fmt.println(USAGE)
+	case .Version:
+		fmt.println(VERSION)
+	case .Capabilities:
+		fmt.println(CAPABILITIES)
+	case .Auth:
+		return cmd_auth(o.positionals[:])
+	case .Paste:
+		return cmd_paste()
+	case .Status:
+		return cmd_status(o.json)
+	case .Logout:
+		return cmd_logout()
+	case .List:
+		return cmd_list(o)
+	case .Show, .Daily, .Random, .Languages, .Open, .Pick:
+		return cmd_problem(o)
+	case .Test:
+		return cmd_local_test(o)
+	case .Run, .Submit, .Run_Start, .Submit_Start, .Check:
+		return cmd_judge(o)
+	case .Submissions, .Submission, .Stats:
+		return cmd_account(o)
+	}
+	return nil
 }
 
 cmd_auth :: proc(overrides: []string) -> Error {
-	// Optional overrides so authorize-url variants can be tested without
+	// Optional overrides let authorize-url variants be tried without
 	// recompiling: leetcode auth <protocol> <path>
-	protocol := "http"
-	callback_path := fmt.aprintf(
-		"%s:%d",
-		CALLBACK_HOST,
-		CALLBACK_PORT,
-		allocator = context.temp_allocator,
-	)
-	if len(overrides) >= 1 {
-		protocol = overrides[0]
-	}
-	if len(overrides) >= 2 {
-		callback_path = overrides[1]
-	}
+	protocol := overrides[0] if len(overrides) >= 1 else "http"
+	callback := overrides[1] if len(overrides) >= 2 else fmt.tprintf("%s:%d", CALLBACK_HOST, CALLBACK_PORT)
 
 	fmt.println("== LeetCode browser login ==")
 	fmt.printf("Starting local callback server on %s:%d ...\n", CALLBACK_HOST, CALLBACK_PORT)
-	url := fmt.aprintf(
-		"https://leetcode.com/authorize-login/%s/?path=%s",
-		protocol,
-		net.percent_encode(callback_path, context.temp_allocator),
-		allocator = context.temp_allocator,
-	)
-
+	url := fmt.tprintf("https://leetcode.com/authorize-login/%s/?path=%s", protocol, net.percent_encode(callback))
 	cfg := capture_callback(url) or_return
 	return verify_and_save(cfg)
 }
@@ -214,16 +164,15 @@ cmd_paste :: proc() -> Error {
 	return verify_and_save(cfg)
 }
 
-cmd_status :: proc(as_json := false) -> Error {
+cmd_status :: proc(as_json: bool) -> Error {
 	path := config_path() or_return
 	cfg := load_config(path) or_return
-	if as_json {
-		status := verify_credentials(cfg) or_return
-		print_json(status)
-		if !status.signed_in { return .Not_Signed_In }
-		return nil
+	if !as_json {
+		return finish_sign_in(cfg)
 	}
-	return finish_sign_in(cfg)
+	status := verify_credentials(cfg) or_return
+	print_json(status)
+	return nil if status.signed_in else .Not_Signed_In
 }
 
 cmd_logout :: proc() -> Error {
@@ -231,8 +180,7 @@ cmd_logout :: proc() -> Error {
 	return remove_config(path)
 }
 
-// Verifies the credentials, then persists them. Credentials that don't
-// verify are never written to disk.
+// Credentials that do not verify are never written to disk.
 verify_and_save :: proc(cfg: Config) -> Error {
 	path := config_path() or_return
 	finish_sign_in(cfg) or_return
@@ -241,7 +189,6 @@ verify_and_save :: proc(cfg: Config) -> Error {
 	return nil
 }
 
-// Verifies the credentials and prints the result.
 finish_sign_in :: proc(cfg: Config) -> Error {
 	fmt.println("verifying session with leetcode.com ...")
 	status := verify_credentials(cfg) or_return

@@ -36,7 +36,8 @@ parse_user_status :: proc(data: []byte) -> (status: User_Status, err: Error) {
 		},
 		errors: []struct {message: string},
 	}
-	if decode_err := json.unmarshal(data, &response); decode_err != nil {
+	// unmarshal asserts on malformed input, so the bytes are validated first.
+	if !json.is_valid(data, .JSON) || json.unmarshal(data, &response, .JSON) != nil {
 		// Do not dump remote bodies, which can contain sensitive data.
 		fmt.eprintln("invalid JSON response from leetcode.com (Cloudflare challenge?)")
 		return {}, .Verify_Failed

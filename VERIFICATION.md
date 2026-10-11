@@ -10,8 +10,9 @@ real submissions.
 
 ```text
 make test
+  odin check -vet -strict-style passed for every package
   19 LeetCode unit tests passed
-  13 Algorithm Learning unit tests passed
+  16 Algorithm Learning unit tests passed (memory tracking enabled)
   67 LeetCode fixture checks passed
   13 Kattis fixture/bounded-runner checks passed
   28 end-to-end learning checks passed

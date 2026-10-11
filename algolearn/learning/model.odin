@@ -1,7 +1,10 @@
+// Package learning is the Algorithm Learning engine: an append-only event log
+// per workspace, a projection folded from it, and the operation handlers the
+// CLI and MCP frontends share (AGENTIC_LEARNING.md sections 5-15).
+//
+// Every operation runs inside one arena owned by its caller; nothing in this
+// package frees individual allocations.
 package learning
-
-// Domain model, stable error codes, and the response envelope (sections 10-11
-// of AGENTIC_LEARNING.md). This file owns no I/O.
 
 import "core:fmt"
 import "core:time"
@@ -9,17 +12,16 @@ import "core:time"
 SCHEMA_VERSION :: 1
 ENGINE_VERSION :: "0.2.0"
 
-// Workspace layout (section 10): everything lives under the legacy .algo
-// directory but in a separate learning/ subtree so existing files stay put.
+// Workspace layout (section 10): the learning subtree sits beside, and never
+// modifies, the legacy .algo files.
 LEARNING_DIR :: ".algo/learning"
 EVENTS_FILE :: "events.jsonl"
 STATE_FILE :: "state.json"
 MANIFEST_FILE :: "manifest.json"
 LOCK_DIR :: ".lock"
 
-// Engine_Error carries a stable string code into the envelope. Domain
-// outcomes such as "wrong answer" are data, not errors; these are for
-// transport/validation/operational problems.
+// Engine_Error is a transport, validation, or operational failure. Domain
+// outcomes such as a wrong answer are data, not errors.
 Engine_Error :: enum {
 	None,
 	Invalid_Input,
@@ -39,44 +41,43 @@ Engine_Error :: enum {
 	Submission_Outcome_Unknown,
 }
 
-error_code :: proc(e: Engine_Error) -> string {
-	#partial switch e {
-	case .None:                    return ""
-	case .Invalid_Input:           return "invalid_input"
-	case .Invalid_Evidence:        return "invalid_evidence"
-	case .Request_Conflict:        return "request_conflict"
-	case .Stale_Revision:          return "stale_revision"
-	case .Destination_Exists:      return "destination_exists"
-	case .Not_Found:               return "not_found"
-	case .Workspace_Locked:        return "workspace_locked"
-	case .Storage_Error:           return "storage_error"
-	case .Unsupported_Capability:  return "unsupported_capability"
-	case .Auth_Required:           return "auth_required"
-	case .Rate_Limited:            return "rate_limited"
-	case .Offline_Cache_Miss:      return "offline_cache_miss"
-	case .Stale_Source:            return "stale_source"
-	case .Provider_Contract_Changed: return "provider_contract_changed"
-	case .Submission_Outcome_Unknown: return "submission_outcome_unknown"
-	}
-	return "internal"
+// Stable codes carried in the response envelope.
+ERROR_CODES := [Engine_Error]string {
+	.None                       = "",
+	.Invalid_Input              = "invalid_input",
+	.Invalid_Evidence           = "invalid_evidence",
+	.Request_Conflict           = "request_conflict",
+	.Stale_Revision             = "stale_revision",
+	.Destination_Exists         = "destination_exists",
+	.Not_Found                  = "not_found",
+	.Workspace_Locked           = "workspace_locked",
+	.Storage_Error              = "storage_error",
+	.Unsupported_Capability     = "unsupported_capability",
+	.Auth_Required              = "auth_required",
+	.Rate_Limited               = "rate_limited",
+	.Offline_Cache_Miss         = "offline_cache_miss",
+	.Stale_Source               = "stale_source",
+	.Provider_Contract_Changed  = "provider_contract_changed",
+	.Submission_Outcome_Unknown = "submission_outcome_unknown",
 }
 
-// CLI exit codes (section 11): 0 completed without a negative/unverified
+// CLI exit codes (section 11): 0 completed without a negative or unverified
 // execution outcome, 1 operational failure, 2 invalid input, 3 failed
 // solution, 4 unverified local result, 5 pending operation.
+EXIT_INVALID_INPUT :: 2
+EXIT_FAILED_SOLUTION :: 3
+EXIT_UNVERIFIED :: 4
+EXIT_PENDING :: 5
+
 exit_code_for :: proc(e: Engine_Error) -> int {
 	#partial switch e {
-	case .None: return 0
-	case .Invalid_Input, .Invalid_Evidence, .Request_Conflict, .Stale_Revision,
-	     .Destination_Exists: return 2
-	case .Not_Found, .Workspace_Locked, .Storage_Error, .Unsupported_Capability,
-	     .Auth_Required, .Rate_Limited, .Offline_Cache_Miss, .Stale_Source,
-	     .Provider_Contract_Changed, .Submission_Outcome_Unknown: return 1
+	case .None:
+		return 0
+	case .Invalid_Input, .Invalid_Evidence, .Request_Conflict, .Stale_Revision, .Destination_Exists:
+		return EXIT_INVALID_INPUT
 	}
 	return 1
 }
-
-// -- response envelope ---------------------------------------------------------
 
 Status :: enum u8 {
 	Completed,
@@ -84,20 +85,17 @@ Status :: enum u8 {
 	Error,
 }
 
-status_string :: proc(s: Status) -> string {
-	#partial switch s {
-	case .Completed: return "completed"
-	case .Pending:   return "pending"
-	case .Error:     return "error"
-	}
-	return "error"
+STATUS_NAMES := [Status]string {
+	.Completed = "completed",
+	.Pending   = "pending",
+	.Error     = "error",
 }
 
-// Result is what every operation handler returns; the CLI and MCP frontends
-// wrap it in the same envelope (section 11).
+// Result is what every operation produces; the CLI and MCP frontends wrap it
+// in the same envelope (section 11).
 Result :: struct {
 	status:       Status,
-	data:         Obj, // finished JSON object body
+	data:         Raw_JSON, // an encoded JSON object
 	warnings:     [dynamic]string,
 	next_actions: [dynamic]string,
 	err:          Engine_Error,
@@ -105,53 +103,29 @@ Result :: struct {
 	cli_exit:     int,
 }
 
-// -- request identity ----------------------------------------------------------
-
 // Every mutating operation carries a unique request id and the workspace
-// revision it loaded (section 10). expected_revision < 0 means "latest known".
+// revision it loaded (section 10). expected_revision < 0 means "latest".
 Request :: struct {
 	request_id:        string,
 	request_hash:      string,
 	expected_revision: int,
 }
 
-// -- event record (section 10) ---------------------------------------------
-
-Event :: struct {
-	sequence:     int,
-	event_id:     string,
-	workspace_id: string,
-	timestamp:    string, // RFC3339 UTC, fixed width, lexicographic == chronological
-	actor:        string, // "agent:<host>" | "learner" | "tool"
-	type:         string,
-	request_id:   string,
-	request_hash: string, // hash of the full request payload
-	session_id:   string,
-	attempt_id:   string,
-	payload:      string, // raw JSON object body
+// Context identifies the caller. A zero now means the real clock; tests pin it.
+Context :: struct {
+	workspace: string,
+	actor:     string, // "agent:<host>" | "learner" | "tool"
+	host:      string,
+	now:       time.Time,
 }
 
-event_to_json :: proc(ev: ^Event) -> string {
-	o := obj_new()
-	defer obj_free(&o)
-	obj_field_int(&o, "schema_version", SCHEMA_VERSION)
-	obj_field_str(&o, "event_id", ev.event_id)
-	obj_field_int(&o, "sequence", ev.sequence)
-	obj_field_str(&o, "workspace_id", ev.workspace_id)
-	obj_field_str(&o, "timestamp", ev.timestamp)
-	obj_field_str(&o, "actor", ev.actor)
-	obj_field_str(&o, "type", ev.type)
-	obj_field_str(&o, "request_id", ev.request_id)
-	obj_field_str(&o, "request_hash", ev.request_hash)
-	obj_field_str(&o, "session_id", ev.session_id)
-	obj_field_str(&o, "attempt_id", ev.attempt_id)
-	obj_field_raw(&o, "payload", ev.payload)
-	return obj_done(&o)
+context_now :: proc(ctx: ^Context) -> time.Time {
+	return ctx.now if ctx.now != {} else time.now()
 }
 
+// Fixed-width UTC stamps ("2026-09-19T15:00:00Z") sort lexicographically in
+// chronological order, so due dates compare as strings.
 rfc3339_utc :: proc(t: time.Time) -> string {
-	// Fixed-width UTC stamps: "2026-09-19T15:00:00Z". Lexicographic order
-	// matches chronological order, so due-date comparisons are string compares.
 	s, ok := time.time_to_rfc3339(t, 0, false)
 	return s if ok else ""
 }
@@ -160,6 +134,7 @@ now_rfc3339 :: proc() -> string {
 	return rfc3339_utc(time.now())
 }
 
-fmt_id :: proc(prefix: string, seq: int) -> string {
-	return fmt.aprintf("%s_%06d", prefix, seq)
+// Ids are minted from the sequence number of the event that creates them.
+fmt_id :: proc(prefix: string, sequence: int) -> string {
+	return fmt.aprintf("%s_%06d", prefix, sequence)
 }
