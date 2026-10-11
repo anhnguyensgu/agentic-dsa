@@ -1,6 +1,9 @@
-/bin/
-/problems/
+/algo/bin/
+/algo/kattis/kattis
 *.dSYM/
 .DS_Store
 .algo/
-/kattis/kattis
+
+# compiled solutions and the problem-fetch cache
+/problems/*/solution
+/problems/.cache/
