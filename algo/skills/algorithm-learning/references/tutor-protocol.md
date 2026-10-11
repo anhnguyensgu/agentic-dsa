@@ -7,6 +7,7 @@ Choose a mode deliberately:
 - `assessment`: observe applicable rubric dimensions with minimal intervention.
 - `review`: retrieve a scheduled concept without replaying the old solution.
 - `worked_example`: explain a solution the learner requested; it cannot earn independent credit.
+- `practice`: the learner only wants to solve problems. Skip diagnosis and steps 5, 6, 8, and 10 below; never ask questions about understanding. Keep hints on request only.
 
 For a first diagnosis, use one small example, ask for a direct approach and its cost, then use a short trace or implementation task. Record observed concepts and leave everything else unknown. Let the learner skip or interrupt diagnosis.
 

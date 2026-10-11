@@ -4,12 +4,14 @@ Score each applicable dimension independently: recognition, approach or invarian
 
 An independent qualifying solve needs all of the following:
 
-- an independent, assessment, or review session;
+- an independent, assessment, review, or practice session;
 - a fresh attempt;
 - no algorithm-bearing solution exposure, translation, or agent-authored algorithm change;
 - assistance no higher than level 1;
-- score 3 with evidence for approach, correctness, and complexity;
+- score 3 with evidence for approach, correctness, and complexity (waived in practice mode);
 - at least one nontrivial verified case or relevant judge result, with no unchecked case used as proof.
+
+Practice mode waives the rubric because the learner opted out of being questioned; its credit means "solved unaided and verified", not "explained". Do not record assessments in practice sessions. A practice session that closes a review item at least three days later, on a different problem from the original, counts as both the delayed retrieval and the transfer needed for `retained`.
 
 An accepted submission alone does not establish understanding. Assisted or copied accepted work remains assisted. Imported historical solves are prior practice unless their assistance and reasoning evidence are available.
 

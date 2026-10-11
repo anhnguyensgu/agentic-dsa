@@ -44,7 +44,7 @@ op_plan_next :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -
 		return {}, invalid("time_budget_minutes must be between 5 and 480")
 	}
 	language := first_nonempty(p.language, st.profile.language, "odin")
-	mode := enum_value(MODE_NAMES, "mode", first_nonempty(p.mode, "guided")) or_return
+	mode := enum_value(MODE_NAMES, "mode", first_nonempty(p.mode, st.profile.default_mode, "guided")) or_return
 	nonempty_items("exclude_problem_keys", p.exclude_problem_keys) or_return
 
 	candidates := make([dynamic]Raw_JSON)
@@ -61,7 +61,7 @@ op_plan_next :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -
 	if catalog_err != nil {
 		return {}, fail(catalog_err, "the bundled catalogue could not be read")
 	}
-	audience := Audience.Assessment if mode == .Assessment || mode == .Independent else Audience.Learning
+	audience := Audience.Assessment if mode == .Assessment || mode == .Independent || mode == .Practice else Audience.Learning
 	for problem in problems {
 		if len(candidates) >= MAX_PLAN_CANDIDATES {
 			break

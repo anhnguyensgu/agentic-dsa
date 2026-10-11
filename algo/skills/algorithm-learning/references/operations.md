@@ -37,9 +37,9 @@ Quick reference for engine 0.2.0; live schemas and validation take precedence:
 
 | Operation | Inputs that commonly cause mistakes |
 | --- | --- |
-| `workspace_init` | Required: `goal`, `language`, `timezone`, `experience`, `time_budget_minutes` (integer 5–480). Optional: `explanation_language`. Collect missing preferences together before calling. |
+| `workspace_init` | Required: `goal`, `language`, `timezone`, `experience`, `time_budget_minutes` (integer 5–480). Optional: `explanation_language`, `default_mode` (any session mode; `plan_next` uses it when no mode is given). Collect missing preferences together before calling. |
 | `problem_get` | Required: `problem_key`, such as `leetcode:valid-parentheses`. Optional `audience`: `learning` or `assessment`. Other accepted fields: `offline`, `refresh`. |
-| `session_start` | Required: `objective`, `mode`. Modes: `guided`, `independent`, `assessment`, `review`, `worked_example`. Accepts `problem_key`. |
+| `session_start` | Required: `objective`, `mode`. Modes: `guided`, `independent`, `assessment`, `review`, `worked_example`, `practice`. Accepts `problem_key`; `review_item_id` works with `review` or `practice`. |
 | `session_checkpoint` | Required: `session_id`, `activity`, `summary`, `next_action`. Activities: `understanding`, `planning`, `implementing`, `testing`, `reflecting`, `reviewing`. |
 | `hint_record` | Required: `session_id`, integer `level` (0–4). Optional: `attempt_id`, `content`, `concept_ids`. |
 | `attempt_start` | Required: `session_id`, `problem_key`, `language`. `action`: `fresh` or `register_existing`. `runner_kind`: `stdin_stdout`, `odin_test_package`, or `provider_workspace`. `register_existing` needs an existing workspace-relative `source_path`. |

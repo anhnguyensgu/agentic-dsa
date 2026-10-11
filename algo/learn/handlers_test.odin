@@ -263,6 +263,13 @@ independent_eligibility_is_bound_to_current_verified_source :: proc(t: ^testing.
 	session.max_hint_level = 0
 	session.agent_authored_algorithm = true
 	testing.expect(t, !qualifies_independent(&st, &session, ws))
+	session.agent_authored_algorithm = false
+
+	// Without rubric scores only practice mode qualifies.
+	session.approach_score3, session.correctness_score3, session.complexity_score3 = false, false, false
+	testing.expect(t, !qualifies_independent(&st, &session, ws))
+	session.mode = .Practice
+	testing.expect(t, qualifies_independent(&st, &session, ws))
 }
 
 @(test)
@@ -286,4 +293,118 @@ provider_names_from_the_log_never_become_paths :: proc(t: ^testing.T) {
 		testing.expect_value(t, command[1], "judge")
 		testing.expect_value(t, command[2], name)
 	}
+}
+
+@(test)
+handlers_practice_session_needs_no_assessment :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
+
+	// A practice-only learner sets the default once; plans then hide spoilers.
+	res := call(t, &f, "profile_update", `{"default_mode":"practice"}`, {"p1", "hp", 1})
+	testing.expect_value(t, res.status, Status.Completed)
+	res = call(t, &f, "plan_next", `{}`)
+	testing.expect_value(t, res.status, Status.Completed)
+	testing.expect(t, has(res, `"kind":"new_practice"`) && !has(res, `"spoiler_tags":["parity"]`))
+
+	// A verified, unassisted solve qualifies with no rubric scores recorded.
+	call(t, &f, "session_start", `{"objective":"solve two stones","mode":"practice","concept_ids":["foundations"]}`, {"s1", "h1", 2})
+	res = call(t, &f, "attempt_start", `{"session_id":"sess_000003","problem_key":"kattis:twostones","language":"odin","runner_kind":"stdin_stdout"}`, {"at1", "hat", 3})
+	testing.expect_value(t, res.status, Status.Completed)
+	source := join(f.ctx.workspace, "problems", "kattis", "twostones", "att_000004", "solution.odin")
+	testing.expect_value(t, write_private_file(source, "package main\nimport \"core:fmt\"\nmain :: proc() { fmt.println(3) }\n"), nil)
+	call(t, &f, "case_add", `{"attempt_id":"att_000004","name":"verified","input":"","expected":"3\n","comparator":"exact","provenance":"manually_checked","oracle_verified":true,"oracle_basis":"constant trace"}`, {"case1", "hcase", 4})
+	res = call(t, &f, "test_run", `{"attempt_id":"att_000004","mode":"local"}`, {"run1", "hrun", 5})
+	testing.expect_value(t, res.cli_exit, 0)
+
+	res = call(t, &f, "session_close", `{"session_id":"sess_000003","reason":"completed"}`, {"c1", "hc", 6})
+	testing.expect(t, has(res, `"independent":true`))
+	st := fold(&f.store)
+	testing.expect_value(t, st.concepts[0].state, Concept_Level.Independent)
+
+	// The roadmap moves past the solved concept.
+	testing.expect_value(t, next_topic(&st), "arrays-strings")
+}
+
+@(test)
+handlers_practice_still_counts_assistance :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
+
+	// Without a verified run, or after a structural hint, practice earns no credit.
+	call(t, &f, "session_start", `{"objective":"untested","mode":"practice","concept_ids":["foundations"]}`, {"s1", "h1", 1})
+	res := call(t, &f, "session_close", `{"session_id":"sess_000002","reason":"completed"}`, {"c1", "hc", 2})
+	testing.expect(t, has(res, `"independent":false`))
+
+	call(t, &f, "session_start", `{"objective":"hinted","mode":"practice","concept_ids":["foundations"]}`, {"s2", "h2", 3})
+	call(t, &f, "hint_record", `{"session_id":"sess_000004","level":2}`, {"h2", "hh", 4})
+	res = call(t, &f, "session_close", `{"session_id":"sess_000004","reason":"completed"}`, {"c2", "hc2", 5})
+	testing.expect(t, has(res, `"independent":false`))
+
+	res = call(t, &f, "profile_update", `{"default_mode":"speedrun"}`, {"p1", "hp", 6})
+	testing.expect_value(t, res.err, Engine_Error.Invalid_Input)
+}
+
+// practice_solve runs one verified, unassisted practice session on a problem.
+practice_solve :: proc(t: ^testing.T, f: ^Fixture, problem_key, review_item_id: string) {
+	tag := fmt.aprintf("%s-%s", problem_key, review_item_id)
+	Start :: struct {
+		objective, mode: string,
+		concept_ids:     []string,
+		review_item_id:  string,
+	}
+	concepts := [?]string{"foundations"}
+	text, _ := json.marshal(Start{"re-solve", "practice", concepts[:], review_item_id})
+	session := fmt_id("sess", f.store.revision + 1)
+	call(t, f, "session_start", string(text), {fmt.aprintf("s-%s", tag), "h", -1})
+	attempt := fmt_id("att", f.store.revision + 1)
+	call(t, f, "attempt_start", fmt.aprintf(`{{"session_id":%q,"problem_key":%q,"language":"odin","runner_kind":"stdin_stdout"}}`, session, problem_key), {fmt.aprintf("a-%s", tag), "h", -1})
+	native := problem_key[len("kattis:"):]
+	source := join(f.ctx.workspace, "problems", "kattis", native, attempt, "solution.odin")
+	testing.expect_value(t, write_private_file(source, "package main\nimport \"core:fmt\"\nmain :: proc() { fmt.println(3) }\n"), nil)
+	call(t, f, "case_add", fmt.aprintf(`{{"attempt_id":%q,"name":"v","input":"","expected":"3\n","comparator":"exact","provenance":"manually_checked","oracle_verified":true,"oracle_basis":"trace"}}`, attempt), {fmt.aprintf("k-%s", tag), "h", -1})
+	call(t, f, "test_run", fmt.aprintf(`{{"attempt_id":%q,"mode":"local"}}`, attempt), {fmt.aprintf("r-%s", tag), "h", -1})
+	res := call(t, f, "session_close", fmt.aprintf(`{{"session_id":%q,"reason":"completed"}}`, session), {fmt.aprintf("c-%s", tag), "h", -1})
+	testing.expect(t, has(res, `"independent":true`))
+}
+
+// backdate_first_close moves the first session close far into the past. Events
+// carry the wall clock, and each commit reloads the log, so this only lasts
+// until the next mutation.
+backdate_first_close :: proc(f: ^Fixture) {
+	for &ev in f.store.events {
+		if ev.type == EVENT_TYPE_NAMES[.Session_Closed] {
+			ev.timestamp = "2000-01-01T00:00:00Z"
+			return
+		}
+	}
+}
+
+@(test)
+handlers_practice_retention_needs_a_delayed_new_problem :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
+
+	practice_solve(t, &f, "kattis:twostones", "")
+	st := fold(&f.store)
+	review := st.reviews[0].id
+
+	// Re-solving the same problem days later is a delayed review, not transfer.
+	practice_solve(t, &f, "kattis:twostones", review)
+	backdate_first_close(&f)
+	st = fold(&f.store)
+	testing.expect_value(t, st.concepts[0].state, Concept_Level.Independent)
+
+	// A different problem solved from memory days later completes retention.
+	practice_solve(t, &f, "kattis:tarifa", review)
+	backdate_first_close(&f)
+	st = fold(&f.store)
+	testing.expect_value(t, st.concepts[0].independent_solves, 2)
+	testing.expect_value(t, st.concepts[0].state, Concept_Level.Retained)
 }

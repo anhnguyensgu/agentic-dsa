@@ -200,6 +200,7 @@ Repeated closure cannot advance a review twice, even with a different request ID
 | Assessment | Fresh task, explicit conditions, hidden topic labels and old solutions, feedback after the learner responds. | Records observed performance under those conditions, never claims an agent can police external resources. |
 | Review | Recall, trace, proof sketch, fix a misconception, or implement again in a new directory. | Updates the relevant review item, not every topic attached to the problem. |
 | Worked example | Explain a requested solution, annotate execution, and ask comprehension questions. | Learning exposure; independent implementation credit requires a later fresh attempt. |
+| Practice | Solve problems with no diagnosis, questioning, or reflection; hints and explanations only on request. Set as the profile's `default_mode` for practice-only learners. | Rubric waived: a fresh, verified solve with assistance at level 1 or lower counts as independent. A delayed review solved on a different problem counts as transfer. |
 
 ## 7. Teaching, hinting, and feedback contract
 

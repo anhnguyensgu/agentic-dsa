@@ -20,6 +20,7 @@ Workspace_Init_Params :: struct {
 	explanation_language: string,
 	teaching_preferences: string,
 	authorization_policy: string,
+	default_mode:         string,
 	import_legacy:        bool,
 }
 
@@ -42,6 +43,9 @@ op_workspace_init :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reque
 	}
 	nonempty({"goal", p.goal}, {"language", p.language}, {"timezone", p.timezone}, {"experience", p.experience}) or_return
 	in_range("time_budget_minutes", p.time_budget_minutes, MIN_BUDGET_MINUTES, MAX_BUDGET_MINUTES) or_return
+	if p.default_mode != "" {
+		enum_value(MODE_NAMES, "default_mode", p.default_mode) or_return
+	}
 
 	profile := Profile{
 		learner_id           = p.learner_id if p.learner_id != "" else "learner_local",
@@ -53,6 +57,7 @@ op_workspace_init :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reque
 		teaching_preferences = p.teaching_preferences,
 		authorization_policy = p.authorization_policy if p.authorization_policy != "" else "ask",
 		time_budget_minutes  = p.time_budget_minutes,
+		default_mode         = p.default_mode,
 	}
 	ev, replayed := commit(ctx, store, req, .Workspace_Initialized, profile) or_return
 
@@ -89,6 +94,7 @@ Profile_Update_Params :: struct {
 	teaching_preferences: Maybe(string),
 	authorization_policy: string,
 	time_budget_minutes:  Maybe(int),
+	default_mode:         string,
 }
 
 op_profile_update :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
@@ -121,6 +127,10 @@ op_profile_update :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reque
 	update(&profile.experience, p.experience)
 	update(&profile.explanation_language, p.explanation_language)
 	update(&profile.authorization_policy, p.authorization_policy)
+	if p.default_mode != "" {
+		enum_value(MODE_NAMES, "default_mode", p.default_mode) or_return
+		profile.default_mode = p.default_mode
+	}
 	if preferences, ok := p.teaching_preferences.?; ok {
 		profile.teaching_preferences = preferences
 	}

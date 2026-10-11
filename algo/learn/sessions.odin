@@ -23,8 +23,8 @@ op_session_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 	nonempty_items("concept_ids", p.concept_ids) or_return
 	mode := enum_value(MODE_NAMES, "mode", p.mode) or_return
 	if p.review_item_id != "" {
-		if mode != .Review {
-			return {}, invalid("review_item_id may only be used with review mode")
+		if mode != .Review && mode != .Practice {
+			return {}, invalid("review_item_id may only be used with review or practice mode")
 		}
 		st := fold(store)
 		if r := find_review(&st, p.review_item_id); r == nil || r.state == .Completed {

@@ -16,6 +16,7 @@ Mode :: enum {
 	Assessment,
 	Review,
 	Worked_Example,
+	Practice,
 }
 
 MODE_NAMES := [Mode]string {
@@ -24,6 +25,7 @@ MODE_NAMES := [Mode]string {
 	.Assessment     = "assessment",
 	.Review         = "review",
 	.Worked_Example = "worked_example",
+	.Practice       = "practice",
 }
 
 Activity :: enum {
@@ -148,6 +150,7 @@ Profile :: struct {
 	teaching_preferences: string,
 	authorization_policy: string,
 	time_budget_minutes:  int,
+	default_mode:         string `json:",omitempty"`, // plan_next's mode when none is given
 }
 
 Session_State :: struct {
@@ -489,8 +492,11 @@ promote_concepts :: proc(st: ^State) {
 			if a := find_attempt(st, s.current_attempt_id); a != nil && a.problem_key != "" {
 				note_concept(&problem_keys, a.problem_key)
 			}
-			transfer_found ||= s.transfer_score3
-			delayed_found ||= is_delayed_review(st, &s)
+			delayed := is_delayed_review(st, &s)
+			delayed_found ||= delayed
+			// Practice records no transfer score; solving a different problem
+			// from memory days later is its transfer evidence instead.
+			transfer_found ||= s.transfer_score3 || (delayed && s.mode == .Practice && reviews_new_problem(st, &s))
 		}
 		c.independent_solves = len(problem_keys)
 		if len(problem_keys) >= 2 && transfer_found && delayed_found {
@@ -503,7 +509,7 @@ promote_concepts :: proc(st: ^State) {
 // after the session its review item came from.
 @(private = "file")
 is_delayed_review :: proc(st: ^State, s: ^Session_State) -> bool {
-	if s.mode != .Review || s.review_item_id == "" || s.closed_ts == "" {
+	if (s.mode != .Review && s.mode != .Practice) || s.review_item_id == "" || s.closed_ts == "" {
 		return false
 	}
 	review := find_review(st, s.review_item_id)
@@ -519,11 +525,32 @@ is_delayed_review :: proc(st: ^State, s: ^Session_State) -> bool {
 	return origin_consumed > 0 && review_consumed > 0 && time.diff(origin_time, review_time) >= RETENTION_DELAY
 }
 
+// reviews_new_problem reports a review session whose attempt is on a different
+// problem from the session its review item came from.
+@(private = "file")
+reviews_new_problem :: proc(st: ^State, s: ^Session_State) -> bool {
+	review := find_review(st, s.review_item_id)
+	if review == nil {
+		return false
+	}
+	origin := find_session(st, review.origin_session_id)
+	current := find_attempt(st, s.current_attempt_id)
+	if origin == nil || current == nil || current.problem_key == "" {
+		return false
+	}
+	previous := find_attempt(st, origin.current_attempt_id)
+	return previous == nil || previous.problem_key != current.problem_key
+}
+
 // qualifies_independent is the deterministic eligibility gate for an
 // independent solve (section 9): a fresh attempt whose current source is the
 // one that verifiably passed, score-3 approach/correctness/complexity
 // evidence, assistance no higher than level 1, and no algorithm exposure. The
 // agent separately records rubric scores.
+//
+// Practice mode is for learners who only want to solve problems, without being
+// questioned about their reasoning. It waives the rubric scores, so there a
+// verified, unassisted solve alone qualifies.
 qualifies_independent :: proc(st: ^State, s: ^Session_State, workspace := "") -> bool {
 	source_current := s.verified_source_hash != ""
 	if source_current && workspace != "" {
@@ -533,9 +560,9 @@ qualifies_independent :: proc(st: ^State, s: ^Session_State, workspace := "") ->
 			source_current = err == nil && current_hash == s.verified_source_hash
 		}
 	}
-	mode_ok := s.mode == .Independent || s.mode == .Assessment || s.mode == .Review
+	mode_ok := s.mode == .Independent || s.mode == .Assessment || s.mode == .Review || s.mode == .Practice
 	unassisted := s.max_hint_level <= 1 && !s.solution_exposed && !s.agent_authored_algorithm
-	scored := s.approach_score3 && s.correctness_score3 && s.complexity_score3
+	scored := s.mode == .Practice || (s.approach_score3 && s.correctness_score3 && s.complexity_score3)
 	return mode_ok && s.has_fresh_attempt && s.verified_behavior && source_current && scored && unassisted
 }
 
