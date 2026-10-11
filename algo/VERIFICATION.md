@@ -11,10 +11,11 @@ real submissions.
 ```text
 make test
   odin check -vet -strict-style passed for every package
+  4 shared judge core unit tests passed
   19 LeetCode unit tests passed
   16 Algorithm Learning unit tests passed (memory tracking enabled)
-  67 LeetCode fixture checks passed
-  13 Kattis fixture/bounded-runner checks passed
+  68 LeetCode fixture checks passed
+  38 Kattis fixture/bounded-runner checks passed
   28 end-to-end learning checks passed
   10 reviewed teaching/recovery scenario contracts passed
   8 native MCP protocol checks passed
@@ -25,8 +26,8 @@ python3 tests/live_smoke.py
   PASS: LeetCode public discovery, lookup, cache, daily/random, languages,
   and scaffold on 2026-09-20
 
-./bin/kattis list 0 --json
-./bin/kattis show twostones --json
+./bin/algo judge kattis list --page 0 --json
+./bin/algo judge kattis show twostones --json
   PASS: Kattis public catalogue and problem normalization on 2026-09-20
 
 PI_OFFLINE=1 pi --skill skills/algorithm-learning --list-models

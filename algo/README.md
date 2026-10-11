@@ -1,17 +1,27 @@
-# Algorithm practice tools in Odin
+# algo: algorithm practice in Odin
 
-A terminal workflow for finding problems, preparing solutions, practising in
-Odin, and learning persistently across Kattis and LeetCode.
+One terminal program for finding problems, preparing solutions, practising in
+Odin, submitting to online judges, and learning persistently across them.
 
-`algolearn` is the evidence-backed tutor engine: durable sessions and attempts,
+```text
+algo judge                                list the online judge providers
+algo judge <provider> <command> [args]    leetcode, kattis
+algo learn <command> [args]               Algorithm Learning engine
+algo version | help
+```
+
+`algo learn` is the evidence-backed tutor engine: durable sessions and attempts,
 hint accounting, bounded local execution, honest assessment, spaced review,
 cross-agent handoff, native MCP, portable teaching skill, and provider job
-recovery. Start with [the Algorithm Learning guide](algolearn/README.md) and see
+recovery. Start with [the Algorithm Learning guide](learn/README.md) and see
 [the verification report](VERIFICATION.md) for exact tested scope.
 
-The provider CLIs remain useful directly. The rest of this document describes
-the LeetCode workflow; `bin/kattis help` describes the corresponding Kattis
-machine and terminal interface.
+Every provider shares one command surface: the same verbs (`list`, `show`,
+`get`, `test`, `submit`, `submit-start`, `check`, `status`, `logout`), aliases
+(`search`, `fetch`, `pick`, `watch`), flags (`--json`, `--workspace`, `--dir`,
+`--lang`, `--timeout`), and exit codes. `algo judge <provider> help` lists a
+provider's commands. The LeetCode sections below describe the full workflow;
+[Kattis](#kattis) lists only its differences.
 
 ## Build and install
 
@@ -19,36 +29,45 @@ Requires Odin and `curl` on `PATH`. Developed and tested on macOS with
 `dev-2026-07:819fdc7a8` (Homebrew 2026-07a). Uses the current `core:os` API.
 
 ```sh
-make build
-./bin/leetcode help
-make install                 # ~/.local/bin/{leetcode,kattis,algolearn}
+make build                   # bin/algo plus bin/{leetcode,kattis,algolearn}
+./bin/algo help
+make install                 # ~/.local/bin/algo and the same three names
 # Or: make install PREFIX=/your/prefix
 ```
 
-Add `~/.local/bin` to your shell's `PATH` if necessary. Each CLI is one native
-executable; Python is needed only for the integration tests. `make check`
-type-checks every package with `-vet -strict-style`; `make test` runs it along
-with the unit and integration suites.
+Add `~/.local/bin` to your shell's `PATH` if necessary. `algo` is one native
+executable. The legacy names `leetcode`, `kattis`, and `algolearn` are symlinks
+to it that behave as `algo judge leetcode`, `algo judge kattis`, and
+`algo learn`, so existing scripts keep working. Python is needed only for the
+integration tests. `make check` type-checks every package with
+`-vet -strict-style`; `make test` runs it along with the unit and integration
+suites.
 
 ## Project layout
 
-Each directory is one Odin package. The executables import the shared
-package by relative path, so plain `odin build <dir>` works without
-collection flags.
+Each directory is one Odin package, imported by relative path, so plain
+`odin build .` works without collection flags.
 
 | Package | Kind | Contents |
 | --- | --- | --- |
-| `leetcode/` | executable | LeetCode CLI: `cli.odin` (command and flag tables), `api.odin` (curl transport), `problems.odin`, `judge.odin`, `workspace.odin` (scaffolding and local tests), `account.odin`, login in `auth_server.odin`, `cookies.odin`, `config.odin`, `verify.odin` |
-| `kattis/` | executable | Kattis CLI: `cli.odin`, `http.odin`, `html.odin` (page parsers), `problems.odin`, `local_test.odin`, `auth.odin`, `submit.odin` |
-| `algolearn/` | executable | Learning engine front ends: `main.odin` (CLI) and `mcp.odin` (MCP stdio server) |
-| `algolearn/learning/` | library | The engine: event store (`store.odin`, `events.odin`), projection (`projection.odin`), operation registry (`operations.odin`), and one file per operation group |
+| `main.odin` | executable | Top-level dispatch (`judge`, `learn`, `version`, `help`), the provider registry, and the legacy-name shims |
+| `judge/` | library | Shared provider core: the provider contract, command-line parsing, errors and exit codes, curl transport, HTML helpers, and the stdin/stdout sample runner |
+| `judge/leetcode/` | library | LeetCode provider: GraphQL queries, problem cache, Odin scaffold and runner generation (`local_runner.txt`), remote run/submit, account history, browser and cookie login |
+| `judge/kattis/` | library | Kattis provider: page parsers, sample scaffolds, e-mail login, submission and verdict polling |
+| `learn/` | library | The learning engine: event store, projection, operation registry, one file per operation group, plus its CLI (`cli.odin`) and MCP stdio server (`mcp.odin`) |
 | `safeio/` | library | Shared OS safety code: owner-only atomic file writes and bounded child processes with a credential-free environment |
+
+Dependencies point one way: `main` imports `judge`, the providers, and `learn`;
+providers import `judge` and `safeio`; `learn` does not import providers. The
+engine submits and checks jobs by re-executing its own binary as
+`algo judge <provider> ...`, so a provider failure cannot take down the MCP
+server and provider and engine versions always match.
 
 Conventions used throughout:
 
 - Errors are small enums or unions whose zero value is `nil`, propagated with `or_return`.
-  Each tool prints details at the failure site and a one-line summary from `run`.
-- `main` calls `run`, which owns an arena for the whole command and returns the
+  Each command prints details at the failure site and a one-line summary from `run`.
+- Each command group's `run` owns an arena for the whole command and returns the
   exit code. Nothing is freed individually. The MCP server gives each message
   and each tool call its own arena.
 - Lookup tables are enumerated arrays (`[Command]Command_Spec`, `[Error]string`),
@@ -56,24 +75,27 @@ Conventions used throughout:
 - JSON documents are typed structs marshaled with `core:encoding/json`. Struct
   field order is the wire order.
 
-## Find a problem
+## LeetCode
+
+### Find a problem
 
 ```sh
-leetcode list
-leetcode list "binary search" --difficulty Easy --tag array --free
-leetcode list --status todo --limit 25 --skip 25
-leetcode show 1
-leetcode show two-sum
-leetcode show https://leetcode.com/problems/two-sum/
-leetcode daily
-leetcode random --difficulty Medium --tag tree --free
-leetcode languages two-sum
-leetcode open two-sum
+algo judge leetcode list
+algo judge leetcode list "binary search" --difficulty Easy --tag array --free
+algo judge leetcode list --status todo --limit 25 --skip 25
+algo judge leetcode show 1
+algo judge leetcode show two-sum
+algo judge leetcode show https://leetcode.com/problems/two-sum/
+algo judge leetcode daily
+algo judge leetcode random --difficulty Medium --tag tree --free
+algo judge leetcode languages two-sum
+algo judge leetcode open two-sum
 ```
 
 `list` supports `--difficulty Easy|Medium|Hard`, repeatable `--tag <slug>`,
 `--status ac|notac|todo`, `--free`, `--limit 1..100`, and `--skip <offset>`.
-Progress filters require login. `search` aliases `list`; `fetch` aliases `show`.
+Progress filters require login. `search` aliases `list`; `fetch` aliases `show`;
+`pick` aliases `get`; `watch` aliases `check`.
 Numeric references are **frontend problem IDs**, not internal judge IDs.
 `--free` collects the matching catalogue before filtering/pagination because
 this LeetCode endpoint cannot exclude paid questions itself. Broad free-only
@@ -82,20 +104,20 @@ queries can take longer; a search, difficulty, or topic filter reduces the work.
 Data commands accept `--json`; diagnostics go to stderr. Flags that do not apply
 to a command are errors. Quote search phrases and paths containing spaces.
 
-## Log in
+### Log in
 
 Public problem browsing does not require an account. Login enables account
 progress, Premium content you have access to, remote runs, and submissions.
 
 ```sh
-leetcode auth
-leetcode status
-leetcode status --json
-leetcode logout
+algo judge leetcode auth
+algo judge leetcode status
+algo judge leetcode status --json
+algo judge leetcode logout
 ```
 
 The browser flow listens on `127.0.0.1:9777` for up to two minutes. If LeetCode
-does not complete the redirect, use `leetcode paste`. In your browser's DevTools,
+does not complete the redirect, use `algo judge leetcode paste`. In your browser's DevTools,
 copy the `LEETCODE_SESSION` and `csrftoken` cookie values from leetcode.com, then
 paste this line into the prompt:
 
@@ -112,15 +134,15 @@ temporary files, not command-line arguments. Temporary request files are removed
 after each request. `logout` removes only the credentials, not cached data or
 your solutions.
 
-## Practice in Odin
+### Practice in Odin
 
 ```sh
-leetcode pick two-sum
+algo judge leetcode get two-sum
 # Edit problems/1-two-sum-odin/solution.odin
-leetcode test problems/1-two-sum-odin
+algo judge leetcode test problems/1-two-sum-odin
 ```
 
-`pick` creates a fresh directory containing:
+`get` creates a fresh directory containing:
 
 | File | Purpose |
 | --- | --- |
@@ -178,18 +200,18 @@ Add `--json` for a structured report with verified passed/failed and unchecked
 counts. Compiler and learner output are bounded to 256 KiB, and local child
 processes do not inherit provider credential environment variables.
 
-## Run and submit supported languages
+### Run and submit supported languages
 
 Odin is not a LeetCode judge language. Select a language offered by
-`leetcode languages <problem>` to use the remote judge.
+`algo judge leetcode languages <problem>` to use the remote judge.
 
 ```sh
-leetcode pick two-sum --lang python3
+algo judge leetcode get two-sum --lang python3
 # Edit problems/1-two-sum-python3/solution.py
-leetcode run two-sum problems/1-two-sum-python3/solution.py
-leetcode run two-sum problems/1-two-sum-python3/solution.py --input my-cases.txt
-leetcode submit two-sum problems/1-two-sum-python3/solution.py
-leetcode check 123456789 --timeout 120
+algo judge leetcode run two-sum problems/1-two-sum-python3/solution.py
+algo judge leetcode run two-sum problems/1-two-sum-python3/solution.py --input my-cases.txt
+algo judge leetcode submit two-sum problems/1-two-sum-python3/solution.py
+algo judge leetcode check 123456789 --timeout 120
 ```
 
 `run` sends all available examples by default. A custom input file uses the same
@@ -208,15 +230,15 @@ output still exits with the failed-solution code.
 
 Machine integrations use `run-start` or `submit-start` with `--json` to receive
 the durable job ID before polling, then call `check`. This is the boundary used
-by `algolearn`; it prevents a resumed agent from creating a second submission.
+by `algo learn`; it prevents a resumed agent from creating a second submission.
 
-## Account history and statistics
+### Account history and statistics
 
 ```sh
-leetcode submissions two-sum --limit 20 --skip 0
-leetcode submission 123456789 --json
-leetcode stats
-leetcode stats some-username --json
+algo judge leetcode submissions two-sum --limit 20 --skip 0
+algo judge leetcode submission 123456789 --json
+algo judge leetcode stats
+algo judge leetcode stats some-username --json
 ```
 
 History and submission details require your session. `stats` without a username
@@ -224,15 +246,15 @@ uses the signed-in account; public profile statistics accept an explicit name.
 Submission details can contain source code, so take care when redirecting or
 sharing the output.
 
-## Workspaces and offline use
+### Workspaces and offline use
 
 ```sh
-leetcode pick 1 --workspace ~/practice
-leetcode pick two-sum --dir ./second-attempt --lang rust
-leetcode show two-sum --offline
-leetcode list "binary search" --offline
-leetcode random --offline --difficulty Easy
-leetcode show two-sum --refresh
+algo judge leetcode get 1 --workspace ~/practice
+algo judge leetcode get two-sum --dir ./second-attempt --lang rust
+algo judge leetcode show two-sum --offline
+algo judge leetcode list "binary search" --offline
+algo judge leetcode random --offline --difficulty Easy
+algo judge leetcode show two-sum --refresh
 ```
 
 The default workspace is `./problems`, relative to the current directory.
@@ -261,6 +283,57 @@ or private workspace caches to a repository.
 
 Exit codes: `0` success, `1` operational error/timeout, `2` usage error,
 `3` solution failure, `4` local cases without expected outputs.
+
+## Kattis
+
+```sh
+algo judge kattis list                     # problem table; --page <n> pages it
+algo judge kattis list "two stones"        # search
+algo judge kattis show twostones
+algo judge kattis get twostones            # problems/twostones/
+# Edit problems/twostones/solution.odin
+algo judge kattis test problems/twostones
+echo "$PASSWORD" | algo judge kattis auth you@example.com
+algo judge kattis submit problems/twostones
+algo judge kattis submit twostones solution.py --lang "Python 3"
+algo judge kattis check 12345678 --timeout 300
+```
+
+Differences from LeetCode:
+
+- `auth <user>` uses Kattis's e-mail login and reads the password from stdin.
+  Accounts that sign in only through SSO are not supported. The session cookie
+  jar lives at `~/.config/kattis-poc/session` (`KATTIS_ODIN_SESSION` overrides it).
+- `list` without a query pages the problem table with `--page <n>`; a search
+  returns one unpaginated page.
+- `get` scaffolds Odin only: `README.md`, `statement.txt`, a stdin/stdout
+  `solution.odin`, and `samples/sampleN.in`/`.out`.
+- `test` builds `solution.odin` and runs every `samples/*.in`, comparing with the
+  matching `.out` after dropping carriage returns and trailing whitespace. A
+  sample without an `.out` file is unverified (exit code 4). `--timeout` bounds
+  the build and each sample; the defaults are 30 seconds to build and 10 per
+  sample.
+- `submit <dir>` takes the problem id from the directory name; `submit <problem>
+  <file>` names it explicitly. `--lang` takes the Kattis judge language name and
+  defaults to the one matching the file extension (Odin for `.odin`).
+- `check` and `submit` poll for up to 120 seconds by default.
+- There is no problem cache, `--offline`, or account history command.
+- `KATTIS_ODIN_WORKSPACE` sets the default workspace root.
+
+## Adding a provider
+
+A provider is one package under `judge/<name>/` that implements the provider
+contract in `judge/`. Stdin/stdout judges (Kattis today; AtCoder and Codeforces
+later) reuse the shared parser, curl transport, HTML helpers, and sample runner,
+so the package holds only what is specific to that site: problem references,
+page or API parsing, login, submission, and verdict mapping.
+
+1. Create `judge/<name>/` and implement the contract.
+2. Register it in the provider list in `main.odin`.
+3. Add a fixture-server integration test under `tests/` that covers the shared
+   command surface.
+4. Add reviewed problem mappings to `curriculum/problems.json` so `algo learn`
+   can plan and track them.
 
 ## Verification and troubleshooting
 

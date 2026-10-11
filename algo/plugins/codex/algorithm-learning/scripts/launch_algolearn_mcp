@@ -3,7 +3,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 plugin_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
-binary=${ALGOLEARN_BIN:-"$plugin_dir/bin/algolearn"}
+binary=${ALGOLEARN_BIN:-"$plugin_dir/bin/algo"}
 workspace=${ALGOLEARN_WORKSPACE:-"$PWD"}
 
-exec "$binary" serve --workspace "$workspace"
+exec "$binary" learn serve --workspace "$workspace"

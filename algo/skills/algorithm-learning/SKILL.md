@@ -1,11 +1,11 @@
 ---
 name: algorithm-learning
-description: Run evidence-backed algorithm tutoring sessions with the local algolearn engine. Use when a learner wants to study, practise, continue, review, test, or submit an algorithm problem while preserving progress across agents.
+description: Run evidence-backed algorithm tutoring sessions with the local algo learning engine (`algo learn`). Use when a learner wants to study, practise, continue, review, test, or submit an algorithm problem while preserving progress across agents.
 ---
 
 # Algorithm Learning
 
-Use the `algolearn` MCP tools when available; otherwise invoke the JSON CLI. Treat its workspace state as authoritative across conversations and hosts.
+Use the `algolearn` MCP tools when available; otherwise invoke the JSON CLI, `algo learn`. Online judges are reached through `algo judge <provider> <command>` (providers today: `leetcode`, `kattis`). The legacy executable names `algolearn`, `leetcode`, and `kattis` still work as aliases. Treat the engine's workspace state as authoritative across conversations and hosts.
 
 Resume once when entering an existing learning workspace or after context loss or a host switch. Use `doctor` for first setup or a tooling failure. Reuse the returned profile, session, attempt, problem metadata, and workspace revision during the conversation. Ordinary explanations and follow-up questions should usually require no engine calls.
 
@@ -15,7 +15,7 @@ Read [references/operations.md](references/operations.md) before the first CLI m
 
 Keep the learner as the author. Clarify the problem before naming an algorithm. Ask for a direct approach, cost, and a brief correctness reason, then let the learner implement. Record meaningful assistance at its actual disclosure level using the batching rules in [references/tutor-protocol.md](references/tutor-protocol.md): accumulate routine low-level hints until a milestone and persist stronger disclosures promptly. If the learner requests a full explanation or solution, provide it and record level 4 exposure; do not award independent credit afterward.
 
-Use `attempt_start` when the learner begins an implementation or asks to register existing work. For LeetCode, fetch its starter in the requested supported language with `leetcode pick --lang`, then register the actual source file. The learning engine's own fresh scaffold is Odin. See the language guidance in [references/operations.md](references/operations.md). Add only cases with honest oracle provenance. Use `test_run` for execution evidence and keep unchecked cases distinct from verified passes. Record semantic judgments at assessment milestones; never present an agent claim as runner or judge evidence.
+Use `attempt_start` when the learner begins an implementation or asks to register existing work. When the provider offers starters, fetch one in the requested supported language with `algo judge <provider> get --lang` (LeetCode today), then register the actual source file. The learning engine's own fresh scaffold is Odin. See the language guidance in [references/operations.md](references/operations.md). Add only cases with honest oracle provenance. Use `test_run` for execution evidence and keep unchecked cases distinct from verified passes. Record semantic judgments at assessment milestones; never present an agent claim as runner or judge evidence.
 
 Checkpoint at an interruption, handoff, substantial change of activity, or before context loss; avoid a checkpoint for each reply. Close completed sessions with a reflection and review update. Query `review_due` when choosing review work and `progress_get` when reporting progress, using stored evidence.
 

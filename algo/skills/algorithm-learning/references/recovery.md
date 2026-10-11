@@ -4,7 +4,7 @@ Call `session_resume` after context loss or a host switch. Compare the current s
 
 Each checkpoint writes a compact JSON handoff and a learner-readable Markdown view under `.algo/learning/sessions/<session-id>/`. Event replay is authoritative if a handoff view is stale or missing.
 
-For provider timeouts, rate limits, expired sessions, or response changes, preserve the attempt and job. Treat local tooling failure as no learning outcome. Use the provider's existing login flow without exposing credentials to the tutor.
+For provider timeouts, rate limits, expired sessions, or response changes, preserve the attempt and job. Treat local tooling failure as no learning outcome. Use the provider's existing login flow without exposing credentials to the tutor: the learner runs `algo judge <provider> auth`, and `algo judge <provider> status` verifies the saved session.
 
 If sending may have succeeded but no remote ID was captured, keep `submission_outcome_unknown`. Reconcile against provider history or the provider page. Never replay the POST automatically. A new send requires a new learner decision.
 

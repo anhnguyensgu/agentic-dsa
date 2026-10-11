@@ -20,6 +20,8 @@ SHOW_HTML = '''<html><head><title>Two Stones – Kattis, Kattis</title></head><b
 <div class="problembody"><p>Print Alice for odd values and Bob for even values.</p></div>
 <table class="sample"><tr><td><pre>\n1\n</pre></td><td><pre>\nAlice\n</pre></td></tr></table>
 </body></html>'''
+# Submission ids map to Kattis status_id values: Accepted, Wrong Answer, Running.
+SUBMISSIONS = {"123": 16, "124": 14, "125": 5}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -33,6 +35,13 @@ class Handler(BaseHTTPRequestHandler):
             body = SEARCH_HTML
         elif self.path == "/problems/twostones":
             body = SHOW_HTML
+        elif self.path.startswith("/submissions/") and self.path.endswith("?json"):
+            status_id = SUBMISSIONS.get(self.path[len("/submissions/"):-len("?json")])
+            if status_id is None:
+                self.send_response(404)
+                self.end_headers()
+                return
+            body = json.dumps({"status_id": status_id, "testcase_index": 1, "row_html": "", "feedback_html": ""})
         else:
             self.send_response(404)
             self.end_headers()
@@ -53,11 +62,13 @@ def main() -> None:
     try:
         with tempfile.TemporaryDirectory(prefix="kattis-integration-") as tmp:
             tmp_path = Path(tmp)
-            binary = tmp_path / "kattis"
+            # One algo build; the legacy name is a symlink that selects `algo judge kattis`.
+            algo, binary = tmp_path / "algo", tmp_path / "kattis"
             subprocess.run([
-                "odin", "build", str(ROOT / "kattis"), f"-out:{binary}",
+                "odin", "build", str(ROOT), f"-out:{algo}",
                 f"-define:KATTIS_BASE_URL=http://127.0.0.1:{server.server_port}",
             ], check=True)
+            binary.symlink_to(algo.name)
 
             def cli(*args, expected=0, timeout=30, extra_env=None):
                 nonlocal checks
@@ -70,14 +81,33 @@ def main() -> None:
                 return result
 
             cli("help")
-            assert cli("version").stdout.strip() == "kattis-odin 0.2.0"
+            cli("list", "--help")
+            cli(expected=2)
+            cli("wat", expected=2)
+            cli("list", "--wat", expected=2)
+            cli("show", "twostones", "--page", "1", expected=2)
+            cli("test", "x", "--timeout", "0", expected=2)
+            assert cli("version").stdout.strip() == "kattis-odin 0.3.0"
+            routed = subprocess.run([str(algo), "judge", "kattis", "version"], text=True, capture_output=True, timeout=30)
+            assert routed.returncode == 0 and routed.stdout.strip() == "kattis-odin 0.3.0"
             assert json.loads(cli("capabilities", "--json").stdout)["local_test"]["json_report"] is True
-            listed = json.loads(cli("list", "0", "--json").stdout)
+            listed = json.loads(cli("list", "--page", "0", "--json").stdout)
             assert listed["count"] == 1 and listed["problems"][0]["id"] == "twostones"
+            assert json.loads(cli("list", "--json").stdout) == listed
             searched = json.loads(cli("search", "stones", "--json").stdout)
             assert searched["problems"][0]["problem_key"] == "kattis:twostones"
+            assert json.loads(cli("list", "stones", "--json").stdout) == searched
             shown = json.loads(cli("show", "twostones", "--json").stdout)
             assert shown["problem_key"] == "kattis:twostones" and shown["samples"][0]["provenance"] == "official_sample"
+            assert json.loads(cli("fetch", "twostones", "--json").stdout) == shown
+
+            workspace = tmp_path / "workspace"
+            picked = json.loads(cli("pick", "twostones", "--workspace", workspace, "--json").stdout)
+            assert Path(picked["directory"]) == workspace / "twostones"
+            from_env = json.loads(cli("get", "twostones", "--json", extra_env={"KATTIS_ODIN_WORKSPACE": str(tmp_path / "env-ws")}).stdout)
+            assert Path(from_env["directory"]) == tmp_path / "env-ws" / "twostones"
+            cli("get", "twostones", "--lang", "python3", "--dir", tmp_path / "py", expected=1)
+            assert not (tmp_path / "py").exists()
 
             destination = tmp_path / "fresh attempt"
             created = json.loads(cli("get", "twostones", "--dir", destination, "--json").stdout)
@@ -106,13 +136,35 @@ main :: proc() { fmt.println(os.get_env("LEETCODE_SESSION", context.allocator)) 
 import "core:fmt"
 main :: proc() { for { fmt.println("unbounded learner output") } }
 ''')
-            limited = cli("test", destination, "--json", expected=1, timeout=15)
+            limited = cli("test", destination, "--json", expected=3, timeout=15)
             limited_report = json.loads(limited.stdout)
             assert limited_report["outcome"] == "failed"
             assert limited_report["cases"][0]["output_limit_exceeded"] is True
 
-            cli("show", "../secret", expected=1)
-            cli("list", "bad-page", expected=1)
+            (destination / "samples" / "sample1.out").unlink()
+            unverified = json.loads(cli("test", destination, "--json", expected=4).stdout)
+            assert unverified["outcome"] == "unverified" and unverified["unchecked"] == 1
+
+            session = {"KATTIS_ODIN_SESSION": str(tmp_path / "session")}
+            assert json.loads(cli("status", "--json", expected=1, extra_env=session).stdout)["signed_in"] is False
+            cli("submit", "twostones", destination / "solution.odin", expected=1, extra_env=session)
+            (tmp_path / "session").write_text("# Netscape HTTP Cookie File\n")
+            cli("status", expected=1, extra_env=session)
+            assert json.loads(cli("check", "123", "--json", extra_env=session).stdout) == {
+                "schema_version": 1, "provider": "kattis", "job_id": "123", "state": "terminal", "verdict": "Accepted"}
+            assert cli("watch", "123", extra_env=session).stdout.strip() == "Accepted"
+            assert json.loads(cli("check", "124", "--json", expected=3, extra_env=session).stdout)["verdict"] == "Wrong Answer"
+            pending = cli("check", "125", "--json", "--timeout", "1", expected=1, extra_env=session)
+            assert json.loads(pending.stdout)["state"] == "pending" and "pending" in pending.stderr
+            cli("logout", extra_env=session)
+            assert not (tmp_path / "session").exists()
+            cli("logout", extra_env=session)
+
+            cli("show", "../secret", expected=2)
+            cli("check", "../bad", expected=2)
+            cli("list", "--page", "bad", expected=2)
+            cli("list", "stones", "--page", "1", expected=2)
+            cli("submit-start", "twostones", destination / "solution.odin", "C++", expected=2)
             print(f"PASS: {checks} Kattis fixture and bounded-runner checks")
     finally:
         server.shutdown()

@@ -8,10 +8,10 @@ Call the engine when the learner needs stored state, new external information, e
 | --- | --- |
 | Enter an existing learning workspace or recover lost context | `session_resume` once; its handoff includes profile, latest attempt, hints, results, and pending jobs. |
 | First setup or tooling failure | `doctor`; initialize only after required profile fields are known. |
-| Learner asks for today's problem | Fetch the provider daily problem once. Reuse its statement; call `problem_get` only if curated metadata is needed. |
+| Learner asks for today's problem | Fetch the provider daily problem once (`algo judge leetcode daily`). Reuse its statement; call `problem_get` only if curated metadata is needed. |
 | Learner asks what to practise next | `plan_next`, or `review_due` for review work. |
 | Start a learning session | `session_start` once with one objective and the accepted problem. |
-| Learner begins implementation or registers work | For a requested LeetCode starter, `leetcode pick --lang` into a fresh directory; then `attempt_start` once with the correct language and source path. Reuse an existing learner file when supplied. |
+| Learner begins implementation or registers work | For a requested provider starter, `algo judge <provider> get --lang` into a fresh directory; then `attempt_start` once with the correct language and source path. Reuse an existing learner file when supplied. |
 | Ordinary discussion of the same problem | Usually no calls; collect routine hints as described in `tutor-protocol.md`. |
 | Testing or assessment | Flush pending assistance, then record the actual cases, execution, or assessment needed. |
 | Interruption, handoff, substantial activity change, or context loss | Flush pending assistance, then `session_checkpoint`. |
@@ -28,7 +28,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"skill-schema","version":"1"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  | algolearn serve --workspace /path/to/practice
+  | algo learn serve --workspace /path/to/practice
 ```
 
 Do not read the executable as text or write a discovery program on every turn. The schemas list fields and required inputs; string enums may need the quick reference below or the matching handler source. After `invalid_input`, inspect the schema and error before one corrected retry. If it still fails, report the specific tooling obstacle and continue any tutoring that does not depend on it. Do not try a series of guessed payloads.
@@ -50,17 +50,17 @@ Every mutation also includes a stable `request_id` and the `expected_revision` r
 
 The current guaranteed local runner and `action: fresh` scaffold are Odin. Setting `language: typescript` with `runner_kind: provider_workspace` does not change the fresh scaffold's extension.
 
-For LeetCode languages offered by the problem, fetch the provider's starter rather than creating an empty file or using the engine's Odin scaffold. Reuse `codeSnippets` from an already fetched problem to check language support; call `leetcode languages <problem> --json` only when that information is missing. The language selector is the provider's `langSlug`, such as `typescript` or `python3`.
+When the provider offers starters in the requested language, fetch one rather than creating an empty file or using the engine's Odin scaffold. Today only LeetCode offers multi-language starters; `algo judge kattis get` scaffolds Odin only. For LeetCode, reuse `codeSnippets` from an already fetched problem to check language support, and call `algo judge leetcode languages <problem> --json` only when that information is missing. The language selector is the provider's own name for the language: LeetCode's `langSlug` (such as `typescript` or `python3`), or the judge's language name for Kattis submissions.
 
 When the learner wants a starter workspace, use a fresh destination inside the practice workspace:
 
 ```sh
-leetcode pick valid-parentheses --lang typescript \
+algo judge leetcode get valid-parentheses --lang typescript \
   --workspace /path/to/practice \
   --dir /path/to/practice/problems/leetcode/valid-parentheses/typescript-attempt-1 --json
 ```
 
-`pick` writes the provider starter as `solution.ts` in this example, along with the statement, metadata, and example cases. It refuses an existing destination. Reuse the fetched problem and examples; no additional `problem_get` is needed unless curated metadata is missing.
+`get` writes the provider starter as `solution.ts` in this example, along with the statement, metadata, and example cases. It refuses an existing destination. Reuse the fetched problem and examples; no additional `problem_get` is needed unless curated metadata is missing.
 
 Register the generated source, or the learner's existing file, with `action: register_existing`, its workspace-relative `source_path`, the requested `language`, and `runner_kind: provider_workspace`. Check the returned source path before directing the learner to it. Preserve earlier work and let the learner write the solution. For a provider without starter support, an empty file at a fresh destination remains an option when file creation is requested.
 
@@ -84,9 +84,9 @@ Data flow:
 CLI fallback:
 
 ```sh
-algolearn call OP --workspace /path/to/practice --input request.json --json
+algo learn call OP --workspace /path/to/practice --input request.json --json
 ```
 
-Convenience commands `init`, `doctor`, and `resume` call the same registry. JSON envelopes contain `schema_version`, `request_id`, `workspace_revision`, `status`, `data`, `warnings`, `error`, and `next_actions`.
+Convenience commands `algo learn init`, `doctor`, and `resume` call the same registry. Engine exit codes below apply to `algo learn`; `algo judge` provider commands use 0 success, 1 operational error, 2 usage, 3 failed solution, and 4 local cases without expected output. JSON envelopes contain `schema_version`, `request_id`, `workspace_revision`, `status`, `data`, `warnings`, `error`, and `next_actions`.
 
 Exit codes are 0 completed, 1 operational failure, 2 invalid input or conflict, 3 failed solution, 4 unverified local result, and 5 pending. Wrong answers and unchecked cases are domain outcomes, not malformed tool calls.

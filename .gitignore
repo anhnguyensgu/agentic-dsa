@@ -1,5 +1,4 @@
 /algo/bin/
-/algo/kattis/kattis
 *.dSYM/
 .DS_Store
 .algo/

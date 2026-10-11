@@ -1,24 +1,24 @@
 # Algorithm Learning host setup
 
-The shared contract is the native `algolearn` binary plus
+The shared contract is the native `algo` binary (its `algo learn` command group) plus
 `skills/algorithm-learning/SKILL.md`. Hosts may use MCP or invoke the JSON CLI;
 both reach the same operation registry and workspace event stream.
 
 ## Generic shell client
 
-Build and place the binaries on `PATH`:
+Build and place the binary on `PATH`:
 
 ```sh
 make build
 make install PREFIX="$HOME/.local"
-algolearn doctor --workspace /path/to/practice --json
+algo learn doctor --workspace /path/to/practice --json
 ```
 
 Load the teaching skill into the agent, then allow it to run argument-array
 commands of this form:
 
 ```sh
-algolearn call state_get --workspace /path/to/practice --input request.json --json
+algo learn call state_get --workspace /path/to/practice --input request.json --json
 ```
 
 Write JSON to a file or stdin. Do not interpolate learner text, source, or
@@ -32,7 +32,7 @@ Launch the native newline-delimited stdio server with a workspace fixed by the
 process configuration:
 
 ```sh
-/absolute/path/to/algolearn serve --workspace /absolute/path/to/practice
+/absolute/path/to/algo learn serve --workspace /absolute/path/to/practice
 ```
 
 Configure the host's local stdio MCP facility with that executable and argument
@@ -52,8 +52,9 @@ make package-plugin
 
 The assembled wrapper is `plugins/codex/algorithm-learning/`. It contains the
 native binary, the shared skill, a validated plugin manifest, and `.mcp.json`.
-Its launcher uses `ALGOLEARN_WORKSPACE` when set and otherwise binds the process
-working directory. `ALGOLEARN_BIN` can point to a separately installed binary.
+Its launcher runs `bin/algo learn serve`, using `ALGOLEARN_WORKSPACE` when set
+and otherwise binding the process working directory. `ALGOLEARN_BIN` can point
+to a separately installed `algo` binary.
 
 The source wrapper is intentionally marketplace-neutral. Installing or sharing
 it through a marketplace is a separate host action; packaging does not modify
@@ -71,7 +72,7 @@ pi --skill /path/to/algo/skills/algorithm-learning
 Keep Pi's `bash` tool enabled so it can invoke the JSON CLI. The skill-loading
 path was checked offline with Pi 0.85.1 on 2026-09-20; no model call or provider
 account mutation was needed for that compatibility check. Pi does not need a
-separate progress store: it resumes through `algolearn session_resume` in the
+separate progress store: it resumes through `algo learn call session_resume` in the
 practice workspace.
 
 ## Moving to another machine

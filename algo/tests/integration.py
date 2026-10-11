@@ -136,9 +136,11 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="leetcode-integration-") as temp:
             temp = Path(temp)
-            binary = temp / "leetcode"
-            subprocess.run(["odin", "build", str(ROOT / "leetcode"), f"-out:{binary}",
+            # One algo build; the legacy name is a symlink that selects `algo judge leetcode`.
+            algo, binary = temp / "algo", temp / "leetcode"
+            subprocess.run(["odin", "build", str(ROOT), f"-out:{algo}",
                             f"-define:LEETCODE_BASE_URL=http://127.0.0.1:{server.server_port}"], check=True)
+            binary.symlink_to(algo.name)
             config, workspace = temp / "auth" / "config.json", temp / "workspace"
             env = dict(os.environ, LEETCODE_ODIN_CONFIG=str(config),
                        LEETCODE_ODIN_WORKSPACE=str(workspace), LEETCODE_ODIN_NO_BROWSER="1")
@@ -154,7 +156,9 @@ def main():
                 return result
 
             cli("help")
-            cli("version")
+            version = cli("version").stdout
+            routed = subprocess.run([str(algo), "judge", "leetcode", "version"], text=True, capture_output=True, timeout=30)
+            assert routed.returncode == 0 and routed.stdout == version
             cli("show", expected=2)
             cli("list", "--wat", expected=2)
             cli("status", expected=1)
@@ -199,7 +203,7 @@ def main():
             cli("random", "--offline", "--difficulty", "Easy", "--tag", "array")
             cli("languages", "two-sum")
             cli("open", "two-sum")
-            selected = json.loads(cli("pick", "two-sum", "--json").stdout)
+            selected = json.loads(cli("get", "two-sum", "--json").stdout)
             local = Path(selected["directory"])
             original = (local / "solution.odin").read_text()
             cli("pick", "two-sum", expected=1)
@@ -276,6 +280,7 @@ solve :: proc(names: []string, active: bool, value: f64) -> f64 {
             cli("submit", "two-sum", py, expected=3)
             cli("run", "two-sum", local / "solution.odin", expected=1)
             cli("check", "123")
+            cli("watch", "123")
             cli("check", "pending", "--timeout", "1", expected=1)
             cli("check", "../bad", expected=2)
             cli("submissions", "two-sum")
