@@ -9,7 +9,7 @@ Call the engine when the learner needs stored state, new external information, e
 | Enter an existing learning workspace or recover lost context | `session_resume` once; its handoff includes profile, latest attempt, hints, results, and pending jobs. |
 | First setup or tooling failure | `doctor`; initialize only after required profile fields are known. |
 | Learner asks for today's problem | Fetch the provider daily problem once (`algo judge leetcode daily`). Reuse its statement; call `problem_get` only if curated metadata is needed. |
-| Learner asks what to practise next | `plan_next`, or `review_due` for review work. |
+| Learner asks what to practise next | `plan_next`, or `review_due` for review work. For an `open_choice` candidate, choose any provider problem on its `concept` outside `avoid_problem_keys`. |
 | Start a learning session | `session_start` once with one objective and the accepted problem. |
 | Learner begins implementation or registers work | For a requested provider starter, `algo judge <provider> get --lang` into a fresh directory; then `attempt_start` once with the correct language and source path. Reuse an existing learner file when supplied. |
 | Ordinary discussion of the same problem | Usually no calls; collect routine hints as described in `tutor-protocol.md`. |
@@ -38,8 +38,8 @@ Quick reference for engine 0.2.0; live schemas and validation take precedence:
 | Operation | Inputs that commonly cause mistakes |
 | --- | --- |
 | `workspace_init` | Required: `goal`, `language`, `timezone`, `experience`, `time_budget_minutes` (integer 5–480). Optional: `explanation_language`, `default_mode` (any session mode; `plan_next` uses it when no mode is given). Collect missing preferences together before calling. |
-| `problem_get` | Required: `problem_key`, such as `leetcode:valid-parentheses`. Optional `audience`: `learning` or `assessment`. Other accepted fields: `offline`, `refresh`. |
-| `session_start` | Required: `objective`, `mode`. Modes: `guided`, `independent`, `assessment`, `review`, `worked_example`, `practice`. Accepts `problem_key`; `review_item_id` works with `review` or `practice`. |
+| `problem_get` | Required: `problem_key`, such as `leetcode:valid-parentheses`; any `leetcode:<slug>` or `kattis:<id>` (lowercase) is accepted, and keys outside the catalogue return `label_origin: uncatalogued` with only the key-derived fields. Optional `audience`: `learning` or `assessment`. Other accepted fields: `offline`, `refresh`. |
+| `session_start` | Required: `objective`, `mode`. `concept_ids` must be curriculum topic ids. Modes: `guided`, `independent`, `assessment`, `review`, `worked_example`, `practice`. Accepts `problem_key`; `review_item_id` works with `review` or `practice`. |
 | `session_checkpoint` | Required: `session_id`, `activity`, `summary`, `next_action`. Activities: `understanding`, `planning`, `implementing`, `testing`, `reflecting`, `reviewing`. |
 | `hint_record` | Required: `session_id`, integer `level` (0–4). Optional: `attempt_id`, `content`, `concept_ids`. |
 | `attempt_start` | Required: `session_id`, `problem_key`, `language`. `action`: `fresh` or `register_existing`. `runner_kind`: `stdin_stdout`, `odin_test_package`, or `provider_workspace`. `register_existing` needs an existing workspace-relative `source_path`. |

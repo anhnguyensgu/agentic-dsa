@@ -146,11 +146,16 @@ plugin-managed handoffs and snapshots while preserving solution directories.
 
 ## Offline curriculum and limits
 
-The bundled catalogue contains 40 curated mappings across Kattis and LeetCode,
-covering 10 concept groups with at least four mappings each. Selection is
-deterministic, filters by time/language/offline constraints, prefers due reviews
-and prerequisites, hides spoiler tags in independent assessment, and explains
-capability limits.
+Topics are the fixed list of 10 concept groups in `curriculum/concepts.json`;
+every concept id passed to the engine must name one of them. Problems are open:
+any `leetcode:<slug>` or `kattis:<id>` key can be practised and submitted, and
+`plan_next` always returns an `open_choice` candidate that lets the agent pick a
+provider problem on the target topic while avoiding problems already attempted.
+
+The bundled catalogue adds 40 curated mappings across Kattis and LeetCode,
+covering every topic with at least four mappings each. They are offered as
+suggestions after the open choice, filtered by time/language constraints, with
+spoiler tags hidden in independent, assessment, and practice modes.
 
 Local execution limits reduce accidental hangs and excessive output; they are
 not a security sandbox for arbitrary code. Use an operating-system sandbox when

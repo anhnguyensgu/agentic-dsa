@@ -45,9 +45,9 @@ handlers_guided_session_records_assistance :: proc(t: ^testing.T) {
 	defer os.remove_all(f.ctx.workspace)
 
 	// A guided session with a level-2 hint: practicing, not independent.
-	res := call(t, &f, "session_start", `{"objective":"trace loops","mode":"guided","concept_ids":["foundations-tracing"]}`, {"s1", "h1", 1})
+	res := call(t, &f, "session_start", `{"objective":"trace loops","mode":"guided","concept_ids":["foundations"]}`, {"s1", "h1", 1})
 	testing.expect_value(t, res.status, Status.Completed)
-	res = call(t, &f, "hint_record", `{"session_id":"sess_000002","level":2,"concept_ids":["foundations-tracing"],"content":"look for repeated work"}`, {"h1", "h2", 2})
+	res = call(t, &f, "hint_record", `{"session_id":"sess_000002","level":2,"concept_ids":["foundations"],"content":"look for repeated work"}`, {"h1", "h2", 2})
 	testing.expect_value(t, res.status, Status.Completed)
 	close := `{"session_id":"sess_000002","reason":"completed"}`
 	res = call(t, &f, "session_close", close, {"c1", "h3", 3})
@@ -74,7 +74,7 @@ handlers_independent_session_promotes_concept :: proc(t: ^testing.T) {
 	defer os.remove_all(f.ctx.workspace)
 
 	// Only a level-1 clarification; no solution exposure.
-	call(t, &f, "session_start", `{"objective":"two-pointer window","mode":"independent","concept_ids":["arrays-window"]}`, {"s1", "h1", 1})
+	call(t, &f, "session_start", `{"objective":"two-pointer window","mode":"independent","concept_ids":["prefix-window"]}`, {"s1", "h1", 1})
 	call(t, &f, "hint_record", `{"session_id":"sess_000002","level":1,"content":"what happens with one element?"}`, {"h1", "h2", 2})
 
 	// Independent credit needs a fresh attempt, verified behavior, and score-3
@@ -97,7 +97,7 @@ handlers_independent_session_promotes_concept :: proc(t: ^testing.T) {
 			evidence_ids:                      []string,
 		}
 		evidence := [?]string{evidence_id}
-		text, _ := json.marshal(Assessment{"sess_000002", "arrays-window", dimension, 3, "learner independently justified this dimension", "1", evidence[:]})
+		text, _ := json.marshal(Assessment{"sess_000002", "prefix-window", dimension, 3, "learner independently justified this dimension", "1", evidence[:]})
 		res = call(t, &f, "assessment_record", string(text), {fmt.aprintf("a%d", i), fmt.aprintf("ha%d", i), 6 + i})
 		testing.expect_value(t, res.status, Status.Completed)
 	}
@@ -143,7 +143,7 @@ handlers_review_due_and_snooze :: proc(t: ^testing.T) {
 	f := setup(t)
 	defer os.remove_all(f.ctx.workspace)
 
-	call(t, &f, "session_start", `{"objective":"window","mode":"independent","concept_ids":["arrays-window"]}`, {"s1", "h1", 1})
+	call(t, &f, "session_start", `{"objective":"window","mode":"independent","concept_ids":["prefix-window"]}`, {"s1", "h1", 1})
 	call(t, &f, "session_close", `{"session_id":"sess_000002","reason":"completed"}`, {"c1", "h3", 2})
 
 	// Not due yet: the review is scheduled for tomorrow.
@@ -180,6 +180,13 @@ handlers_reject_invalid_inputs :: proc(t: ^testing.T) {
 		{"hint_record", `{"session_id":"sess_000002","level":"high"}`, .Invalid_Input},
 		// Agents cannot produce tool evidence (section 11).
 		{"evidence_record", `{"session_id":"sess_000002","evidence_type":"run","producer":"tool"}`, .Invalid_Evidence},
+		// Topics are a fixed curriculum list.
+		{"session_start", `{"objective":"x","mode":"guided","concept_ids":["made-up-topic"]}`, .Invalid_Input},
+		{"plan_next", `{"topic":"made-up-topic"}`, .Invalid_Input},
+		// Problems are open, but keys must name a provider and a safe slug.
+		{"problem_get", `{"problem_key":"codeforces:1a"}`, .Invalid_Input},
+		{"problem_get", `{"problem_key":"kattis:../escape"}`, .Invalid_Input},
+		{"problem_get", `{"problem_key":"kattis:Hello"}`, .Invalid_Input},
 	}
 	for c in cases {
 		res := call(t, &f, c.operation, c.input, {"bad", c.input, 1})
@@ -407,4 +414,33 @@ handlers_practice_retention_needs_a_delayed_new_problem :: proc(t: ^testing.T) {
 	st = fold(&f.store)
 	testing.expect_value(t, st.concepts[0].independent_solves, 2)
 	testing.expect_value(t, st.concepts[0].state, Concept_Level.Retained)
+}
+
+@(test)
+handlers_agent_may_pick_any_provider_problem :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
+
+	// A problem outside the bundled catalogue is described from its key.
+	res := call(t, &f, "problem_get", `{"problem_key":"kattis:hello"}`)
+	testing.expect_value(t, res.status, Status.Completed)
+	testing.expect(t, has(res, `"label_origin":"uncatalogued"`) && has(res, `"canonical_url":"https://open.kattis.com/problems/hello"`))
+
+	call(t, &f, "session_start", `{"objective":"hello","mode":"practice","concept_ids":["foundations"]}`, {"s1", "h1", 1})
+	res = call(t, &f, "attempt_start", `{"session_id":"sess_000002","problem_key":"kattis:hello","language":"odin"}`, {"a1", "ha", 2})
+	testing.expect_value(t, res.status, Status.Completed)
+	testing.expect(t, os.is_file(join(f.ctx.workspace, "problems", "kattis", "hello", "att_000003", "solution.odin")))
+
+	// The plan always offers an open choice that avoids attempted problems,
+	// so running out of curated problems is never a dead end.
+	for key, i in ([?]string{"kattis:twostones", "kattis:echoechoecho", "kattis:tarifa", "leetcode:fizz-buzz"}) {
+		call(t, &f, "attempt_start", fmt.aprintf(`{{"session_id":"sess_000002","problem_key":%q,"language":"odin"}}`, key), {fmt.aprintf("a%d", i + 2), "ha", -1})
+	}
+	res = call(t, &f, "plan_next", `{}`)
+	testing.expect_value(t, res.status, Status.Completed)
+	testing.expect_value(t, len(res.warnings), 0)
+	testing.expect(t, has(res, `"kind":"open_choice"`) && has(res, `"concept":"foundations"`))
+	testing.expect(t, has(res, `"kattis:hello"`) && !has(res, `"kind":"new_practice"`))
 }

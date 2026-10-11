@@ -259,6 +259,8 @@ Ship at least 36 reviewed problem mappings across both providers, covering the g
 
 Every mapping records provider/problem ID, canonical URL, curated concept IDs, prerequisites, estimated effort band, spoiler-sensitive tags, access requirements, supported practice/judge modes, verification date, and origin of its labels. Keep platform difficulty in its original scale. A Kattis rating and LeetCode difficulty must not be converted by an invented universal formula.
 
+Topics (concept ids) are a fixed, versioned list; problems are not. Agents may choose any provider problem for a topic, and the curated mappings are suggestions and the offline fallback rather than the limit of what can be practised. Problems outside the catalogue are recorded under their provider key with `label_origin: uncatalogued`.
+
 ### Deterministic selection policy
 
 1. Apply hard constraints: selected language/mode, access, offline availability, available time, active contest constraints supplied by the learner, and explicit exclusions.

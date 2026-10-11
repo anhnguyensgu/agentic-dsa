@@ -82,10 +82,7 @@ op_submission_prepare :: proc(ctx: ^Context, store: ^Store, input: Input, req: R
 	if attempt == nil {
 		return {}, fail(.Not_Found, "attempt does not exist")
 	}
-	problem, found := catalog_find(attempt.problem_key)
-	if !found {
-		return {}, fail(.Not_Found, "attempt problem is missing from the catalogue")
-	}
+	problem := resolve_problem(attempt.problem_key) or_return
 	if problem.provider == "leetcode" && attempt.language == "odin" {
 		return {}, fail(.Unsupported_Capability, "LeetCode does not judge Odin; preserve this attempt and create a separately tracked supported-language attempt for remote submission")
 	}

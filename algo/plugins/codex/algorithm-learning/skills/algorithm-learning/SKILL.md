@@ -11,6 +11,10 @@ Resume once when entering an existing learning workspace or after context loss o
 
 For a new workspace, collect missing profile fields together and initialize once with a complete request. Use known learner preferences; ask for missing choices instead of guessing them. A learner who only wants practice gets one combined question at most; default the rest (timezone `UTC`, budget 30 minutes, the language they are already using) and say they can change it later. A direct request such as fetching today's problem can proceed before profile setup. Use `plan_next` when the learner needs a recommendation; accept an explicit problem choice directly.
 
+## Topics and problems
+
+Topics are a fixed list: every `concept_ids`/`concept_id` must be a curriculum topic (`foundations`, `arrays-strings`, `maps-sets`, `sorting-search`, `prefix-window`, `linear-structures`, `recursion-backtracking`, `trees-graphs`, `heap-greedy-dsu`, `dynamic-programming`). Problems are not limited: any LeetCode or Kattis problem works as `leetcode:<slug>` or `kattis:<id>`. `plan_next` names the target topic and returns an `open_choice` candidate; pick a fitting problem on that topic from your own knowledge of the provider, avoiding its `avoid_problem_keys` and matching the time budget, and confirm it exists with `algo judge <provider> get` before starting. The bundled catalogue only adds curated suggestions; prefer it when offline. Tag each session with the topic it actually practises, not every tag the provider lists.
+
 Read [references/operations.md](references/operations.md) before the first CLI mutation or when an operation's schema is unclear. Discover unknown schemas once and reuse them. Do not probe fields or enum values through repeated failing calls.
 
 ## Practice mode

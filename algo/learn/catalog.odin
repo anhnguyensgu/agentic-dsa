@@ -4,6 +4,7 @@ package learn
 // 16). The files stay distributable artifacts, while #load keeps the binary
 // independent of its working directory.
 
+import "core:fmt"
 import "core:strings"
 
 CONCEPTS_JSON :: #load("../curriculum/concepts.json", string)
@@ -67,6 +68,67 @@ catalog_find :: proc(problem_key: string) -> (Catalog_Problem, bool) {
 		}
 	}
 	return {}, false
+}
+
+// resolve_problem returns the curated entry for a catalogue problem, or
+// describes any other "<provider>:<slug>" key from the key alone. Agents may
+// pick any provider problem; the catalogue only adds reviewed metadata.
+resolve_problem :: proc(problem_key: string) -> (problem: Catalog_Problem, err: Op_Error) {
+	if curated, found := catalog_find(problem_key); found {
+		return curated, nil
+	}
+	provider, _, slug := strings.partition(problem_key, ":")
+	providers := PROVIDERS
+	if !contains(providers[:], provider) || !is_problem_slug(slug) {
+		return {}, invalid(`problem_key must be "<provider>:<slug>" with provider leetcode or kattis and a lowercase slug, such as "leetcode:two-sum" or "kattis:hello"`)
+	}
+	url := fmt.aprintf("https://open.kattis.com/problems/%s", slug) if provider == "kattis" else fmt.aprintf("https://leetcode.com/problems/%s/", slug)
+	return {
+		problem_key   = problem_key,
+		provider      = provider,
+		native_id     = slug,
+		slug          = slug,
+		title         = slug,
+		canonical_url = url,
+		label_origin  = UNCATALOGUED,
+	}, nil
+}
+
+// Problems outside the curated catalogue carry this label origin.
+UNCATALOGUED :: "uncatalogued"
+
+// A provider slug becomes a directory name, so it is restricted to lowercase
+// letters, digits, '-', '_', and '.', starting with a letter or digit.
+is_problem_slug :: proc(slug: string) -> bool {
+	if len(slug) == 0 || len(slug) > 100 {
+		return false
+	}
+	for c, i in transmute([]u8)slug {
+		alnum := (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+		if !alnum && (i == 0 || (c != '-' && c != '_' && c != '.')) {
+			return false
+		}
+	}
+	return true
+}
+
+// known_concepts requires every id to name a curriculum topic; topics are a
+// fixed list even though problems are not.
+known_concepts :: proc(field: string, ids: ..string) -> Op_Error {
+	concepts, ok := curriculum_concepts()
+	if !ok {
+		return fail(.Storage_Error, "the bundled curriculum could not be read")
+	}
+	names := make([dynamic]string)
+	for c in concepts {
+		append(&names, c.id)
+	}
+	for id in ids {
+		if id != "" && !contains(names[:], id) {
+			return invalid(fmt.aprintf("%s must be curriculum topics: %s", field, strings.join(names[:], ", ")))
+		}
+	}
+	return nil
 }
 
 // supports_language reports whether a problem can be practiced in language,
@@ -229,15 +291,16 @@ op_problem_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 		return {}, invalid("problem_key must be a non-empty string")
 	}
 	audience := parse_audience(p.audience) or_return
-	problem, found := catalog_find(p.problem_key)
-	if !found {
-		return {}, fail(.Not_Found, "problem is not present in the bundled catalogue")
-	}
+	problem := resolve_problem(p.problem_key) or_return
 
 	Data :: struct {
 		problem:        Problem_View,
 		metadata_scope: string,
 	}
-	res.data = to_json(Data{problem_view(problem, audience), "curated catalogue metadata; fetch the provider statement before practice"})
+	scope := "curated catalogue metadata; fetch the provider statement before practice"
+	if problem.label_origin == UNCATALOGUED {
+		scope = "uncatalogued problem described from its key only; fetch the provider statement before practice"
+	}
+	res.data = to_json(Data{problem_view(problem, audience), scope})
 	return
 }

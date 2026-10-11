@@ -21,6 +21,7 @@ op_session_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 	p := params(input, Session_Start_Params) or_return
 	nonempty({"objective", p.objective}, {"mode", p.mode}) or_return
 	nonempty_items("concept_ids", p.concept_ids) or_return
+	known_concepts("concept_ids", ..p.concept_ids) or_return
 	mode := enum_value(MODE_NAMES, "mode", p.mode) or_return
 	if p.review_item_id != "" {
 		if mode != .Review && mode != .Practice {
@@ -152,6 +153,7 @@ op_hint_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 	nonempty({"session_id", p.session_id}) or_return
 	in_range("level", p.level, 0, SOLUTION_HINT_LEVEL) or_return
 	nonempty_items("concept_ids", p.concept_ids) or_return
+	known_concepts("concept_ids", ..p.concept_ids) or_return
 
 	payload := Hint_Delivered{p.level, p.content, p.concept_ids}
 	_, replayed := commit(ctx, store, req, .Hint_Delivered, payload, p.session_id, p.attempt_id) or_return
@@ -183,6 +185,7 @@ Evidence_Record_Params :: struct {
 op_evidence_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
 	p := params(input, Evidence_Record_Params) or_return
 	nonempty({"session_id", p.session_id}, {"evidence_type", p.evidence_type}, {"producer", p.producer}) or_return
+	known_concepts("concept_id", p.concept_id) or_return
 	// Runner and provider observations come only from their own handlers;
 	// agents may record claims, never tool evidence (section 11).
 	switch p.producer {
@@ -219,6 +222,7 @@ op_assessment_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Re
 		{"rationale", p.rationale},
 		{"rubric_version", p.rubric_version},
 	) or_return
+	known_concepts("concept_id", p.concept_id) or_return
 	if _, ok := parse_enum(DIMENSION_NAMES, p.dimension); !ok {
 		return {}, invalid("dimension must be recognition, approach, approach_invariant, correctness, complexity, implementation_testing, or transfer")
 	}
