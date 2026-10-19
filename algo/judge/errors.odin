@@ -10,18 +10,18 @@ Error :: enum {
 	Usage,
 	Invalid_Problem_Id,
 	Invalid_Submission_Id,
-	No_Input,        // nothing usable on stdin or in a file
+	No_Input, // nothing usable on stdin or in a file
 	Callback_Failed, // loopback server / browser callback failed
-	Verify_Failed,   // could not reach or parse the judge's account endpoint
+	Verify_Failed, // could not reach or parse the judge's account endpoint
 	Not_Signed_In,
 	Login_Failed,
-	Config_Path,     // cannot resolve the credentials location
-	Config_Read,     // missing, corrupt, or empty credentials
-	Config_Write,    // could not persist credentials
-	Config_Delete,   // could not remove credentials
+	Config_Path, // cannot resolve the credentials location
+	Config_Read, // missing, corrupt, or empty credentials
+	Config_Write, // could not persist credentials
+	Config_Delete, // could not remove credentials
 	Network,
-	API,             // unexpected JSON response
-	Markup_Changed,  // unexpected HTML page
+	API, // unexpected JSON response
+	Markup_Changed, // unexpected HTML page
 	Not_Found,
 	Offline,
 	File,

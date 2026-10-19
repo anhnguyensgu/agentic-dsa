@@ -22,7 +22,9 @@ temp_workspace :: proc(t: ^testing.T) -> string {
 	return dir
 }
 
-VALID_RECORD :: `{"schema_version":1,"event_id":"ev_000001","sequence":1,"workspace_id":"ws_x","timestamp":"2025-09-19T15:20:00Z","actor":"agent:test","type":"session_started","request_id":"","request_hash":"","session_id":"s1","attempt_id":"","payload":{}}` + "\n"
+VALID_RECORD ::
+	`{"schema_version":1,"event_id":"ev_000001","sequence":1,"workspace_id":"ws_x","timestamp":"2025-09-19T15:20:00Z","actor":"agent:test","type":"session_started","request_id":"","request_hash":"","session_id":"s1","attempt_id":"","payload":{}}` +
+	"\n"
 
 // -- schedule ------------------------------------------------------------------
 
@@ -89,8 +91,20 @@ store_round_trip_dedup_and_revision :: proc(t: ^testing.T) {
 	testing.expect_value(t, store.revision, 0)
 
 	// The first commit into an empty workspace expects revision 0.
-	req := Request{request_id = "r1", request_hash = "h1", expected_revision = 0}
-	ev, replayed, commit_err := commit_event(&store, "session_started", "agent:test", req, "s1", "", `{"objective":"o"}`)
+	req := Request {
+		request_id        = "r1",
+		request_hash      = "h1",
+		expected_revision = 0,
+	}
+	ev, replayed, commit_err := commit_event(
+		&store,
+		"session_started",
+		"agent:test",
+		req,
+		"s1",
+		"",
+		`{"objective":"o"}`,
+	)
 	testing.expect_value(t, commit_err, nil)
 	testing.expect(t, !replayed)
 	testing.expect_value(t, ev.sequence, 1)
@@ -107,21 +121,53 @@ store_round_trip_dedup_and_revision :: proc(t: ^testing.T) {
 	testing.expect_value(t, reloaded.events[0].payload, `{"objective":"o"}`)
 
 	// An identical repeat returns the existing event.
-	again, replayed_again, again_err := commit_event(&reloaded, "session_started", "agent:test", {"r1", "h1", 1}, "s1", "", `{"objective":"o"}`)
+	again, replayed_again, again_err := commit_event(
+		&reloaded,
+		"session_started",
+		"agent:test",
+		{"r1", "h1", 1},
+		"s1",
+		"",
+		`{"objective":"o"}`,
+	)
 	testing.expect_value(t, again_err, nil)
 	testing.expect(t, replayed_again)
 	testing.expect_value(t, again.event_id, ev.event_id)
 
 	// Reusing the id with a different payload conflicts.
-	_, _, conflict_err := commit_event(&reloaded, "session_started", "agent:test", {"r1", "h2", 1}, "s1", "", `{"objective":"changed"}`)
+	_, _, conflict_err := commit_event(
+		&reloaded,
+		"session_started",
+		"agent:test",
+		{"r1", "h2", 1},
+		"s1",
+		"",
+		`{"objective":"changed"}`,
+	)
 	testing.expect_value(t, conflict_err, Engine_Error.Request_Conflict)
 
 	// A stale revision conflicts.
-	_, _, stale_err := commit_event(&reloaded, "hint_delivered", "agent:test", {"r2", "h3", 0}, "s1", "", `{}`)
+	_, _, stale_err := commit_event(
+		&reloaded,
+		"hint_delivered",
+		"agent:test",
+		{"r2", "h3", 0},
+		"s1",
+		"",
+		`{}`,
+	)
 	testing.expect_value(t, stale_err, Engine_Error.Stale_Revision)
 
 	// Unversioned callers (expected_revision < 0) accept the latest revision.
-	_, _, latest_err := commit_event(&reloaded, "hint_delivered", "agent:test", {"r3", "h4", -1}, "s1", "", `{}`)
+	_, _, latest_err := commit_event(
+		&reloaded,
+		"hint_delivered",
+		"agent:test",
+		{"r3", "h4", -1},
+		"s1",
+		"",
+		`{}`,
+	)
 	testing.expect_value(t, latest_err, nil)
 
 	after, after_err := load_store(ws)
@@ -137,7 +183,11 @@ store_preserves_truncated_tail_and_blocks_writes :: proc(t: ^testing.T) {
 	defer os.remove_all(ws)
 
 	truncated := `{"event_id":"ev_000002","sequence":2,"truncat`
-	testing.expect_value(t, write_private_file(events_path(ws), strings.concatenate({VALID_RECORD, truncated})), nil)
+	testing.expect_value(
+		t,
+		write_private_file(events_path(ws), strings.concatenate({VALID_RECORD, truncated})),
+		nil,
+	)
 
 	store, err := load_store(ws)
 	testing.expect_value(t, err, nil)
@@ -145,7 +195,15 @@ store_preserves_truncated_tail_and_blocks_writes :: proc(t: ^testing.T) {
 	testing.expect(t, store.tail_warning != "")
 
 	// Writes are refused so the damaged tail is never silently dropped.
-	_, _, commit_err := commit_event(&store, "hint_delivered", "agent:test", {"r1", "h1", 1}, "s1", "", `{}`)
+	_, _, commit_err := commit_event(
+		&store,
+		"hint_delivered",
+		"agent:test",
+		{"r1", "h1", 1},
+		"s1",
+		"",
+		`{}`,
+	)
 	testing.expect_value(t, commit_err, Engine_Error.Storage_Error)
 
 	// The original bytes are untouched.
@@ -160,7 +218,11 @@ store_middle_corruption_is_an_error :: proc(t: ^testing.T) {
 	ws := temp_workspace(t)
 	defer os.remove_all(ws)
 
-	testing.expect_value(t, write_private_file(events_path(ws), strings.concatenate({"broken\n", VALID_RECORD})), nil)
+	testing.expect_value(
+		t,
+		write_private_file(events_path(ws), strings.concatenate({"broken\n", VALID_RECORD})),
+		nil,
+	)
 	_, err := load_store(ws)
 	testing.expect_value(t, err, Engine_Error.Storage_Error)
 }

@@ -7,12 +7,12 @@ package kattis
 // The older /login?script=true endpoint expects an API token, not the UI
 // password. SSO-only accounts (GitHub etc.) are not supported.
 
+import judge ".."
 import "core:fmt"
 import "core:os"
 import "core:strconv"
 import "core:strings"
 import "core:time"
-import judge ".."
 
 LOGIN_ATTEMPTS :: 3
 
@@ -49,14 +49,22 @@ cmd_auth :: proc(o: Options) -> Error {
 	for attempt in 1 ..= LOGIN_ATTEMPTS {
 		post_err: Error
 		response, post_err = curl(
-			"--max-time", "45",
-			"-b", jar,
-			"-c", jar,
-			"--data-urlencode", strings.concatenate({"user=", user}),
-			"--data-urlencode", strings.concatenate({"password@", password_path}),
-			"--data-urlencode", strings.concatenate({"csrf_token=", csrf}),
-			"--url", login_url,
-			"--write-out", `\n%{http_code}`,
+			"--max-time",
+			"45",
+			"-b",
+			jar,
+			"-c",
+			jar,
+			"--data-urlencode",
+			strings.concatenate({"user=", user}),
+			"--data-urlencode",
+			strings.concatenate({"password@", password_path}),
+			"--data-urlencode",
+			strings.concatenate({"csrf_token=", csrf}),
+			"--url",
+			login_url,
+			"--write-out",
+			`\n%{http_code}`,
 		)
 		if post_err == nil {
 			break
@@ -73,17 +81,32 @@ cmd_auth :: proc(o: Options) -> Error {
 	status := strconv.parse_int(strings.trim_space(trailer)) or_else 0
 	switch {
 	case status == 200 && strings.contains(body, "Unknown Username/Password"):
-		fmt.eprintln("unknown username or password; the same pair must work via 'Log in with e-mail' in a browser")
+		fmt.eprintln(
+			"unknown username or password; the same pair must work via 'Log in with e-mail' in a browser",
+		)
 		return .Login_Failed
-	case status < 300 || status >= 400: // success is a redirect
+	case status < 300 || status >= 400:
+		// success is a redirect
 		fmt.eprintln("Kattis did not redirect after the form post:")
 		fmt.eprintln(body[:min(len(body), 300)])
 		return .Login_Failed
 	}
 
-	curl("-L", "--max-time", "45", "-b", jar, "-c", jar, "--url", fmt.tprintf("%s/", BASE_URL)) or_return
+	curl(
+		"-L",
+		"--max-time",
+		"45",
+		"-b",
+		jar,
+		"-c",
+		jar,
+		"--url",
+		fmt.tprintf("%s/", BASE_URL),
+	) or_return
 	if !(session_alive() or_return) {
-		fmt.eprintln("Kattis did not accept the saved session; if this persists, the network or IP may be blocked")
+		fmt.eprintln(
+			"Kattis did not accept the saved session; if this persists, the network or IP may be blocked",
+		)
 		return .Login_Failed
 	}
 	fmt.printf("signed in as %s; session saved at %s\n", user, jar)

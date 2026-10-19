@@ -24,11 +24,16 @@ Review_Outcome :: enum {
 
 review_outcome_from_string :: proc(s: string) -> (Review_Outcome, bool) {
 	switch s {
-	case "independent_correct":     return .Independent_Correct, true
-	case "correct_after_help":      return .Correct_After_Help, true
-	case "incorrect_recall":        return .Incorrect_Recall, true
-	case "tool_failure":            return .Tool_Failure, true
-	case "skipped":                 return .Skipped, true
+	case "independent_correct":
+		return .Independent_Correct, true
+	case "correct_after_help":
+		return .Correct_After_Help, true
+	case "incorrect_recall":
+		return .Incorrect_Recall, true
+	case "tool_failure":
+		return .Tool_Failure, true
+	case "skipped":
+		return .Skipped, true
 	}
 	return .Skipped, false
 }
@@ -57,7 +62,15 @@ next_interval :: proc(index: int, outcome: Review_Outcome) -> (new_index: int, d
 
 // apply_outcome folds an outcome into a review item. For Tool_Failure and
 // Skipped the due date is preserved unchanged.
-apply_outcome :: proc(index: int, due: string, outcome: Review_Outcome, completed_at: time.Time) -> (new_index: int, new_due: string) {
+apply_outcome :: proc(
+	index: int,
+	due: string,
+	outcome: Review_Outcome,
+	completed_at: time.Time,
+) -> (
+	new_index: int,
+	new_due: string,
+) {
 	ni, days := next_interval(index, outcome)
 	if days == 0 {
 		return index, due

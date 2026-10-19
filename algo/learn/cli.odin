@@ -66,7 +66,7 @@ Options :: struct {
 	operation:  string,
 	workspace:  string,
 	input_path: string, // "" for an empty object, "-" for stdin
-	json:       bool,   // the envelope is the only output format today
+	json:       bool, // the envelope is the only output format today
 }
 
 run :: proc(args: []string) -> int {
@@ -148,7 +148,10 @@ parse_args :: proc(args: []string) -> (opts: Options, usage_error: string) {
 call_operation :: proc(opts: Options) -> int {
 	text, read_ok := read_input(opts.input_path)
 	if !read_ok {
-		fmt.eprintln("algolearn: could not read", opts.input_path if opts.input_path != "-" else "stdin")
+		fmt.eprintln(
+			"algolearn: could not read",
+			opts.input_path if opts.input_path != "-" else "stdin",
+		)
 		return EXIT_INVALID_INPUT
 	}
 	input, req, message := new_request(text)
@@ -163,7 +166,11 @@ call_operation :: proc(opts: Options) -> int {
 		fmt.println(envelope(req, 0, res))
 		return 1
 	}
-	ctx := Context{workspace = opts.workspace, actor = "agent:" + CLI_HOST, host = CLI_HOST}
+	ctx := Context {
+		workspace = opts.workspace,
+		actor     = "agent:" + CLI_HOST,
+		host      = CLI_HOST,
+	}
 	res, found := run_operation(opts.operation, &ctx, &store, input, req)
 	// The JSON envelope is the machine contract; text mode prints it too
 	// until a richer text rendering exists.

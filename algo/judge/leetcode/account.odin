@@ -1,8 +1,8 @@
 package leetcode
 
+import judge ".."
 import "core:encoding/json"
 import "core:fmt"
-import judge ".."
 
 SUBMISSIONS_QUERY :: `query($slug:String!,$offset:Int!,$limit:Int!) { questionSubmissionList(questionSlug:$slug,offset:$offset,limit:$limit) { lastKey hasNext submissions { id title titleSlug statusDisplay lang runtime timestamp url isPending memory } } }`
 SUBMISSION_QUERY :: `query($id:Int!) { submissionDetails(submissionId:$id) { id code runtime memory statusCode timestamp lang { name verboseName } question { title titleSlug questionId } runtimeDisplay memoryDisplay } }`
@@ -23,7 +23,8 @@ cmd_account :: proc(o: Options) -> Error {
 	#partial switch Command(o.command) {
 	case .Submissions:
 		slug := resolve_slug(o, o.positionals[0]) or_return
-		vars["slug"], vars["offset"], vars["limit"] = slug, json.Integer(o.skip), json.Integer(o.limit)
+		vars["slug"], vars["offset"], vars["limit"] =
+			slug, json.Integer(o.skip), json.Integer(o.limit)
 		query, key = SUBMISSIONS_QUERY, "questionSubmissionList"
 	case .Submission:
 		id := o.positionals[0]
@@ -78,7 +79,11 @@ cmd_account :: proc(o: Options) -> Error {
 			jstr(jget(result, "code")),
 		)
 	case .Stats:
-		fmt.printf("%s | rank %d\n", jstr(jget(result, "username")), jint(jget(jget(result, "profile"), "ranking")))
+		fmt.printf(
+			"%s | rank %d\n",
+			jstr(jget(result, "username")),
+			jint(jget(jget(result, "profile"), "ranking")),
+		)
 		for s in jarray(jget(jget(result, "submitStatsGlobal"), "acSubmissionNum")) {
 			fmt.printf("%-6s %d solved\n", jstr(jget(s, "difficulty")), jint(jget(s, "count")))
 		}

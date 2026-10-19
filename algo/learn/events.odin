@@ -52,7 +52,12 @@ EVENT_TYPE_NAMES := [Event_Type]string {
 }
 
 // Events an assessment may cite as evidence.
-EVIDENCE_EVENTS :: bit_set[Event_Type]{.Evidence_Recorded, .Runner_Observed, .Job_Observed, .Judge_Observed}
+EVIDENCE_EVENTS :: bit_set[Event_Type] {
+	.Evidence_Recorded,
+	.Runner_Observed,
+	.Job_Observed,
+	.Judge_Observed,
+}
 
 is_event :: proc(ev: Event, kinds: bit_set[Event_Type]) -> bool {
 	kind, known := parse_enum(EVENT_TYPE_NAMES, ev.type)

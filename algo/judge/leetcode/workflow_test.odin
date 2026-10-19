@@ -1,9 +1,9 @@
 package leetcode
 
+import judge ".."
 import "core:encoding/json"
 import "core:strings"
 import "core:testing"
-import judge ".."
 
 @(test)
 cli_rejects_invalid_values :: proc(t: ^testing.T) {
@@ -29,7 +29,21 @@ cli_rejects_invalid_values :: proc(t: ^testing.T) {
 		testing.expectf(t, err == .Usage, "accepted %v", args)
 	}
 
-	o, err := judge.parse_options(provider(), {"list", "two sum", "--tag", "array", "--tag", "hash-table", "--limit", "3", "--free", "--json"})
+	o, err := judge.parse_options(
+		provider(),
+		{
+			"list",
+			"two sum",
+			"--tag",
+			"array",
+			"--tag",
+			"hash-table",
+			"--limit",
+			"3",
+			"--free",
+			"--json",
+		},
+	)
 	testing.expect_value(t, err, Error.None)
 	testing.expect_value(t, Command(o.command), Command.List)
 	testing.expect_value(t, len(o.tags), 2)
@@ -53,7 +67,10 @@ judge_completion_is_not_acceptance :: proc(t: ^testing.T) {
 	} {
 		{`{"state":"SUCCESS","status_code":10,"total_correct":3,"total_testcases":3}`, .None},
 		{`{"state":"SUCCESS","status_code":10,"correct_answer":false}`, .Judge_Failed},
-		{`{"state":"SUCCESS","status_code":10,"total_correct":2,"total_testcases":3}`, .Judge_Failed},
+		{
+			`{"state":"SUCCESS","status_code":10,"total_correct":2,"total_testcases":3}`,
+			.Judge_Failed,
+		},
 		{`{"state":"SUCCESS","status_code":11}`, .Judge_Failed},
 		{`{"state":"SUCCESS","status_code":20}`, .Judge_Failed},
 		{`{"state":"SUCCESS"}`, .API},

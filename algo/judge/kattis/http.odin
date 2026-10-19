@@ -1,10 +1,10 @@
 package kattis
 
+import judge ".."
 import "core:fmt"
 import "core:os"
 import "core:strconv"
 import "core:strings"
-import judge ".."
 
 // A real-browser agent: Kattis/Cloudflare stall or reject bot-pattern agents
 // in some regions. -4 avoids IPv6 paths that silently black-hole requests.
@@ -27,7 +27,17 @@ http_get :: proc(url: string) -> (body: string, err: Error) {
 // pages to /login; that is reported as 401.
 http_get_session :: proc(url: string) -> (body: string, status: int, err: Error) {
 	jar := session_path() or_return
-	output := curl("-L", "-b", jar, "--max-time", "30", "--url", url, "--write-out", `\n%{http_code} %{url_effective}`) or_return
+	output := curl(
+		"-L",
+		"-b",
+		jar,
+		"--max-time",
+		"30",
+		"--url",
+		url,
+		"--write-out",
+		`\n%{http_code} %{url_effective}`,
+	) or_return
 
 	page, trailer, ok := judge.split_trailer(output)
 	if !ok {

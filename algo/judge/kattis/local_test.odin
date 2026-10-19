@@ -1,12 +1,12 @@
 package kattis
 
+import judge ".."
+import "../../safeio"
 import "core:fmt"
 import "core:os"
 import "core:slice"
 import "core:strings"
 import "core:time"
-import judge ".."
-import "../../safeio"
 
 BUILD_TIMEOUT :: 30 * time.Second
 RUN_TIMEOUT :: 10 * time.Second
@@ -65,7 +65,15 @@ cmd_test :: proc(o: Options) -> Error {
 	build := judge.build_odin(solution, binary, "-o:speed", build_timeout)
 	if !safeio.ok(build) {
 		if as_json {
-			judge.print_json(Compile_Report{SCHEMA_VERSION, "compile_error", build.stderr, build.timed_out, build.output_exceeded})
+			judge.print_json(
+				Compile_Report {
+					SCHEMA_VERSION,
+					"compile_error",
+					build.stderr,
+					build.timed_out,
+					build.output_exceeded,
+				},
+			)
 		} else {
 			fmt.eprintln("build failed:")
 			fmt.eprintln(build.stderr)
@@ -79,7 +87,7 @@ cmd_test :: proc(o: Options) -> Error {
 		fmt.eprintf("cannot list %s: run `algo judge kattis get` first\n", samples_dir)
 		return .File
 	}
-	slice.sort_by(entries, proc(a, b: os.File_Info) -> bool { return a.name < b.name })
+	slice.sort_by(entries, proc(a, b: os.File_Info) -> bool {return a.name < b.name})
 
 	cases := make([dynamic]Case_Report)
 	for entry in entries {
@@ -97,7 +105,7 @@ cmd_test :: proc(o: Options) -> Error {
 	for c in cases {
 		judge.tally_case(&tally, c.verified, c.passed)
 	}
-	report := Test_Report{
+	report := Test_Report {
 		schema_version  = SCHEMA_VERSION,
 		outcome         = judge.outcome(tally),
 		verified_passed = tally.verified_passed,
@@ -112,16 +120,25 @@ cmd_test :: proc(o: Options) -> Error {
 		fmt.eprintf("%d/%d samples passed\n", report.verified_passed, len(cases))
 	}
 	switch report.outcome {
-	case "passed":     return nil
-	case "unverified": return .Unchecked
+	case "passed":
+		return nil
+	case "unverified":
+		return .Unchecked
 	}
 	return .Samples_Failed
 }
 
 run_sample :: proc(binary, samples_dir, name: string, timeout: time.Duration) -> (c: Case_Report) {
 	// Reports have always labelled this comparison "trimmed".
-	c = {name = name, provenance = "official_sample", comparator = "trimmed"}
-	expected, expected_err := os.read_entire_file(judge.join(samples_dir, strings.concatenate({name, ".out"})), context.allocator)
+	c = {
+		name       = name,
+		provenance = "official_sample",
+		comparator = "trimmed",
+	}
+	expected, expected_err := os.read_entire_file(
+		judge.join(samples_dir, strings.concatenate({name, ".out"})),
+		context.allocator,
+	)
 	if expected_err != nil {
 		c.provenance = "missing_expected_output"
 		return
@@ -129,13 +146,22 @@ run_sample :: proc(binary, samples_dir, name: string, timeout: time.Duration) ->
 	c.verified = true
 	c.expected = string(expected)
 
-	input, input_err := os.read_entire_file(judge.join(samples_dir, strings.concatenate({name, ".in"})), context.allocator)
+	input, input_err := os.read_entire_file(
+		judge.join(samples_dir, strings.concatenate({name, ".in"})),
+		context.allocator,
+	)
 	if input_err != nil {
 		c.runtime_error = "cannot read the sample input"
 		return
 	}
 	result: safeio.Process_Result
-	result, c.passed = judge.run_case(binary, string(input), c.expected, judge.compare_trailing, timeout)
+	result, c.passed = judge.run_case(
+		binary,
+		string(input),
+		c.expected,
+		judge.compare_trailing,
+		timeout,
+	)
 	c.actual = result.stdout
 	c.timed_out = result.timed_out
 	c.output_limit_exceeded = result.output_exceeded
@@ -152,6 +178,11 @@ print_case :: proc(c: Case_Report) {
 	case c.passed:
 		fmt.printf("%s: PASS\n", c.name)
 	case:
-		fmt.printf("%s: FAIL\n  want: %q\n  got:  %q\n", c.name, strings.trim_space(c.expected), strings.trim_space(c.actual))
+		fmt.printf(
+			"%s: FAIL\n  want: %q\n  got:  %q\n",
+			c.name,
+			strings.trim_space(c.expected),
+			strings.trim_space(c.actual),
+		)
 	}
 }

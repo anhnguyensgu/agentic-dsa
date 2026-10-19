@@ -1,7 +1,7 @@
 package kattis
 
-import "core:fmt"
 import judge ".."
+import "core:fmt"
 
 USAGE :: `usage: algo judge kattis <command> [arguments] [options]
 
@@ -45,16 +45,52 @@ Command :: enum {
 }
 
 COMMANDS := [Command]judge.Command_Spec {
-	.Auth         = {names = {"auth"}, min_args = 1, max_args = 1, handler = cmd_auth},
-	.Status       = {names = {"status"}, flags = {.Json}, handler = cmd_status},
-	.Logout       = {names = {"logout"}, handler = cmd_logout},
-	.List         = {names = {"list", "search"}, max_args = 1, flags = {.Json, .Page}, handler = cmd_list},
-	.Show         = {names = {"show", "fetch"}, min_args = 1, max_args = 1, flags = {.Json}, handler = cmd_show},
-	.Get          = {names = {"get", "pick"}, min_args = 1, max_args = 1, flags = {.Json, .Workspace, .Dir, .Lang}, handler = cmd_get},
-	.Test         = {names = {"test"}, min_args = 1, max_args = 1, flags = {.Json, .Timeout}, handler = cmd_test},
-	.Submit       = {names = {"submit"}, min_args = 1, max_args = 2, flags = {.Json, .Lang, .Timeout}, handler = cmd_submit},
-	.Submit_Start = {names = {"submit-start"}, min_args = 2, max_args = 2, flags = {.Json, .Lang, .Timeout}, handler = cmd_submit_start},
-	.Check        = {names = {"check", "watch"}, min_args = 1, max_args = 1, flags = {.Json, .Timeout}, handler = cmd_check},
+	.Auth = {names = {"auth"}, min_args = 1, max_args = 1, handler = cmd_auth},
+	.Status = {names = {"status"}, flags = {.Json}, handler = cmd_status},
+	.Logout = {names = {"logout"}, handler = cmd_logout},
+	.List = {names = {"list", "search"}, max_args = 1, flags = {.Json, .Page}, handler = cmd_list},
+	.Show = {
+		names = {"show", "fetch"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Json},
+		handler = cmd_show,
+	},
+	.Get = {
+		names = {"get", "pick"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Json, .Workspace, .Dir, .Lang},
+		handler = cmd_get,
+	},
+	.Test = {
+		names = {"test"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Json, .Timeout},
+		handler = cmd_test,
+	},
+	.Submit = {
+		names = {"submit"},
+		min_args = 1,
+		max_args = 2,
+		flags = {.Json, .Lang, .Timeout},
+		handler = cmd_submit,
+	},
+	.Submit_Start = {
+		names = {"submit-start"},
+		min_args = 2,
+		max_args = 2,
+		flags = {.Json, .Lang, .Timeout},
+		handler = cmd_submit_start,
+	},
+	.Check = {
+		names = {"check", "watch"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Json, .Timeout},
+		handler = cmd_check,
+	},
 }
 
 validate :: proc(o: Options) -> Error {

@@ -7,11 +7,20 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
-EXPORT_EXCLUSIONS :: [?]string{"provider_credentials", "provider_caches", "full_problem_statements"}
+EXPORT_EXCLUSIONS :: [?]string {
+	"provider_credentials",
+	"provider_caches",
+	"full_problem_statements",
+}
 
 // Remote authorization references and raw provider observations stay out of
 // the portable history.
-PRIVATE_EVENTS :: bit_set[Event_Type]{.Submission_Sent, .Submission_Outcome_Unknown, .Job_Observed, .Export_Created}
+PRIVATE_EVENTS :: bit_set[Event_Type] {
+	.Submission_Sent,
+	.Submission_Outcome_Unknown,
+	.Job_Observed,
+	.Export_Created,
+}
 
 workspace_file :: proc(ctx: ^Context, relative: string) -> (string, bool) {
 	if !safe_relative_path(relative) {
@@ -59,7 +68,15 @@ Export :: struct {
 	sources:            Maybe([]Exported_Source) `json:",omitempty"`,
 }
 
-op_export_create :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_export_create :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Export_Create_Params) or_return
 	scope := first_nonempty(p.scope, "profile_history")
 	if scope != "profile_history" && scope != "handoff" {
@@ -67,7 +84,7 @@ op_export_create :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 	}
 	st := fold(store)
 	exclusions := EXPORT_EXCLUSIONS
-	export := Export{
+	export := Export {
 		schema_version     = SCHEMA_VERSION,
 		export_version     = "1",
 		export_id          = fmt_id("export", store.revision + 1),
@@ -105,8 +122,14 @@ op_export_create :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		if p.include_source {
 			sources := make([dynamic]Exported_Source)
 			for a in st.attempts {
-				if data, read_err := os.read_entire_file(join(ctx.workspace, a.source_path), context.allocator); read_err == nil {
-					append(&sources, Exported_Source{a.id, a.source_path, hash_hex(string(data)), string(data)})
+				if data, read_err := os.read_entire_file(
+					join(ctx.workspace, a.source_path),
+					context.allocator,
+				); read_err == nil {
+					append(
+						&sources,
+						Exported_Source{a.id, a.source_path, hash_hex(string(data)), string(data)},
+					)
 				}
 			}
 			export.sources = sources[:]
@@ -119,7 +142,13 @@ op_export_create :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		return {}, fail(.Storage_Error, "could not write the export")
 	}
 	content_hash := hash_hex(string(document))
-	ev, replayed := commit(ctx, store, req, .Export_Created, Export_Created{export.export_id, scope, path, content_hash}) or_return
+	ev, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Export_Created,
+		Export_Created{export.export_id, scope, path, content_hash},
+	) or_return
 	created := Export_Created{export.export_id, scope, path, content_hash}
 	if replayed {
 		decode(string(ev.payload), &created)
@@ -133,7 +162,15 @@ op_export_create :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		excluded:     []string,
 	}
 	res = mutation_result(replayed)
-	res.data = to_json(Data{replayed_flag(replayed), created.export_id, created.path, created.content_hash, exclusions[:]})
+	res.data = to_json(
+		Data {
+			replayed_flag(replayed),
+			created.export_id,
+			created.path,
+			created.content_hash,
+			exclusions[:],
+		},
+	)
 	return
 }
 
@@ -198,7 +235,15 @@ legacy_source_hash :: proc(paths: []string) -> (hash: string, unresolved: int, f
 	return hash_hex(strings.to_string(combined)), unresolved, true
 }
 
-op_import_validate :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_import_validate :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Import_Validate_Params) or_return
 	switch first_nonempty(p.kind, "legacy") {
 	case "export":
@@ -239,14 +284,28 @@ op_import_validate :: proc(ctx: ^Context, store: ^Store, input: Input, req: Requ
 			test_command_will_execute: bool,
 		}
 		res.data = to_json(Data{"legacy", source_hash, unresolved, true, false})
-		append(&res.warnings, "legacy event ids remain unresolved unless an explicit provider/problem mapping is supplied; no mastery is inferred")
-		append(&res.next_actions, "review this preview, then call import_apply with the same source_hash")
+		append(
+			&res.warnings,
+			"legacy event ids remain unresolved unless an explicit provider/problem mapping is supplied; no mastery is inferred",
+		)
+		append(
+			&res.next_actions,
+			"review this preview, then call import_apply with the same source_hash",
+		)
 		return
 	}
 	return {}, invalid("kind must be legacy or export")
 }
 
-op_import_apply :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_import_apply :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Import_Apply_Params) or_return
 	switch p.kind {
 	case "export":
@@ -261,7 +320,14 @@ op_import_apply :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request
 // confirms that the workspace already holds exactly that history. No merge is
 // ever guessed.
 @(private = "file")
-import_export :: proc(ctx: ^Context, store: ^Store, p: Import_Apply_Params) -> (res: Result, err: Op_Error) {
+import_export :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	p: Import_Apply_Params,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	path, safe := workspace_file(ctx, p.path)
 	if !safe {
 		return {}, invalid("path must be a safe workspace-relative path")
@@ -281,11 +347,13 @@ import_export :: proc(ctx: ^Context, store: ^Store, p: Import_Apply_Params) -> (
 		return {}, invalid("export contains no authoritative events")
 	}
 	for source in doc.sources {
-		if !safe_relative_path(source.source_path) || hash_hex(source.content) != source.source_hash {
+		if !safe_relative_path(source.source_path) ||
+		   hash_hex(source.content) != source.source_hash {
 			return {}, invalid("export contains an unsafe or corrupt source entry")
 		}
 		destination := join(ctx.workspace, source.source_path)
-		if existing_hash, hash_err := read_source_hash(destination); hash_err == nil && existing_hash != source.source_hash {
+		if existing_hash, hash_err := read_source_hash(destination);
+		   hash_err == nil && existing_hash != source.source_hash {
 			return {}, fail(.Destination_Exists, "an imported source path already contains different bytes")
 		}
 	}
@@ -314,7 +382,9 @@ import_export :: proc(ctx: ^Context, store: ^Store, p: Import_Apply_Params) -> (
 		}
 		for ev, i in events {
 			current := store.events[i]
-			if current.event_id != ev.event_id || current.type != ev.type || current.payload != ev.payload {
+			if current.event_id != ev.event_id ||
+			   current.type != ev.type ||
+			   current.payload != ev.payload {
 				return {}, fail(.Request_Conflict, "destination contains a conflicting event; no merge was guessed")
 			}
 		}
@@ -322,7 +392,8 @@ import_export :: proc(ctx: ^Context, store: ^Store, p: Import_Apply_Params) -> (
 		return
 	}
 
-	if ensure_dirs(ctx.workspace) != nil || write_private_file(events_path(ctx.workspace), strings.to_string(log)) != nil {
+	if ensure_dirs(ctx.workspace) != nil ||
+	   write_private_file(events_path(ctx.workspace), strings.to_string(log)) != nil {
 		return {}, fail(.Storage_Error, "could not install the exported event stream")
 	}
 	load_err: Engine_Error
@@ -340,22 +411,38 @@ import_export :: proc(ctx: ^Context, store: ^Store, p: Import_Apply_Params) -> (
 	if write_state(ctx.workspace, &projection) != nil {
 		return {}, fail(.Storage_Error, "imported events but could not write the projection")
 	}
-	manifest := Manifest{SCHEMA_VERSION, ENGINE_VERSION, store.workspace_id, now_rfc3339(), p.source_hash}
+	manifest := Manifest {
+		SCHEMA_VERSION,
+		ENGINE_VERSION,
+		store.workspace_id,
+		now_rfc3339(),
+		p.source_hash,
+	}
 	if write_private_file(manifest_path(ctx.workspace), string(to_json(manifest))) != nil {
 		return {}, fail(.Storage_Error, "imported events but could not write the manifest")
 	}
-	res.data = to_json(Data{
-		imported_events      = len(events),
-		workspace_revision   = store.revision,
-		source_code_included = len(doc.sources) > 0,
-	})
+	res.data = to_json(
+		Data {
+			imported_events = len(events),
+			workspace_revision = store.revision,
+			source_code_included = len(doc.sources) > 0,
+		},
+	)
 	return
 }
 
 // import_legacy records that a legacy source was reviewed. Nothing is
 // inferred from it and its test command is never executed.
 @(private = "file")
-import_legacy :: proc(ctx: ^Context, store: ^Store, req: Request, p: Import_Apply_Params) -> (res: Result, err: Op_Error) {
+import_legacy :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	req: Request,
+	p: Import_Apply_Params,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	paths, safe := legacy_paths(ctx, p.path)
 	if !safe {
 		return {}, invalid("path must be a safe workspace-relative path")
@@ -376,7 +463,9 @@ import_legacy :: proc(ctx: ^Context, store: ^Store, req: Request, p: Import_Appl
 	}
 	for ev in store.events {
 		prior: Legacy_Imported
-		if is_event(ev, {.Legacy_Imported}) && decode(string(ev.payload), &prior) && prior.source_hash == actual_hash {
+		if is_event(ev, {.Legacy_Imported}) &&
+		   decode(string(ev.payload), &prior) &&
+		   prior.source_hash == actual_hash {
 			res.data = to_json(Data{replayed = true, source_hash = actual_hash})
 			append(&res.warnings, "this exact legacy source was already imported")
 			return
@@ -386,9 +475,16 @@ import_legacy :: proc(ctx: ^Context, store: ^Store, req: Request, p: Import_Appl
 	payload := Legacy_Imported{actual_hash, unresolved, false, false}
 	_, replayed := commit(ctx, store, req, .Legacy_Imported, payload) or_return
 	res = mutation_result(replayed)
-	summary_path := learning_path(ctx.workspace, "imports", fmt.tprintf("legacy-%s.json", actual_hash[:16]))
+	summary_path := learning_path(
+		ctx.workspace,
+		"imports",
+		fmt.tprintf("legacy-%s.json", actual_hash[:16]),
+	)
 	if write_private_file(summary_path, string(to_json(payload))) != nil {
-		append(&res.warnings, "import event was committed but its source summary file could not be written")
+		append(
+			&res.warnings,
+			"import event was committed but its source summary file could not be written",
+		)
 	}
 	res.data = to_json(Data{replayed_flag(replayed), actual_hash, unresolved, true})
 	return
@@ -407,7 +503,15 @@ Data_Delete_Params :: struct {
 
 // op_data_delete previews by default; executing requires confirmation text
 // naming the exact scope. Solutions and provider credentials are never touched.
-op_data_delete :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_data_delete :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Data_Delete_Params) or_return
 	target: string
 	switch p.scope {
@@ -424,7 +528,11 @@ op_data_delete :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 		if !strings.has_prefix(p.export_id, "export_") {
 			return {}, invalid("a valid export_id is required")
 		}
-		target = learning_path(ctx.workspace, "exports", strings.concatenate({p.export_id, ".json"}))
+		target = learning_path(
+			ctx.workspace,
+			"exports",
+			strings.concatenate({p.export_id, ".json"}),
+		)
 	case "all_learning":
 		target = learning_path(ctx.workspace)
 	case:
@@ -439,12 +547,20 @@ op_data_delete :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 		preview:                            Maybe(bool) `json:",omitempty"`,
 		deleted:                            Maybe(bool) `json:",omitempty"`,
 	}
-	data := Data{scope = p.scope, target = target, will_preserve_solutions = true, will_preserve_provider_credentials = true}
+	data := Data {
+		scope                              = p.scope,
+		target                             = target,
+		will_preserve_solutions            = true,
+		will_preserve_provider_credentials = true,
+	}
 	confirmation := fmt.aprintf("DELETE %s", p.scope)
 	if !p.execute {
 		data.preview = true
 		res.data = to_json(data)
-		append(&res.next_actions, fmt.aprintf("repeat with execute=true and confirmation=%q", confirmation))
+		append(
+			&res.next_actions,
+			fmt.aprintf("repeat with execute=true and confirmation=%q", confirmation),
+		)
 		return
 	}
 	if p.confirmation != confirmation {
@@ -463,7 +579,10 @@ op_data_delete :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 	case "session":
 		delete_session(ctx, store, p.session_id, p.include_backups) or_return
 		if !p.include_backups {
-			append(&res.warnings, "existing plugin-managed backups were not included and may retain older copies")
+			append(
+				&res.warnings,
+				"existing plugin-managed backups were not included and may retain older copies",
+			)
 		}
 	}
 	data.deleted = true
@@ -474,7 +593,12 @@ op_data_delete :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 // delete_session redacts the session's event payloads in place, keeping
 // content-free tombstones so sequence numbers and references stay intact.
 @(private = "file")
-delete_session :: proc(ctx: ^Context, store: ^Store, session_id: string, include_backups: bool) -> Op_Error {
+delete_session :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	session_id: string,
+	include_backups: bool,
+) -> Op_Error {
 	st := fold(store)
 	log := strings.builder_make()
 	for ev in store.events {

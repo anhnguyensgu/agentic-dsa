@@ -1,9 +1,9 @@
 package leetcode
 
+import judge ".."
 import "core:net"
 import "core:testing"
 import "core:time"
-import judge ".."
 
 @(test)
 app_errors_are_not_success :: proc(t: ^testing.T) {
@@ -29,7 +29,7 @@ app_errors_are_not_success :: proc(t: ^testing.T) {
 
 @(test)
 callback_rejects_malformed_requests :: proc(t: ^testing.T) {
-	requests := []string{
+	requests := []string {
 		"",
 		"GET /?session=secret HTTP/1.1",
 		"GET /?session=secret HTTP/1.1\r\n",
@@ -45,8 +45,16 @@ callback_rejects_malformed_requests :: proc(t: ^testing.T) {
 
 @(test)
 callback_accepts_complete_get_requests :: proc(t: ^testing.T) {
-	testing.expect_value(t, extract_query("GET /?session=s HTTP/1.1\r\nHost: localhost\r\n\r\n"), "session=s")
-	testing.expect_value(t, extract_query("GET /callback?cookie=a%3Db HTTP/1.0\r\n\r\n"), "cookie=a%3Db")
+	testing.expect_value(
+		t,
+		extract_query("GET /?session=s HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+		"session=s",
+	)
+	testing.expect_value(
+		t,
+		extract_query("GET /callback?cookie=a%3Db HTTP/1.0\r\n\r\n"),
+		"cookie=a%3Db",
+	)
 }
 
 // Each test gets an ephemeral loopback port; no browser or remote service.
@@ -76,7 +84,11 @@ test_tcp_pair :: proc(t: ^testing.T) -> (server, client: net.TCP_Socket, ok: boo
 
 @(test)
 callback_read_requires_complete_headers :: proc(t: ^testing.T) {
-	cases := []struct {request: string, capacity: int, expected: Error}{
+	cases := []struct {
+		request:  string,
+		capacity: int,
+		expected: Error,
+	} {
 		{"GET /?session=s HTTP/1.1\r\n\r\n", 64, .None},
 		{"GET /?session=s HTTP/1.1\r\n", 64, .Callback_Failed},
 		{"GET /?session=s HTTP/1.1\r\n\r\n", 16, .Callback_Failed},

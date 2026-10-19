@@ -15,7 +15,15 @@ Review_Due_Params :: struct {
 	concept_id:          string,
 }
 
-op_review_due :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_review_due :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Review_Due_Params) or_return
 	now := rfc3339_utc(context_now(ctx))
 	switch {
@@ -24,12 +32,15 @@ op_review_due :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) 
 	case p.date != "":
 		now = p.date
 	}
-	limit := max(1, p.time_budget_minutes / MINUTES_PER_REVIEW) if p.time_budget_minutes > 0 else MAX_DUE_REVIEWS
+	limit :=
+		max(1, p.time_budget_minutes / MINUTES_PER_REVIEW) if p.time_budget_minutes > 0 else MAX_DUE_REVIEWS
 
 	st := fold(store)
 	due := make([dynamic]Review_View)
 	for r in st.reviews {
-		if r.state != .Open || r.due_ts > now || (p.concept_id != "" && r.concept != p.concept_id) {
+		if r.state != .Open ||
+		   r.due_ts > now ||
+		   (p.concept_id != "" && r.concept != p.concept_id) {
 			continue
 		}
 		append(&due, review_view(r))
@@ -52,7 +63,15 @@ Review_Update_Params :: struct {
 	until:     string,
 }
 
-op_review_update :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_review_update :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Review_Update_Params) or_return
 	nonempty({"review_id", p.review_id}, {"action", p.action}) or_return
 	state: Review_State
@@ -65,7 +84,13 @@ op_review_update :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		return {}, invalid("action must be snooze or resume; completing a review happens through a review session's assessment")
 	}
 
-	_, replayed := commit(ctx, store, req, .Review_Updated, Review_Updated{p.review_id, p.action, p.until}) or_return
+	_, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Review_Updated,
+		Review_Updated{p.review_id, p.action, p.until},
+	) or_return
 
 	Data :: struct {
 		replayed:  Replayed `json:",omitempty"`,

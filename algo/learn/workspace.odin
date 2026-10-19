@@ -31,7 +31,15 @@ Manifest :: struct {
 	import_source_hash: string `json:",omitempty"`,
 }
 
-op_workspace_init :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_workspace_init :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Workspace_Init_Params) or_return
 	// The manifest marks an initialized workspace; re-initialization is refused.
 	if os.exists(manifest_path(ctx.workspace)) {
@@ -40,10 +48,20 @@ op_workspace_init :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reque
 	if dir_err := ensure_dirs(ctx.workspace); dir_err != nil {
 		return {}, fail(.Storage_Error, fmt.aprintf("could not create learning directories: %s", os.error_string(dir_err)))
 	}
-	nonempty({"goal", p.goal}, {"language", p.language}, {"timezone", p.timezone}, {"experience", p.experience}) or_return
-	in_range("time_budget_minutes", p.time_budget_minutes, MIN_BUDGET_MINUTES, MAX_BUDGET_MINUTES) or_return
+	nonempty(
+		{"goal", p.goal},
+		{"language", p.language},
+		{"timezone", p.timezone},
+		{"experience", p.experience},
+	) or_return
+	in_range(
+		"time_budget_minutes",
+		p.time_budget_minutes,
+		MIN_BUDGET_MINUTES,
+		MAX_BUDGET_MINUTES,
+	) or_return
 
-	profile := Profile{
+	profile := Profile {
 		learner_id           = p.learner_id if p.learner_id != "" else "learner_local",
 		goal                 = p.goal,
 		language             = p.language,
@@ -59,7 +77,10 @@ op_workspace_init :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reque
 	res = mutation_result(replayed)
 	if os.exists(join(ctx.workspace, ".algo", "config.json")) {
 		// Legacy data stays untouched; importing it is explicit (section 10).
-		append(&res.warnings, "legacy .algo/config.json detected; it is preserved and can be imported with import_validate")
+		append(
+			&res.warnings,
+			"legacy .algo/config.json detected; it is preserved and can be imported with import_validate",
+		)
 	}
 	manifest := Manifest{SCHEMA_VERSION, ENGINE_VERSION, ev.workspace_id, ev.timestamp, ""}
 	if write_private_file(manifest_path(ctx.workspace), string(to_json(manifest))) != nil {
@@ -72,7 +93,10 @@ op_workspace_init :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reque
 		revision:     int,
 	}
 	res.data = to_json(Data{replayed_flag(replayed), ev.workspace_id, ev.sequence})
-	append(&res.next_actions, "run plan_next to choose a first objective, or session_start to begin practicing")
+	append(
+		&res.next_actions,
+		"run plan_next to choose a first objective, or session_start to begin practicing",
+	)
 	return
 }
 
@@ -91,7 +115,15 @@ Profile_Update_Params :: struct {
 	time_budget_minutes:  Maybe(int),
 }
 
-op_profile_update :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_profile_update :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Profile_Update_Params) or_return
 	envelope := ENVELOPE_FIELDS
 	changed := 0
@@ -157,7 +189,15 @@ Capabilities :: struct {
 	note:                            string,
 }
 
-op_state_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_state_get :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, State_Get_Params) or_return
 	detail := p.detail if p.detail != "" else "full"
 	if detail != "summary" && detail != "full" {
@@ -189,19 +229,21 @@ op_state_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -
 		attempts:           []Attempt_View,
 		capabilities:       Capabilities,
 	}
-	res.data = to_json(Data{
-		workspace_revision = st.revision,
-		profile            = profile_view(st.profile),
-		sessions           = sessions[:],
-		attempts           = attempts[:],
-		capabilities       = {
-			local_test                      = true,
-			kattis_remote_submission_odin   = true,
-			leetcode_remote_submission_odin = false,
-			mcp                             = true,
-			note                            = "current availability is reported by doctor; LeetCode Odin remains local-practice only",
+	res.data = to_json(
+		Data {
+			workspace_revision = st.revision,
+			profile = profile_view(st.profile),
+			sessions = sessions[:],
+			attempts = attempts[:],
+			capabilities = {
+				local_test = true,
+				kattis_remote_submission_odin = true,
+				leetcode_remote_submission_odin = false,
+				mcp = true,
+				note = "current availability is reported by doctor; LeetCode Odin remains local-practice only",
+			},
 		},
-	})
+	)
 	if store.tail_warning != "" {
 		append(&res.warnings, store.tail_warning)
 	}

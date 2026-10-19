@@ -36,10 +36,22 @@ Practice_Candidate :: struct {
 // op_plan_next is a deterministic policy: one due review first, then new
 // practice on the first unmet prerequisite or goal concept, in stable
 // catalogue order.
-op_plan_next :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_plan_next :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Plan_Next_Params) or_return
 	st := fold(store)
-	budget := first_nonzero(p.time_budget_minutes, st.profile.time_budget_minutes, DEFAULT_BUDGET_MINUTES)
+	budget := first_nonzero(
+		p.time_budget_minutes,
+		st.profile.time_budget_minutes,
+		DEFAULT_BUDGET_MINUTES,
+	)
 	if budget < MIN_BUDGET_MINUTES || budget > MAX_BUDGET_MINUTES {
 		return {}, invalid("time_budget_minutes must be between 5 and 480")
 	}
@@ -51,7 +63,17 @@ op_plan_next :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -
 	now := rfc3339_utc(context_now(ctx))
 	for r in st.reviews {
 		if r.state == .Open && r.due_ts <= now {
-			append(&candidates, to_json(Review_Candidate{"review", r.id, r.concept, fmt.aprintf("review scheduled for %s is due", r.due_ts)}))
+			append(
+				&candidates,
+				to_json(
+					Review_Candidate {
+						"review",
+						r.id,
+						r.concept,
+						fmt.aprintf("review scheduled for %s is due", r.due_ts),
+					},
+				),
+			)
 			break
 		}
 	}
@@ -61,7 +83,8 @@ op_plan_next :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -
 	if catalog_err != nil {
 		return {}, fail(catalog_err, "the bundled catalogue could not be read")
 	}
-	audience := Audience.Assessment if mode == .Assessment || mode == .Independent else Audience.Learning
+	audience :=
+		Audience.Assessment if mode == .Assessment || mode == .Independent else Audience.Learning
 	for problem in problems {
 		if len(candidates) >= MAX_PLAN_CANDIDATES {
 			break
@@ -77,13 +100,22 @@ op_plan_next :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -
 		if problem.provider == "leetcode" && language == "odin" {
 			append(&limitations, "Odin is local-practice only for LeetCode")
 		}
-		append(&candidates, to_json(Practice_Candidate{
-			kind                   = "new_practice",
-			concept                = topic,
-			problem                = problem_view(problem, audience),
-			reason                 = fmt.aprintf("targets %s, fits the %d-minute budget, and has no recorded prior attempt", topic, budget),
-			capability_limitations = limitations[:],
-		}))
+		append(
+			&candidates,
+			to_json(
+				Practice_Candidate {
+					kind = "new_practice",
+					concept = topic,
+					problem = problem_view(problem, audience),
+					reason = fmt.aprintf(
+						"targets %s, fits the %d-minute budget, and has no recorded prior attempt",
+						topic,
+						budget,
+					),
+					capability_limitations = limitations[:],
+				},
+			),
+		)
 	}
 
 	Data :: struct {
@@ -94,7 +126,10 @@ op_plan_next :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -
 	}
 	res.data = to_json(Data{candidates[:], topic, budget, language})
 	if len(candidates) == 0 {
-		append(&res.warnings, "no bundled problem satisfies the current constraints; choose a cached review or a clearly labelled local micro-exercise")
+		append(
+			&res.warnings,
+			"no bundled problem satisfies the current constraints; choose a cached review or a clearly labelled local micro-exercise",
+		)
 	}
 	return
 }
@@ -166,7 +201,15 @@ Progress_Get_Params :: struct {
 
 // Separate views (section 9): execution and judge evidence are never folded
 // into learning claims.
-op_progress_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_progress_get :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	params(input, Progress_Get_Params) or_return
 	st := fold(store)
 
@@ -188,7 +231,9 @@ op_progress_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request
 		independent_sessions: int,
 	}
 
-	counts := Counts{open_reviews = len(st.reviews)}
+	counts := Counts {
+		open_reviews = len(st.reviews),
+	}
 	for s in st.sessions {
 		if s.status != .Closed {
 			counts.active_sessions += 1
@@ -211,9 +256,12 @@ op_progress_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request
 			p: Runner_Observed
 			decode(string(ev.payload), &p)
 			switch p.outcome {
-			case "passed": execution.verified_passed_runs += 1
-			case "failed": execution.failed_runs += 1
-			case:          execution.unverified_runs += 1
+			case "passed":
+				execution.verified_passed_runs += 1
+			case "failed":
+				execution.failed_runs += 1
+			case:
+				execution.unverified_runs += 1
 			}
 		case .Job_Observed:
 			p: Job_Observed
@@ -232,7 +280,10 @@ op_progress_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request
 	concepts := make([dynamic]Concept_View)
 	if curriculum, ok := curriculum_concepts(); ok {
 		for c in curriculum {
-			state := Concept_State{concept_id = c.id, state = .Unknown}
+			state := Concept_State {
+				concept_id = c.id,
+				state      = .Unknown,
+			}
 			for known in st.concepts {
 				if known.concept_id == c.id {
 					state = known

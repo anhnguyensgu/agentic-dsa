@@ -10,10 +10,19 @@ user_status_distinguishes_false_from_missing :: proc(t: ^testing.T) {
 	defer mem.dynamic_arena_destroy(&arena)
 	context.allocator = mem.dynamic_arena_allocator(&arena)
 
-	cases := []struct {json: string, expected: User_Status}{
-		{`{"data":{"userStatus":{"username":"alice","isSignedIn":true,"isPremium":true}}}`, {"alice", true, true}},
+	cases := []struct {
+		json:     string,
+		expected: User_Status,
+	} {
+		{
+			`{"data":{"userStatus":{"username":"alice","isSignedIn":true,"isPremium":true}}}`,
+			{"alice", true, true},
+		},
 		{`{"data":{"userStatus":{"username":null,"isSignedIn":false,"isPremium":false}}}`, {}},
-		{`{"data":{"userStatus":{"username":"old","username":"new","isSignedIn":true}}}`, {"new", true, false}},
+		{
+			`{"data":{"userStatus":{"username":"old","username":"new","isSignedIn":true}}}`,
+			{"new", true, false},
+		},
 	}
 	for c in cases {
 		status, err := parse_user_status(transmute([]byte)c.json)
@@ -29,7 +38,7 @@ user_status_rejects_invalid_responses :: proc(t: ^testing.T) {
 	defer mem.dynamic_arena_destroy(&arena)
 	context.allocator = mem.dynamic_arena_allocator(&arena)
 
-	responses := []string{
+	responses := []string {
 		"not JSON",
 		"{}",
 		"null",

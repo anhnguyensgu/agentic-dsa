@@ -18,7 +18,9 @@ cookie_jar_borrows_values :: proc(t: ^testing.T) {
 
 @(test)
 pasted_credentials :: proc(t: ^testing.T) {
-	cases := []struct {input, session, csrf: string}{
+	cases := []struct {
+		input, session, csrf: string,
+	} {
 		{"  raw+token==  ", "raw+token==", ""},
 		{"LEETCODE_SESSION=s; csrftoken=c", "s", "c"},
 		{"LEETCODE_SESSION = s ; csrftoken = c", "s", "c"},
@@ -30,7 +32,14 @@ pasted_credentials :: proc(t: ^testing.T) {
 		testing.expect_value(t, cfg.leetcode_session, c.session)
 		testing.expect_value(t, cfg.csrf_token, c.csrf)
 	}
-	invalid := []string{"", " \t\r\n", "LEETCODE_SESSION=", "csrftoken=c", "other=x; csrftoken=c", "bad\r\nHeader:value"}
+	invalid := []string {
+		"",
+		" \t\r\n",
+		"LEETCODE_SESSION=",
+		"csrftoken=c",
+		"other=x; csrftoken=c",
+		"bad\r\nHeader:value",
+	}
 	for input in invalid {
 		_, err := parse_pasted_config(input)
 		testing.expectf(t, err == .No_Input, "expected No_Input for %q, got %v", input, err)
@@ -44,7 +53,9 @@ callback_cookie_decoding :: proc(t: ^testing.T) {
 	defer mem.dynamic_arena_destroy(&arena)
 	context.allocator = mem.dynamic_arena_allocator(&arena)
 
-	cases := []struct {query, session, csrf: string}{
+	cases := []struct {
+		query, session, csrf: string,
+	} {
 		{"cookie=LEETCODE_SESSION%3Ds%3B%20csrftoken%3Dc", "s", "c"},
 		{"LEETCODE_SESSION=s%2B%3D%3D&csrftoken=c", "s+==", "c"},
 		{"session=literal+plus", "literal+plus", ""},
@@ -60,7 +71,16 @@ callback_cookie_decoding :: proc(t: ^testing.T) {
 		testing.expect_value(t, cfg.leetcode_session, c.session)
 		testing.expect_value(t, cfg.csrf_token, c.csrf)
 	}
-	invalid := []string{"", "csrf=c", "session=", "session=%", "session=%ZZ", "session=%0d%0aX:y", "session=%00", "session=s&csrf=%0A"}
+	invalid := []string {
+		"",
+		"csrf=c",
+		"session=",
+		"session=%",
+		"session=%ZZ",
+		"session=%0d%0aX:y",
+		"session=%00",
+		"session=s&csrf=%0A",
+	}
 	for query in invalid {
 		cfg, err := extract_cookies(query)
 		testing.expect_value(t, err, Error.Callback_Failed)
@@ -75,7 +95,10 @@ input_line_handles_whitespace_and_eof :: proc(t: ^testing.T) {
 	defer mem.dynamic_arena_destroy(&arena)
 	context.allocator = mem.dynamic_arena_allocator(&arena)
 
-	cases := []struct {input, expected: string, err: Error}{
+	cases := []struct {
+		input, expected: string,
+		err:             Error,
+	} {
 		{"", "", .No_Input},
 		{" \t\r\n", "", .No_Input},
 		{" token \r\n", "token", .None},

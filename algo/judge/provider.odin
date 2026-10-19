@@ -42,10 +42,13 @@ Command_Spec :: struct {
 	handler:  Handler,
 }
 
-USAGE :: `usage: algo judge <provider> <command> [arguments] [options]
+USAGE ::
+	`usage: algo judge <provider> <command> [arguments] [options]
 
 Without a provider, lists the registered providers and their versions.
-Run ` + "`algo judge <provider> help`" + ` for a provider's commands.`
+Run ` +
+	"`algo judge <provider> help`" +
+	` for a provider's commands.`
 
 // run lists the providers, or hands the remaining arguments to one of them.
 run :: proc(args: []string, providers: []Provider) -> int {

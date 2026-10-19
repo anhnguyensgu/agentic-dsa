@@ -4,10 +4,10 @@ package learn
 // one that is available now. The doctor checks versions and paths only; it
 // never starts a login or uploads source.
 
+import "../safeio"
 import "core:os"
 import "core:strings"
 import "core:time"
-import "../safeio"
 
 PROVIDERS :: [?]string{"leetcode", "kattis"}
 
@@ -117,7 +117,15 @@ Doctor_Params :: struct {
 	check_accounts: bool,
 }
 
-op_doctor :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_doctor :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Doctor_Params) or_return
 	providers := make([]Provider_Status, len(PROVIDERS))
 	self := self_executable()
@@ -142,25 +150,36 @@ op_doctor :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (
 		providers:                []Provider_Status,
 		ready_for_local_practice: bool,
 	}
-	res.data = to_json(Data{
-		engine_version           = ENGINE_VERSION,
-		schema_version           = SCHEMA_VERSION,
-		catalog_version          = CATALOG_VERSION,
-		catalog_available        = catalog_err == nil && len(problems) >= MIN_CATALOG_PROBLEMS,
-		catalog_problem_count    = len(problems),
-		workspace_accessible     = workspace_accessible,
-		workspace_initialized    = os.is_file(manifest_path(ctx.workspace)),
-		event_log_readable       = store.tail_warning == "",
-		odin_compiler_available  = odin_available,
-		providers                = providers,
-		ready_for_local_practice = ready,
-	})
+	res.data = to_json(
+		Data {
+			engine_version = ENGINE_VERSION,
+			schema_version = SCHEMA_VERSION,
+			catalog_version = CATALOG_VERSION,
+			catalog_available = catalog_err == nil && len(problems) >= MIN_CATALOG_PROBLEMS,
+			catalog_problem_count = len(problems),
+			workspace_accessible = workspace_accessible,
+			workspace_initialized = os.is_file(manifest_path(ctx.workspace)),
+			event_log_readable = store.tail_warning == "",
+			odin_compiler_available = odin_available,
+			providers = providers,
+			ready_for_local_practice = ready,
+		},
+	)
 	if !ready {
-		append(&res.next_actions, "fix the reported workspace, compiler, or catalogue problem before local practice")
+		append(
+			&res.next_actions,
+			"fix the reported workspace, compiler, or catalogue problem before local practice",
+		)
 	}
 	if p.check_accounts {
-		append(&res.warnings, "account verification is not performed by the deterministic engine; use each provider's explicit status command")
-		append(&res.next_actions, "run the provider status command only when account verification is wanted")
+		append(
+			&res.warnings,
+			"account verification is not performed by the deterministic engine; use each provider's explicit status command",
+		)
+		append(
+			&res.next_actions,
+			"run the provider status command only when account verification is wanted",
+		)
 	}
 	return
 }

@@ -1,11 +1,11 @@
 package leetcode
 
+import judge ".."
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 import "core:strconv"
 import "core:strings"
-import judge ".."
 
 // Override only at build time for the integration service. Credentials never
 // follow a runtime-supplied URL or HTTP redirect.
@@ -34,7 +34,15 @@ request_credentials :: proc(required := false) -> (cfg: Config, err: Error) {
 // http_request sends one request through the judge curl transport. Headers
 // and bodies travel in private temporary files, so credentials and code never
 // appear in argv.
-http_request :: proc(method, path: string, cfg: Config, body := "", timeout := 20) -> (value: json.Value, err: Error) {
+http_request :: proc(
+	method, path: string,
+	cfg: Config,
+	body := "",
+	timeout := 20,
+) -> (
+	value: json.Value,
+	err: Error,
+) {
 	if !strings.has_prefix(path, "/") {
 		return nil, .Usage
 	}
@@ -45,20 +53,36 @@ http_request :: proc(method, path: string, cfg: Config, body := "", timeout := 2
 	defer os.remove_all(dir)
 
 	headers := strings.builder_make()
-	fmt.sbprintf(&headers, "Content-Type: application/json\nReferer: %s/\nOrigin: %s\nUser-Agent: leetcode-odin/0.2\n", BASE_URL, BASE_URL)
+	fmt.sbprintf(
+		&headers,
+		"Content-Type: application/json\nReferer: %s/\nOrigin: %s\nUser-Agent: leetcode-odin/0.2\n",
+		BASE_URL,
+		BASE_URL,
+	)
 	if cfg.leetcode_session != "" {
-		fmt.sbprintf(&headers, "Cookie: LEETCODE_SESSION=%s; csrftoken=%s\nx-csrftoken: %s\n", cfg.leetcode_session, cfg.csrf_token, cfg.csrf_token)
+		fmt.sbprintf(
+			&headers,
+			"Cookie: LEETCODE_SESSION=%s; csrftoken=%s\nx-csrftoken: %s\n",
+			cfg.leetcode_session,
+			cfg.csrf_token,
+			cfg.csrf_token,
+		)
 	}
 	headers_path := judge.write_secret(dir, "headers", strings.to_string(headers)) or_return
 
 	args := make([dynamic]string)
 	append(
 		&args,
-		"--max-time", fmt.tprint(timeout),
-		"--request", method,
-		"--url", judge.concat(BASE_URL, path),
-		"--header", judge.concat("@", headers_path),
-		"--write-out", "\n%{http_code}",
+		"--max-time",
+		fmt.tprint(timeout),
+		"--request",
+		method,
+		"--url",
+		judge.concat(BASE_URL, path),
+		"--header",
+		judge.concat("@", headers_path),
+		"--write-out",
+		"\n%{http_code}",
 	)
 	if body != "" {
 		body_path := judge.write_secret(dir, "body", body) or_return
@@ -76,7 +100,9 @@ http_request :: proc(method, path: string, cfg: Config, body := "", timeout := 2
 		fmt.eprintln("authentication expired; log in again")
 		return nil, .Not_Signed_In
 	case 403:
-		fmt.eprintln("HTTP 403: session/CSRF rejected or Cloudflare challenge; log in in your browser")
+		fmt.eprintln(
+			"HTTP 403: session/CSRF rejected or Cloudflare challenge; log in in your browser",
+		)
 		return nil, .API
 	case 404:
 		return nil, .Not_Found
@@ -100,8 +126,20 @@ Graphql_Request :: struct {
 	variables: json.Object,
 }
 
-graphql :: proc(query: string, variables: json.Object, cfg: Config) -> (data: json.Value, err: Error) {
-	response := http_request("POST", "/graphql/", cfg, jencode(Graphql_Request{query, variables})) or_return
+graphql :: proc(
+	query: string,
+	variables: json.Object,
+	cfg: Config,
+) -> (
+	data: json.Value,
+	err: Error,
+) {
+	response := http_request(
+		"POST",
+		"/graphql/",
+		cfg,
+		jencode(Graphql_Request{query, variables}),
+	) or_return
 	if len(jarray(jget(response, "errors"))) > 0 {
 		fmt.eprintln("LeetCode returned GraphQL errors")
 		return nil, .API

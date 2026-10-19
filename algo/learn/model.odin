@@ -73,7 +73,11 @@ exit_code_for :: proc(e: Engine_Error) -> int {
 	#partial switch e {
 	case .None:
 		return 0
-	case .Invalid_Input, .Invalid_Evidence, .Request_Conflict, .Stale_Revision, .Destination_Exists:
+	case .Invalid_Input,
+	     .Invalid_Evidence,
+	     .Request_Conflict,
+	     .Stale_Revision,
+	     .Destination_Exists:
 		return EXIT_INVALID_INPUT
 	}
 	return 1

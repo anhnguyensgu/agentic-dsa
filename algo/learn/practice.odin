@@ -72,7 +72,15 @@ Attempt_Start_Params :: struct {
 	previous_attempt_id: string,
 }
 
-op_attempt_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_attempt_start :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Attempt_Start_Params) or_return
 	if p.session_id == "" || p.problem_key == "" || p.language == "" {
 		return {}, invalid("session_id, problem_key, and language must be non-empty strings")
@@ -131,8 +139,24 @@ op_attempt_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		return {}, fail(hash_err, "could not hash the attempt source")
 	}
 
-	payload := Attempt_Started{p.problem_key, p.language, source_path, source_hash, runner_kind, p.previous_attempt_id, fresh}
-	ev, replayed := commit(ctx, store, req, .Attempt_Started, payload, p.session_id, attempt_id) or_return
+	payload := Attempt_Started {
+		p.problem_key,
+		p.language,
+		source_path,
+		source_hash,
+		runner_kind,
+		p.previous_attempt_id,
+		fresh,
+	}
+	ev, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Attempt_Started,
+		payload,
+		p.session_id,
+		attempt_id,
+	) or_return
 	if replayed {
 		// The original request already created its attempt; report that one.
 		if created_dir != "" {
@@ -152,9 +176,25 @@ op_attempt_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		source_hash_at_creation: string,
 		runner_kind:             string,
 	}
-	metadata := Metadata{SCHEMA_VERSION, ev.attempt_id, p.session_id, p.problem_key, p.language, payload.source_path, payload.source_hash, payload.runner_kind}
-	if write_private_file(learning_path(ctx.workspace, "attempts", ev.attempt_id, "metadata.json"), string(to_json(metadata))) != nil {
-		append(&res.warnings, "attempt was recorded but its convenience metadata file could not be written; event replay remains authoritative")
+	metadata := Metadata {
+		SCHEMA_VERSION,
+		ev.attempt_id,
+		p.session_id,
+		p.problem_key,
+		p.language,
+		payload.source_path,
+		payload.source_hash,
+		payload.runner_kind,
+	}
+	if write_private_file(
+		   learning_path(ctx.workspace, "attempts", ev.attempt_id, "metadata.json"),
+		   string(to_json(metadata)),
+	   ) !=
+	   nil {
+		append(
+			&res.warnings,
+			"attempt was recorded but its convenience metadata file could not be written; event replay remains authoritative",
+		)
 	}
 
 	Data :: struct {
@@ -164,28 +204,49 @@ op_attempt_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		source_hash: string,
 		runner_kind: string,
 	}
-	res.data = to_json(Data{replayed_flag(replayed), ev.attempt_id, payload.source_path, payload.source_hash, payload.runner_kind})
-	append(&res.next_actions, "review the statement and cases, then let the learner implement the solution")
+	res.data = to_json(
+		Data {
+			replayed_flag(replayed),
+			ev.attempt_id,
+			payload.source_path,
+			payload.source_hash,
+			payload.runner_kind,
+		},
+	)
+	append(
+		&res.next_actions,
+		"review the statement and cases, then let the learner implement the solution",
+	)
 	return
 }
 
 // create_fresh_attempt makes problems/<provider>/<slug>/<attempt>/ with a
 // starter solution and an empty case file, removing it again on failure.
 @(private = "file")
-create_fresh_attempt :: proc(workspace: string, problem: Catalog_Problem, attempt_id: string) -> (source_path: string, err: Op_Error) {
+create_fresh_attempt :: proc(
+	workspace: string,
+	problem: Catalog_Problem,
+	attempt_id: string,
+) -> (
+	source_path: string,
+	err: Op_Error,
+) {
 	dir := join("problems", problem.provider, problem.slug, attempt_id)
 	dir_abs := join(workspace, dir)
 	if os.exists(dir_abs) {
 		return "", fail(.Destination_Exists, "the fresh attempt destination already exists")
 	}
-	if mkdir_err := os.make_directory_all(dir_abs, os.perm(0o700)); mkdir_err != nil && mkdir_err != .Exist {
+	if mkdir_err := os.make_directory_all(dir_abs, os.perm(0o700));
+	   mkdir_err != nil && mkdir_err != .Exist {
 		return "", fail(.Storage_Error, "could not create the fresh attempt directory")
 	}
 	defer if err != nil {
 		os.remove_all(dir_abs)
 	}
 	if !path_is_within_workspace(workspace, dir_abs) {
-		return "", invalid("the fresh destination resolves outside the workspace through a symlink")
+		return "", invalid(
+			"the fresh destination resolves outside the workspace through a symlink",
+		)
 	}
 	source_path = join(dir, "solution.odin")
 	template := KATTIS_TEMPLATE if problem.provider == "kattis" else LOCAL_TEMPLATE
@@ -223,7 +284,15 @@ Case_Add_Params :: struct {
 	oracle_basis:    string,
 }
 
-op_case_add :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_case_add :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Case_Add_Params) or_return
 	if p.attempt_id == "" || p.provenance == "" {
 		return {}, invalid("attempt_id and provenance must be non-empty strings")
@@ -240,7 +309,7 @@ op_case_add :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 	// Only a case with an expected output can have a verified oracle.
 	_, has_expected := p.expected.?
 	oracle_verified := p.oracle_verified && has_expected
-	payload := Case_Added{
+	payload := Case_Added {
 		case_id         = fmt_id("case", store.revision + 1),
 		name            = p.name,
 		input           = p.input,
@@ -250,7 +319,15 @@ op_case_add :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 		oracle_verified = oracle_verified,
 		oracle_basis    = p.oracle_basis,
 	}
-	ev, replayed := commit(ctx, store, req, .Case_Added, payload, attempt.session_id, p.attempt_id) or_return
+	ev, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Case_Added,
+		payload,
+		attempt.session_id,
+		p.attempt_id,
+	) or_return
 
 	Data :: struct {
 		replayed:        Replayed `json:",omitempty"`,
@@ -260,7 +337,10 @@ op_case_add :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 	res = mutation_result(replayed)
 	res.data = to_json(Data{replayed_flag(replayed), fmt_id("case", ev.sequence), oracle_verified})
 	if !oracle_verified {
-		append(&res.warnings, "this case has no verified oracle and cannot count as passing evidence")
+		append(
+			&res.warnings,
+			"this case has no verified oracle and cannot count as passing evidence",
+		)
 	}
 	return
 }

@@ -19,7 +19,7 @@ verify_credentials :: proc(cfg: Config) -> (status: User_Status, err: Error) {
 		return {}, .No_Input
 	}
 	response, e := http_request("POST", "/graphql/", cfg, GQL_USER_STATUS_QUERY)
-	if e != nil { return {}, .Verify_Failed }
+	if e != nil {return {}, .Verify_Failed}
 	return parse_user_status(transmute([]byte)jencode(response))
 }
 
@@ -27,14 +27,16 @@ verify_credentials :: proc(cfg: Config) -> (status: User_Status, err: Error) {
 // at the JSON boundary; the rest of the program works with an ordinary bool.
 parse_user_status :: proc(data: []byte) -> (status: User_Status, err: Error) {
 	response: struct {
-		data: struct {
+		data:   struct {
 			user_status: struct {
-				username:  string      `json:"username"`,
+				username:  string `json:"username"`,
 				signed_in: Maybe(bool) `json:"isSignedIn"`,
-				premium:   bool        `json:"isPremium"`,
+				premium:   bool `json:"isPremium"`,
 			} `json:"userStatus"`,
 		},
-		errors: []struct {message: string},
+		errors: []struct {
+			message: string,
+		},
 	}
 	// unmarshal asserts on malformed input, so the bytes are validated first.
 	if !json.is_valid(data, .JSON) || json.unmarshal(data, &response, .JSON) != nil {

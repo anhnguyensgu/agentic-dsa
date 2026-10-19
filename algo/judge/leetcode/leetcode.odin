@@ -10,15 +10,18 @@
 // not outlive the command.
 package leetcode
 
+import judge ".."
 import "core:fmt"
 import "core:net"
 import "core:os"
 import "core:slice"
-import judge ".."
 
 VERSION :: "leetcode-odin 0.2.0"
 
-CAPABILITIES :: `{"schema_version":1,"provider":"leetcode","version":"` + VERSION + `","structured":true,"local_test":{"implemented":true,"languages":["odin"],"json_report":true},"problem_search":{"implemented":true},"problem_get":{"implemented":true},"attempt_create":{"fresh_destination":true},"submission":{"prepare_send_check":true,"remote_odin":false,"reason":"LeetCode does not judge Odin"}}`
+CAPABILITIES ::
+	`{"schema_version":1,"provider":"leetcode","version":"` +
+	VERSION +
+	`","structured":true,"local_test":{"implemented":true,"languages":["odin"],"json_report":true},"problem_search":{"implemented":true},"problem_get":{"implemented":true},"attempt_create":{"fresh_destination":true},"submission":{"prepare_send_check":true,"remote_odin":false,"reason":"LeetCode does not judge Odin"}}`
 
 Error :: judge.Error
 Options :: judge.Options
@@ -26,20 +29,20 @@ Options :: judge.Options
 // provider registers this package with `algo judge`.
 provider :: proc() -> judge.Provider {
 	return {
-		name          = "leetcode",
-		version       = VERSION,
-		capabilities  = CAPABILITIES,
-		usage         = USAGE,
-		commands      = slice.enumerated_array(&COMMANDS),
+		name = "leetcode",
+		version = VERSION,
+		capabilities = CAPABILITIES,
+		usage = USAGE,
+		commands = slice.enumerated_array(&COMMANDS),
 		workspace_env = "LEETCODE_ODIN_WORKSPACE",
-		defaults      = {limit = 20, timeout = 60},
-		validate      = validate,
-		messages      = #partial [Error]string {
+		defaults = {limit = 20, timeout = 60},
+		validate = validate,
+		messages = #partial [Error]string {
 			.Callback_Failed = "login failed; you can try `algo judge leetcode paste` instead",
-			.Not_Signed_In   = "leetcode.com reports you are NOT signed in; the session is likely expired",
-			.Config_Read     = "no usable credentials; run `algo judge leetcode auth` or `algo judge leetcode paste` first",
-			.API             = "unexpected LeetCode response (the service may have changed)",
-			.Unchecked       = "some local cases have no expected result; edit cases.json and set check=true",
+			.Not_Signed_In = "leetcode.com reports you are NOT signed in; the session is likely expired",
+			.Config_Read = "no usable credentials; run `algo judge leetcode auth` or `algo judge leetcode paste` first",
+			.API = "unexpected LeetCode response (the service may have changed)",
+			.Unchecked = "some local cases have no expected result; edit cases.json and set check=true",
 		},
 	}
 }
@@ -49,11 +52,16 @@ cmd_auth :: proc(o: Options) -> Error {
 	// recompiling: algo judge leetcode auth <protocol> <path>
 	overrides := o.positionals[:]
 	protocol := overrides[0] if len(overrides) >= 1 else "http"
-	callback := overrides[1] if len(overrides) >= 2 else fmt.tprintf("%s:%d", CALLBACK_HOST, CALLBACK_PORT)
+	callback :=
+		overrides[1] if len(overrides) >= 2 else fmt.tprintf("%s:%d", CALLBACK_HOST, CALLBACK_PORT)
 
 	fmt.println("== LeetCode browser login ==")
 	fmt.printf("Starting local callback server on %s:%d ...\n", CALLBACK_HOST, CALLBACK_PORT)
-	url := fmt.tprintf("https://leetcode.com/authorize-login/%s/?path=%s", protocol, net.percent_encode(callback))
+	url := fmt.tprintf(
+		"https://leetcode.com/authorize-login/%s/?path=%s",
+		protocol,
+		net.percent_encode(callback),
+	)
 	cfg := capture_callback(url) or_return
 	return verify_and_save(cfg)
 }

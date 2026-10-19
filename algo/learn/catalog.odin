@@ -121,22 +121,22 @@ Problem_View :: struct {
 
 problem_view :: proc(p: Catalog_Problem, audience: Audience) -> Problem_View {
 	return {
-		problem_key     = p.problem_key,
-		provider        = p.provider,
-		native_id       = p.native_id,
-		slug            = p.slug,
-		title           = p.title,
-		canonical_url   = p.canonical_url,
-		difficulty      = p.difficulty,
-		effort_minutes  = p.effort_minutes,
-		access          = p.access,
-		offline         = p.offline,
-		concept_ids     = p.concept_ids,
-		prerequisites   = p.prerequisites,
-		practice_modes  = p.practice_modes,
+		problem_key = p.problem_key,
+		provider = p.provider,
+		native_id = p.native_id,
+		slug = p.slug,
+		title = p.title,
+		canonical_url = p.canonical_url,
+		difficulty = p.difficulty,
+		effort_minutes = p.effort_minutes,
+		access = p.access,
+		offline = p.offline,
+		concept_ids = p.concept_ids,
+		prerequisites = p.prerequisites,
+		practice_modes = p.practice_modes,
 		judge_languages = p.judge_languages,
-		spoiler_tags    = p.spoiler_tags if audience == .Learning else nil,
-		label_origin    = p.label_origin,
+		spoiler_tags = p.spoiler_tags if audience == .Learning else nil,
+		label_origin = p.label_origin,
 	}
 }
 
@@ -163,7 +163,15 @@ Problem_Search_Params :: struct {
 	audience:   string,
 }
 
-op_problem_search :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_problem_search :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Problem_Search_Params) or_return
 	audience := parse_audience(p.audience) or_return
 	limit := p.limit if p.limit != 0 else 20
@@ -223,7 +231,15 @@ Problem_Get_Params :: struct {
 	refresh:     bool,
 }
 
-op_problem_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_problem_get :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Problem_Get_Params) or_return
 	if p.problem_key == "" {
 		return {}, invalid("problem_key must be a non-empty string")
@@ -238,6 +254,11 @@ op_problem_get :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 		problem:        Problem_View,
 		metadata_scope: string,
 	}
-	res.data = to_json(Data{problem_view(problem, audience), "curated catalogue metadata; fetch the provider statement before practice"})
+	res.data = to_json(
+		Data {
+			problem_view(problem, audience),
+			"curated catalogue metadata; fetch the provider statement before practice",
+		},
+	)
 	return
 }

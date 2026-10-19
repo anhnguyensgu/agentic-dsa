@@ -1,11 +1,11 @@
 package leetcode
 
+import judge ".."
 import "core:bufio"
 import "core:fmt"
 import "core:io"
 import "core:net"
 import "core:strings"
-import judge ".."
 
 // Decoded strings live in the command arena. Duplicate fields are processed
 // in order, so the last value wins, including a later complete cookie jar.
@@ -14,8 +14,14 @@ extract_cookies :: proc(query: string) -> (cfg: Config, err: Error) {
 	for pair in strings.split_by_byte_iterator(&remaining, '&') {
 		key, encoded := judge.split_once(pair, "=")
 		switch key {
-		case "cookie", "LEETCODE_SESSION", "leetcode_session", "session",
-		     "csrftoken", "csrf", "csrf_token", "csrfToken":
+		case "cookie",
+		     "LEETCODE_SESSION",
+		     "leetcode_session",
+		     "session",
+		     "csrftoken",
+		     "csrf",
+		     "csrf_token",
+		     "csrfToken":
 		case:
 			continue
 		}
@@ -47,8 +53,10 @@ parse_cookie_jar :: proc(s: string) -> (cfg: Config) {
 	for part in strings.split_by_byte_iterator(&remaining, ';') {
 		name, value := judge.split_once(strings.trim_space(part), "=")
 		switch strings.trim_space(name) {
-		case "LEETCODE_SESSION": cfg.leetcode_session = strings.trim_space(value)
-		case "csrftoken":        cfg.csrf_token = strings.trim_space(value)
+		case "LEETCODE_SESSION":
+			cfg.leetcode_session = strings.trim_space(value)
+		case "csrftoken":
+			cfg.csrf_token = strings.trim_space(value)
 		}
 	}
 	return
@@ -61,7 +69,8 @@ parse_pasted_config :: proc(input: string) -> (cfg: Config, err: Error) {
 	cfg = parse_cookie_jar(line)
 	if cfg.leetcode_session == "" {
 		name, _ := judge.split_once(line, "=")
-		if strings.contains(line, ";") || strings.trim_space(name) == "LEETCODE_SESSION" ||
+		if strings.contains(line, ";") ||
+		   strings.trim_space(name) == "LEETCODE_SESSION" ||
 		   strings.trim_space(name) == "csrftoken" {
 			return {}, .No_Input
 		}
@@ -74,7 +83,11 @@ parse_pasted_config :: proc(input: string) -> (cfg: Config, err: Error) {
 }
 
 valid_credentials :: proc(cfg: Config) -> bool {
-	return cfg.leetcode_session != "" && valid_cookie_value(cfg.leetcode_session) && valid_cookie_value(cfg.csrf_token)
+	return(
+		cfg.leetcode_session != "" &&
+		valid_cookie_value(cfg.leetcode_session) &&
+		valid_cookie_value(cfg.csrf_token) \
+	)
 }
 
 // RFC 6265 cookie-octet characters; also excludes CR/LF header injection.

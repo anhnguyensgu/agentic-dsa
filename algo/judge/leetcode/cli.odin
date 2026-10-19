@@ -1,7 +1,7 @@
 package leetcode
 
-import "core:fmt"
 import judge ".."
+import "core:fmt"
 
 USAGE :: `usage: algo judge leetcode <command> [arguments] [options]
 
@@ -74,26 +74,103 @@ PROBLEM_CACHE :: judge.Flags{.Workspace, .Json, .Offline, .Refresh}
 FILTERS :: judge.Flags{.Difficulty, .Status, .Tag, .Free}
 
 COMMANDS := [Command]judge.Command_Spec {
-	.Auth         = {names = {"auth"}, max_args = 2, handler = cmd_auth},
-	.Paste        = {names = {"paste"}, handler = cmd_paste},
-	.Status       = {names = {"status"}, flags = {.Json}, handler = cmd_status},
-	.Logout       = {names = {"logout"}, handler = cmd_logout},
-	.List         = {names = {"list", "search"}, max_args = 1, flags = {.Workspace, .Json, .Offline, .Limit, .Skip} + FILTERS, handler = cmd_list},
-	.Show         = {names = {"show", "fetch"}, min_args = 1, max_args = 1, flags = PROBLEM_CACHE, handler = cmd_problem},
-	.Daily        = {names = {"daily"}, flags = PROBLEM_CACHE, handler = cmd_problem},
-	.Random       = {names = {"random"}, flags = PROBLEM_CACHE + FILTERS, handler = cmd_problem},
-	.Languages    = {names = {"languages"}, min_args = 1, max_args = 1, flags = PROBLEM_CACHE, handler = cmd_problem},
-	.Open         = {names = {"open"}, min_args = 1, max_args = 1, flags = {.Workspace, .Offline}, handler = cmd_problem},
-	.Get          = {names = {"get", "pick"}, min_args = 1, max_args = 1, flags = PROBLEM_CACHE + {.Dir, .Lang}, handler = cmd_problem},
-	.Test         = {names = {"test"}, min_args = 1, max_args = 1, flags = {.Timeout, .Json}, handler = cmd_local_test},
-	.Run          = {names = {"run"}, min_args = 2, max_args = 2, flags = {.Workspace, .Json, .Lang, .Input, .Timeout, .Refresh}, handler = cmd_judge},
-	.Run_Start    = {names = {"run-start"}, min_args = 2, max_args = 2, flags = {.Workspace, .Json, .Lang, .Input, .Timeout, .Refresh}, handler = cmd_judge},
-	.Submit       = {names = {"submit"}, min_args = 2, max_args = 2, flags = {.Workspace, .Json, .Lang, .Timeout, .Refresh}, handler = cmd_judge},
-	.Submit_Start = {names = {"submit-start"}, min_args = 2, max_args = 2, flags = {.Workspace, .Json, .Lang, .Timeout, .Refresh}, handler = cmd_judge},
-	.Check        = {names = {"check", "watch"}, min_args = 1, max_args = 1, flags = {.Json, .Timeout}, handler = cmd_judge},
-	.Submissions  = {names = {"submissions"}, min_args = 1, max_args = 1, flags = {.Workspace, .Json, .Limit, .Skip}, handler = cmd_account},
-	.Submission   = {names = {"submission"}, min_args = 1, max_args = 1, flags = {.Json}, handler = cmd_account},
-	.Stats        = {names = {"stats"}, max_args = 1, flags = {.Json}, handler = cmd_account},
+	.Auth = {names = {"auth"}, max_args = 2, handler = cmd_auth},
+	.Paste = {names = {"paste"}, handler = cmd_paste},
+	.Status = {names = {"status"}, flags = {.Json}, handler = cmd_status},
+	.Logout = {names = {"logout"}, handler = cmd_logout},
+	.List = {
+		names = {"list", "search"},
+		max_args = 1,
+		flags = {.Workspace, .Json, .Offline, .Limit, .Skip} + FILTERS,
+		handler = cmd_list,
+	},
+	.Show = {
+		names = {"show", "fetch"},
+		min_args = 1,
+		max_args = 1,
+		flags = PROBLEM_CACHE,
+		handler = cmd_problem,
+	},
+	.Daily = {names = {"daily"}, flags = PROBLEM_CACHE, handler = cmd_problem},
+	.Random = {names = {"random"}, flags = PROBLEM_CACHE + FILTERS, handler = cmd_problem},
+	.Languages = {
+		names = {"languages"},
+		min_args = 1,
+		max_args = 1,
+		flags = PROBLEM_CACHE,
+		handler = cmd_problem,
+	},
+	.Open = {
+		names = {"open"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Workspace, .Offline},
+		handler = cmd_problem,
+	},
+	.Get = {
+		names = {"get", "pick"},
+		min_args = 1,
+		max_args = 1,
+		flags = PROBLEM_CACHE + {.Dir, .Lang},
+		handler = cmd_problem,
+	},
+	.Test = {
+		names = {"test"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Timeout, .Json},
+		handler = cmd_local_test,
+	},
+	.Run = {
+		names = {"run"},
+		min_args = 2,
+		max_args = 2,
+		flags = {.Workspace, .Json, .Lang, .Input, .Timeout, .Refresh},
+		handler = cmd_judge,
+	},
+	.Run_Start = {
+		names = {"run-start"},
+		min_args = 2,
+		max_args = 2,
+		flags = {.Workspace, .Json, .Lang, .Input, .Timeout, .Refresh},
+		handler = cmd_judge,
+	},
+	.Submit = {
+		names = {"submit"},
+		min_args = 2,
+		max_args = 2,
+		flags = {.Workspace, .Json, .Lang, .Timeout, .Refresh},
+		handler = cmd_judge,
+	},
+	.Submit_Start = {
+		names = {"submit-start"},
+		min_args = 2,
+		max_args = 2,
+		flags = {.Workspace, .Json, .Lang, .Timeout, .Refresh},
+		handler = cmd_judge,
+	},
+	.Check = {
+		names = {"check", "watch"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Json, .Timeout},
+		handler = cmd_judge,
+	},
+	.Submissions = {
+		names = {"submissions"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Workspace, .Json, .Limit, .Skip},
+		handler = cmd_account,
+	},
+	.Submission = {
+		names = {"submission"},
+		min_args = 1,
+		max_args = 1,
+		flags = {.Json},
+		handler = cmd_account,
+	},
+	.Stats = {names = {"stats"}, max_args = 1, flags = {.Json}, handler = cmd_account},
 }
 
 validate :: proc(o: Options) -> Error {

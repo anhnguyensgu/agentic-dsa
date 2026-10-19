@@ -1,12 +1,12 @@
 // One-shot, loopback-only HTTP callback for browser login.
 package leetcode
 
+import judge ".."
 import "core:fmt"
 import "core:net"
 import "core:os"
 import "core:strings"
 import "core:time"
-import judge ".."
 
 CALLBACK_HOST :: "127.0.0.1"
 CALLBACK_PORT :: 9777

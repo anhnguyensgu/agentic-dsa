@@ -17,7 +17,10 @@ config_round_trip_and_permissions :: proc(t: ^testing.T) {
 	}
 	defer os.remove_all(dir)
 	path := os.join_path({dir, "credentials", "config.json"}, context.allocator) or_else ""
-	cfg := Config{leetcode_session = "synthetic-session-long", csrf_token = "synthetic-csrf"}
+	cfg := Config {
+		leetcode_session = "synthetic-session-long",
+		csrf_token       = "synthetic-csrf",
+	}
 	testing.expect_value(t, save_config(cfg, path), Error.None)
 	loaded, err := load_config(path)
 	testing.expect_value(t, err, Error.None)
@@ -25,7 +28,9 @@ config_round_trip_and_permissions :: proc(t: ^testing.T) {
 
 	// Overwriting a longer, world-readable file must truncate it and restore 0600.
 	testing.expect(t, os.chmod(path, os.perm(0o644)) == nil)
-	cfg = {leetcode_session = "short"}
+	cfg = {
+		leetcode_session = "short",
+	}
 	testing.expect_value(t, save_config(cfg, path), Error.None)
 	loaded, err = load_config(path)
 	testing.expect_value(t, err, Error.None)
@@ -55,8 +60,10 @@ config_rejects_bad_credentials :: proc(t: ^testing.T) {
 	}
 	defer os.remove_all(dir)
 	path := os.join_path({dir, "config.json"}, context.allocator) or_else ""
-	invalid := []string{
-		"not JSON", "{}", "null",
+	invalid := []string {
+		"not JSON",
+		"{}",
+		"null",
 		`{"leetcode_session":""}`,
 		`{"leetcode_session":"s","csrf_token":42}`,
 		`{"leetcode_session":"s\r\nInjected:header"}`,
@@ -68,7 +75,9 @@ config_rejects_bad_credentials :: proc(t: ^testing.T) {
 		testing.expect_value(t, cfg, Config{})
 	}
 
-	good := Config{leetcode_session = "keep-existing"}
+	good := Config {
+		leetcode_session = "keep-existing",
+	}
 	testing.expect_value(t, save_config(good, path), Error.None)
 	testing.expect_value(t, save_config({}, path), Error.No_Input)
 	loaded, err := load_config(path)

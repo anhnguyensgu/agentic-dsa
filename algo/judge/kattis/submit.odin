@@ -3,12 +3,12 @@ package kattis
 // Submission and verdict polling. GET /submissions/<id>?json returns
 // {status_id, testcase_index, row_html, feedback_html} (see kattis-cli).
 
+import judge ".."
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:time"
-import judge ".."
 
 RUNNING_STATUS :: 5
 COMPILE_ERROR_STATUS :: 8
@@ -109,11 +109,13 @@ submit :: proc(solution: string, o: Options, problem_id := "", start_only := fal
 		return .Not_Signed_In
 	}
 
-	body, marshal_err := json.marshal(Submit_Request{
-		files    = {{filename = os.base(path), code = string(code), id = 1}},
-		language = language,
-		problem  = id,
-	})
+	body, marshal_err := json.marshal(
+		Submit_Request {
+			files = {{filename = os.base(path), code = string(code), id = 1}},
+			language = language,
+			problem = id,
+		},
+	)
 	assert(marshal_err == nil)
 
 	// The body contains source code; it goes through a private file rather
@@ -125,12 +127,18 @@ submit :: proc(solution: string, o: Options, problem_id := "", start_only := fal
 
 	fmt.eprintf("submitting %s to %s (language %s)...\n", path, id, language)
 	response := curl(
-		"--max-time", "30",
-		"-b", jar,
-		"-H", "Content-Type: application/json",
-		"-H", "Accept: application/json",
-		"--data-binary", strings.concatenate({"@", body_path}),
-		"--url", fmt.tprintf("%s/problems/%s/submit", BASE_URL, id),
+		"--max-time",
+		"30",
+		"-b",
+		jar,
+		"-H",
+		"Content-Type: application/json",
+		"-H",
+		"Accept: application/json",
+		"--data-binary",
+		strings.concatenate({"@", body_path}),
+		"--url",
+		fmt.tprintf("%s/problems/%s/submit", BASE_URL, id),
 	) or_return
 	// Kattis escapes slashes in JSON ("success_url":"\/submissions\/...").
 	response, _ = strings.replace_all(strings.trim_space(response), `\/`, "/")
@@ -146,7 +154,17 @@ submit :: proc(solution: string, o: Options, problem_id := "", start_only := fal
 		return watch(submission_id, o.timeout, o.json)
 	}
 	if o.json {
-		judge.print_json(Job_Report{SCHEMA_VERSION, PROVIDER, "submission", problem_key(id), submission_id, "queued", language})
+		judge.print_json(
+			Job_Report {
+				SCHEMA_VERSION,
+				PROVIDER,
+				"submission",
+				problem_key(id),
+				submission_id,
+				"queued",
+				language,
+			},
+		)
 	} else {
 		fmt.printf("resume with: algo judge kattis check %s\n", submission_id)
 	}
@@ -167,14 +185,27 @@ watch :: proc(submission_id: string, timeout: int, as_json: bool) -> Error {
 		verdict, done = poll_submission(submission_id)
 	}
 	if as_json {
-		judge.print_json(Check_Report{SCHEMA_VERSION, PROVIDER, submission_id, "terminal" if done else "pending", verdict})
+		judge.print_json(
+			Check_Report {
+				SCHEMA_VERSION,
+				PROVIDER,
+				submission_id,
+				"terminal" if done else "pending",
+				verdict,
+			},
+		)
 	}
 	if !done {
-		fmt.eprintf("judge still pending; resume with `algo judge kattis check %s`\n", submission_id)
+		fmt.eprintf(
+			"judge still pending; resume with `algo judge kattis check %s`\n",
+			submission_id,
+		)
 		return .Timeout
 	}
 	if !as_json {
-		fmt.println(verdict if verdict != "" else "could not determine the verdict; check the submission page")
+		fmt.println(
+			verdict if verdict != "" else "could not determine the verdict; check the submission page",
+		)
 	}
 	return nil if verdict == STATUS_NAMES[ACCEPTED_STATUS] else .Not_Accepted
 }
@@ -209,7 +240,8 @@ poll_submission :: proc(submission_id: string) -> (verdict: string, done: bool) 
 
 	// unmarshal asserts on malformed input, so a truncated body is checked first.
 	s: Submission_Status
-	if !json.is_valid(transmute([]byte)body, .JSON) || json.unmarshal_string(body, &s, .JSON) != nil {
+	if !json.is_valid(transmute([]byte)body, .JSON) ||
+	   json.unmarshal_string(body, &s, .JSON) != nil {
 		fmt.eprintln("could not parse the submission status JSON")
 		return "", true
 	}
@@ -237,15 +269,24 @@ status_name :: proc(id: int) -> string {
 // kattis-cli's mapping. Pass a language explicitly when this guess is wrong.
 language_for_file :: proc(path: string) -> string {
 	switch strings.to_lower(os.ext(path)) {
-	case ".c":          return "C"
-	case ".cpp", ".cc": return "C++"
-	case ".cs":         return "C#"
-	case ".java":       return "Java"
-	case ".js":         return "JavaScript (Node.js)"
-	case ".ts":         return "TypeScript"
-	case ".py":         return "Python 3"
-	case ".rs":         return "Rust"
-	case ".go":         return "Go"
+	case ".c":
+		return "C"
+	case ".cpp", ".cc":
+		return "C++"
+	case ".cs":
+		return "C#"
+	case ".java":
+		return "Java"
+	case ".js":
+		return "JavaScript (Node.js)"
+	case ".ts":
+		return "TypeScript"
+	case ".py":
+		return "Python 3"
+	case ".rs":
+		return "Rust"
+	case ".go":
+		return "Go"
 	}
 	return "Odin"
 }

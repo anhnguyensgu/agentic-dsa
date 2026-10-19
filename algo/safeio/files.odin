@@ -14,7 +14,8 @@ import "core:strings"
 // replaced rather than followed.
 write_private_file :: proc(path: string, data: []byte) -> (err: os.Error) {
 	dir := os.dir(path)
-	if mkdir_err := os.make_directory_all(dir, os.perm(0o700)); mkdir_err != nil && mkdir_err != .Exist {
+	if mkdir_err := os.make_directory_all(dir, os.perm(0o700));
+	   mkdir_err != nil && mkdir_err != .Exist {
 		return mkdir_err
 	}
 

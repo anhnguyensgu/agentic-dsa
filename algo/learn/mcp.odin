@@ -69,7 +69,7 @@ Rpc_Error :: struct {
 
 serve_mcp :: proc(workspace: string) -> int {
 	heap := runtime.heap_allocator()
-	server := MCP_Server{
+	server := MCP_Server {
 		workspace = strings.clone(workspace, heap),
 		pending   = make(map[Raw_JSON]^MCP_Call, heap),
 		threads   = make([dynamic]^thread.Thread, heap),
@@ -157,7 +157,13 @@ initialize :: proc(server: ^MCP_Server, request: Rpc_Request) {
 			supported: []string,
 		}
 		versions := [?]string{MCP_PROTOCOL_VERSION}
-		send_error(server, request.id, INVALID_PARAMS, "unsupported MCP protocol version", to_json(Supported{versions[:]}))
+		send_error(
+			server,
+			request.id,
+			INVALID_PARAMS,
+			"unsupported MCP protocol version",
+			to_json(Supported{versions[:]}),
+		)
 		return
 	}
 
@@ -198,7 +204,16 @@ Tool :: struct {
 	},
 }
 
-RESULT_ENVELOPE_FIELDS := []string{"schema_version", "request_id", "workspace_revision", "status", "data", "warnings", "error", "next_actions"}
+RESULT_ENVELOPE_FIELDS := []string {
+	"schema_version",
+	"request_id",
+	"workspace_revision",
+	"status",
+	"data",
+	"warnings",
+	"error",
+	"next_actions",
+}
 
 // tools_list derives each tool's input schema from its operation's params
 // struct, so the schema and the engine's validation cannot drift apart.
@@ -207,7 +222,10 @@ tools_list :: proc() -> Raw_JSON {
 	for op, i in OPERATIONS {
 		t := &tools[i]
 		t.name = op.name
-		t.description = fmt.aprintf("Algorithm Learning operation %s; the engine rejects unexpected fields and invalid enums.", op.name)
+		t.description = fmt.aprintf(
+			"Algorithm Learning operation %s; the engine rejects unexpected fields and invalid enums.",
+			op.name,
+		)
 		t.inputSchema.type = "object"
 		t.inputSchema.properties = make(map[string]Raw_JSON)
 		for field in reflect.struct_fields_zipped(op.params) {
@@ -263,7 +281,12 @@ start_call :: proc(server: ^MCP_Server, request: Rpc_Request) {
 	params: Params
 	decode(string(request.params), &params)
 	if params.name == "" || params.arguments == "" {
-		send_error(server, request.id, INVALID_PARAMS, "tool name and arguments object are required")
+		send_error(
+			server,
+			request.id,
+			INVALID_PARAMS,
+			"tool name and arguments object are required",
+		)
 		return
 	}
 	if _, known := find_operation(params.name); !known {
@@ -313,7 +336,11 @@ call_worker :: proc(t: ^thread.Thread) {
 	if store, load_err := load_store(server.workspace); load_err != nil {
 		res = failure_result({code = load_err, message = "could not load the event log"})
 	} else {
-		ctx := Context{workspace = server.workspace, actor = "agent:mcp", host = "mcp"}
+		ctx := Context {
+			workspace = server.workspace,
+			actor     = "agent:mcp",
+			host      = "mcp",
+		}
 		res, _ = run_operation(call.operation, &ctx, &store, input, req)
 		revision = store.revision
 	}
@@ -364,7 +391,12 @@ cancel_call :: proc(server: ^MCP_Server, request_id: Raw_JSON) {
 	}
 	sync.unlock(&server.pending_mutex)
 	if found {
-		send_error(server, request_id, REQUEST_CANCELLED, "request cancelled; any remote operation continues under its durable intent and will not be replayed")
+		send_error(
+			server,
+			request_id,
+			REQUEST_CANCELLED,
+			"request cancelled; any remote operation continues under its durable intent and will not be replayed",
+		)
 	}
 }
 
@@ -379,12 +411,26 @@ send_result :: proc(server: ^MCP_Server, id: Raw_JSON, result: Raw_JSON) {
 	send(server, to_json(Rpc_Result{"2.0", id, result}))
 }
 
-send_error :: proc(server: ^MCP_Server, id: Raw_JSON, code: int, message: string, data: Maybe(Raw_JSON) = nil) {
+send_error :: proc(
+	server: ^MCP_Server,
+	id: Raw_JSON,
+	code: int,
+	message: string,
+	data: Maybe(Raw_JSON) = nil,
+) {
 	send(server, error_message(id, code, message, data))
 }
 
-error_message :: proc(id: Raw_JSON, code: int, message: string, data: Maybe(Raw_JSON) = nil) -> Raw_JSON {
-	response := Rpc_Error{jsonrpc = "2.0", id = id}
+error_message :: proc(
+	id: Raw_JSON,
+	code: int,
+	message: string,
+	data: Maybe(Raw_JSON) = nil,
+) -> Raw_JSON {
+	response := Rpc_Error {
+		jsonrpc = "2.0",
+		id      = id,
+	}
 	response.error = {code, message, data}
 	return to_json(response)
 }

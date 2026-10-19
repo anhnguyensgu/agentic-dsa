@@ -17,7 +17,15 @@ Session_Start_Params :: struct {
 	review_item_id: string,
 }
 
-op_session_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_session_start :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Session_Start_Params) or_return
 	nonempty({"objective", p.objective}, {"mode", p.mode}) or_return
 	nonempty_items("concept_ids", p.concept_ids) or_return
@@ -34,7 +42,7 @@ op_session_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 
 	// The id is minted from the sequence number this event will receive; ids
 	// are only minted under the workspace lock, so it cannot collide.
-	payload := Session_Started{
+	payload := Session_Started {
 		objective      = p.objective,
 		mode           = p.mode,
 		problem_key    = p.problem_key,
@@ -42,7 +50,14 @@ op_session_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 		budget_minutes = p.budget_minutes if p.budget_minutes > 0 else nil,
 		concept_ids    = p.concept_ids,
 	}
-	ev, replayed := commit(ctx, store, req, .Session_Started, payload, session_id = fmt_id("sess", store.revision + 1)) or_return
+	ev, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Session_Started,
+		payload,
+		session_id = fmt_id("sess", store.revision + 1),
+	) or_return
 
 	Data :: struct {
 		replayed:   Replayed `json:",omitempty"`,
@@ -51,7 +66,10 @@ op_session_start :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 	}
 	res = mutation_result(replayed)
 	res.data = to_json(Data{replayed_flag(replayed), ev.session_id, ev.sequence})
-	append(&res.next_actions, "state the expected learning outcome, then select or accept a problem")
+	append(
+		&res.next_actions,
+		"state the expected learning outcome, then select or accept a problem",
+	)
 	return
 }
 
@@ -65,23 +83,48 @@ Session_Checkpoint_Params :: struct {
 	pause:       bool,
 }
 
-op_session_checkpoint :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_session_checkpoint :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Session_Checkpoint_Params) or_return
-	nonempty({"session_id", p.session_id}, {"activity", p.activity}, {"summary", p.summary}, {"next_action", p.next_action}) or_return
+	nonempty(
+		{"session_id", p.session_id},
+		{"activity", p.activity},
+		{"summary", p.summary},
+		{"next_action", p.next_action},
+	) or_return
 	enum_value(ACTIVITY_NAMES, "activity", p.activity) or_return
 
 	payload := Session_Checkpoint{p.activity, p.summary, p.next_action, p.pause}
-	_, replayed := commit(ctx, store, req, .Session_Checkpoint, payload, session_id = p.session_id) or_return
+	_, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Session_Checkpoint,
+		payload,
+		session_id = p.session_id,
+	) or_return
 
 	Data :: struct {
 		replayed:         Replayed `json:",omitempty"`,
 		handoff_json:     string `json:",omitempty"`,
 		handoff_markdown: string `json:",omitempty"`,
 	}
-	data := Data{replayed = replayed_flag(replayed)}
+	data := Data {
+		replayed = replayed_flag(replayed),
+	}
 	res = mutation_result(replayed)
 	if write_session_handoff(store, p.session_id) != nil {
-		append(&res.warnings, "checkpoint event was committed but the handoff view could not be written; event replay remains authoritative")
+		append(
+			&res.warnings,
+			"checkpoint event was committed but the handoff view could not be written; event replay remains authoritative",
+		)
 	} else {
 		data.handoff_json = join(LEARNING_DIR, "sessions", p.session_id, "handoff.json")
 		data.handoff_markdown = join(LEARNING_DIR, "sessions", p.session_id, "handoff.md")
@@ -97,7 +140,15 @@ Session_Resume_Params :: struct {
 	session_id: string,
 }
 
-op_session_resume :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_session_resume :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Session_Resume_Params) or_return
 	st := fold(store)
 	if len(st.sessions) == 0 {
@@ -124,7 +175,10 @@ op_session_resume :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reque
 	handoff, _ := session_handoff(store, s.id)
 	res.data = to_json(Data{s.status != .Closed, session_view(s^), handoff})
 	if s.status == .Closed {
-		append(&res.next_actions, "the latest session is closed; start a new linked session to return to this work")
+		append(
+			&res.next_actions,
+			"the latest session is closed; start a new linked session to return to this work",
+		)
 	} else if s.next_action != "" {
 		append(&res.next_actions, s.next_action)
 	}
@@ -147,14 +201,30 @@ Hint_Record_Params :: struct {
 	concept_ids: []string,
 }
 
-op_hint_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_hint_record :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Hint_Record_Params) or_return
 	nonempty({"session_id", p.session_id}) or_return
 	in_range("level", p.level, 0, SOLUTION_HINT_LEVEL) or_return
 	nonempty_items("concept_ids", p.concept_ids) or_return
 
 	payload := Hint_Delivered{p.level, p.content, p.concept_ids}
-	_, replayed := commit(ctx, store, req, .Hint_Delivered, payload, p.session_id, p.attempt_id) or_return
+	_, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Hint_Delivered,
+		payload,
+		p.session_id,
+		p.attempt_id,
+	) or_return
 
 	Data :: struct {
 		replayed: Replayed `json:",omitempty"`,
@@ -163,7 +233,13 @@ op_hint_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request)
 	res = mutation_result(replayed)
 	res.data = to_json(Data{replayed_flag(replayed), p.level})
 	if p.level >= STRUCTURAL_HINT_LEVEL {
-		append(&res.warnings, fmt.aprintf("level %d discloses algorithmic structure; this attempt can no longer qualify as independent", p.level))
+		append(
+			&res.warnings,
+			fmt.aprintf(
+				"level %d discloses algorithmic structure; this attempt can no longer qualify as independent",
+				p.level,
+			),
+		)
 	}
 	return
 }
@@ -180,9 +256,21 @@ Evidence_Record_Params :: struct {
 	artifact_hash: string,
 }
 
-op_evidence_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_evidence_record :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Evidence_Record_Params) or_return
-	nonempty({"session_id", p.session_id}, {"evidence_type", p.evidence_type}, {"producer", p.producer}) or_return
+	nonempty(
+		{"session_id", p.session_id},
+		{"evidence_type", p.evidence_type},
+		{"producer", p.producer},
+	) or_return
 	// Runner and provider observations come only from their own handlers;
 	// agents may record claims, never tool evidence (section 11).
 	switch p.producer {
@@ -191,8 +279,22 @@ op_evidence_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Requ
 		return {}, fail(.Invalid_Evidence, "producer must be learner, agent, or import; runner and judge evidence is recorded by its own handlers")
 	}
 
-	payload := Evidence_Recorded{p.evidence_type, p.producer, p.concept_id, p.content, p.artifact_hash}
-	_, replayed := commit(ctx, store, req, .Evidence_Recorded, payload, p.session_id, p.attempt_id) or_return
+	payload := Evidence_Recorded {
+		p.evidence_type,
+		p.producer,
+		p.concept_id,
+		p.content,
+		p.artifact_hash,
+	}
+	_, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Evidence_Recorded,
+		payload,
+		p.session_id,
+		p.attempt_id,
+	) or_return
 	return replayed_result(replayed), nil
 }
 
@@ -210,7 +312,15 @@ Assessment_Record_Params :: struct {
 	evidence_ids:   []string,
 }
 
-op_assessment_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_assessment_record :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Assessment_Record_Params) or_return
 	nonempty(
 		{"session_id", p.session_id},
@@ -233,8 +343,22 @@ op_assessment_record :: proc(ctx: ^Context, store: ^Store, input: Input, req: Re
 		}
 	}
 
-	payload := Assessment_Recorded{p.concept_id, p.dimension, score, p.rationale, p.rubric_version, p.evidence_ids}
-	_, replayed := commit(ctx, store, req, .Assessment_Recorded, payload, session_id = p.session_id) or_return
+	payload := Assessment_Recorded {
+		p.concept_id,
+		p.dimension,
+		score,
+		p.rationale,
+		p.rubric_version,
+		p.evidence_ids,
+	}
+	_, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Assessment_Recorded,
+		payload,
+		session_id = p.session_id,
+	) or_return
 	return replayed_result(replayed), nil
 }
 
@@ -255,7 +379,9 @@ parse_score :: proc(v: json.Value) -> (int, Op_Error) {
 
 is_session_evidence :: proc(store: ^Store, session_id, event_id: string) -> bool {
 	for ev in store.events {
-		if ev.event_id == event_id && ev.session_id == session_id && is_event(ev, EVIDENCE_EVENTS) {
+		if ev.event_id == event_id &&
+		   ev.session_id == session_id &&
+		   is_event(ev, EVIDENCE_EVENTS) {
 			return true
 		}
 	}
@@ -279,7 +405,15 @@ Session_Close_Params :: struct {
 	review_outcome: string,
 }
 
-op_session_close :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_session_close :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Session_Close_Params) or_return
 	nonempty({"session_id", p.session_id}, {"reason", p.reason}) or_return
 	reason, known_reason := parse_enum(CLOSURE_REASON_NAMES, p.reason)
@@ -325,12 +459,26 @@ op_session_close :: proc(ctx: ^Context, store: ^Store, input: Input, req: Reques
 	}
 
 	// Review updates are computed once here and frozen into the event.
-	payload := Session_Closed{
+	payload := Session_Closed {
 		reason         = p.reason,
 		independent    = independent,
-		review_updates = due_review_updates(&st, session, reason, independent, p.review_outcome, context_now(ctx)),
+		review_updates = due_review_updates(
+			&st,
+			session,
+			reason,
+			independent,
+			p.review_outcome,
+			context_now(ctx),
+		),
 	}
-	ev, replayed := commit(ctx, store, req, .Session_Closed, payload, session_id = p.session_id) or_return
+	ev, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Session_Closed,
+		payload,
+		session_id = p.session_id,
+	) or_return
 
 	res = mutation_result(replayed)
 	res.data = to_json(Data{replayed_flag(replayed), p.session_id, independent, ev.sequence})
@@ -364,7 +512,11 @@ due_review_updates :: proc(
 		}
 		outcome, _ := review_outcome_from_string(outcome_name)
 		index, due := apply_outcome(review.interval_index, review.due_ts, outcome, now)
-		return to_json([]Review_Advanced{{"update", review.id, index, due, outcome_name, REVIEW_STATE_NAMES[.Open]}})
+		return to_json(
+			[]Review_Advanced {
+				{"update", review.id, index, due, outcome_name, REVIEW_STATE_NAMES[.Open]},
+			},
+		)
 	}
 
 	due := rfc3339_utc(time.time_add(now, INITIAL_INTERVAL_DAYS * DAY))

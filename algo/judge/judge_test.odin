@@ -12,13 +12,19 @@ noop :: proc(o: Options) -> Error {
 @(private = "file")
 fixture :: proc() -> Provider {
 	@(static) commands := [?]Command_Spec {
-		{names = {"show", "fetch"}, min_args = 1, max_args = 1, flags = {.Json, .Timeout}, handler = noop},
+		{
+			names = {"show", "fetch"},
+			min_args = 1,
+			max_args = 1,
+			flags = {.Json, .Timeout},
+			handler = noop,
+		},
 		{names = {"list"}, max_args = 1, flags = {.Limit, .Page}, handler = noop},
 	}
 	return {
-		name     = "fixture",
-		version  = "fixture 1.0",
-		usage    = "usage: fixture",
+		name = "fixture",
+		version = "fixture 1.0",
+		usage = "usage: fixture",
 		commands = commands[:],
 		defaults = {limit = 20},
 		validate = proc(o: Options) -> Error {
@@ -84,7 +90,11 @@ errors_share_messages_and_exit_codes :: proc(t: ^testing.T) {
 
 	testing.expect_value(t, error_message(p, .Not_Found), "fixture problem is missing")
 	testing.expect_value(t, error_message(p, .Network), DEFAULT_MESSAGES[.Network])
-	testing.expect_value(t, error_message(p, .Usage), "invalid arguments; use `algo judge fixture help`")
+	testing.expect_value(
+		t,
+		error_message(p, .Usage),
+		"invalid arguments; use `algo judge fixture help`",
+	)
 	for err in Error {
 		if err != .None && err != .Usage {
 			testing.expectf(t, error_message(p, err) != "", "%v has no message", err)

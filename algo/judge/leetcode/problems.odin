@@ -1,5 +1,7 @@
 package leetcode
 
+import judge ".."
+import "../../safeio"
 import "core:encoding/json"
 import "core:fmt"
 import "core:hash"
@@ -7,8 +9,6 @@ import "core:math/rand"
 import "core:net"
 import "core:os"
 import "core:strings"
-import judge ".."
-import "../../safeio"
 
 LIST_QUERY :: `query($skip:Int,$limit:Int,$filters:QuestionListFilterInput) {
  problemsetQuestionList: questionList(categorySlug:"all-code-essentials",skip:$skip,limit:$limit,filters:$filters) {
@@ -74,9 +74,12 @@ list_problems :: proc(o: Options, search := "") -> (result: json.Value, err: Err
 		filters["difficulty"] = strings.to_upper(o.difficulty)
 	}
 	switch o.status {
-	case "ac":    filters["status"] = "AC"
-	case "notac": filters["status"] = "TRIED"
-	case "todo":  filters["status"] = "NOT_STARTED"
+	case "ac":
+		filters["status"] = "AC"
+	case "notac":
+		filters["status"] = "TRIED"
+	case "todo":
+		filters["status"] = "NOT_STARTED"
 	}
 	if len(o.tags) > 0 {
 		tags := make(json.Array, 0, len(o.tags))
@@ -86,10 +89,20 @@ list_problems :: proc(o: Options, search := "") -> (result: json.Value, err: Err
 		filters["tags"] = tags
 	}
 	vars := jobject()
-	vars["skip"], vars["limit"], vars["filters"] = json.Integer(o.skip), json.Integer(o.limit), filters
+	vars["skip"], vars["limit"], vars["filters"] =
+		json.Integer(o.skip), json.Integer(o.limit), filters
 
 	// The key covers every input of the query, in a fixed order.
-	key_text := fmt.tprintf("%s|%s|%s|%v|%v|%d|%d", search, o.difficulty, o.status, o.free, o.tags[:], o.limit, o.skip)
+	key_text := fmt.tprintf(
+		"%s|%s|%s|%v|%v|%d|%d",
+		search,
+		o.difficulty,
+		o.status,
+		o.free,
+		o.tags[:],
+		o.limit,
+		o.skip,
+	)
 	key := fmt.aprintf("list-v2-%x", hash.fnv64a(transmute([]byte)key_text))
 	if o.offline {
 		cached := read_cache(o, key) or_return
@@ -160,14 +173,17 @@ resolve_slug :: proc(o: Options, reference: string) -> (slug: string, err: Error
 	}
 	if !judge.digits(slug) {
 		if !valid_slug(slug) {
-			fmt.eprintln("expected a problem slug, frontend ID, or https://leetcode.com/problems/... URL")
+			fmt.eprintln(
+				"expected a problem slug, frontend ID, or https://leetcode.com/problems/... URL",
+			)
 			return "", .Usage
 		}
 		return slug, nil
 	}
 
 	key := judge.concat("id-", slug)
-	if cached, cache_err := read_cache(o, key); cache_err == nil && !o.refresh && valid_slug(jstr(cached)) {
+	if cached, cache_err := read_cache(o, key);
+	   cache_err == nil && !o.refresh && valid_slug(jstr(cached)) {
 		return jstr(cached), nil
 	}
 	lookup := o
@@ -200,7 +216,9 @@ get_problem :: proc(o: Options, reference: string) -> (q: json.Value, err: Error
 	key := judge.concat("problem-", slug)
 	if o.offline || !o.refresh {
 		cached, cache_err := read_cache(o, key)
-		if cache_err == nil && jstr(jget(cached, "titleSlug")) == slug && judge.digits(jstr(jget(cached, "questionId"))) {
+		if cache_err == nil &&
+		   jstr(jget(cached, "titleSlug")) == slug &&
+		   judge.digits(jstr(jget(cached, "questionId"))) {
 			return cached, nil
 		}
 		if o.offline {
@@ -244,7 +262,11 @@ cmd_list :: proc(o: Options) -> Error {
 			" [paid]" if jbool(jget(q, "isPaidOnly")) else "",
 		)
 	}
-	fmt.printf("%d total; offset %d. Use --skip and --limit to page.\n", jint(jget(result, "total")), o.skip)
+	fmt.printf(
+		"%d total; offset %d. Use --skip and --limit to page.\n",
+		jint(jget(result, "total")),
+		o.skip,
+	)
 	return nil
 }
 
@@ -312,7 +334,11 @@ daily_slug :: proc(o: Options) -> (slug: string, err: Error) {
 	}
 	daily := jget(data, "activeDailyCodingChallengeQuestion")
 	if !o.json {
-		fmt.printf("Daily challenge: %s%s\n", jstr(jget(daily, "date")), " (cached)" if o.offline else "")
+		fmt.printf(
+			"Daily challenge: %s%s\n",
+			jstr(jget(daily, "date")),
+			" (cached)" if o.offline else "",
+		)
 	}
 	return jstr(jget(jget(daily, "question"), "titleSlug")), nil
 }
@@ -347,7 +373,11 @@ offline_random :: proc(o: Options) -> Error {
 		fmt.eprintln("offline random cannot filter account progress")
 		return .Usage
 	}
-	files, list_err := os.read_directory_by_path(judge.join(o.workspace, ".cache"), -1, context.allocator)
+	files, list_err := os.read_directory_by_path(
+		judge.join(o.workspace, ".cache"),
+		-1,
+		context.allocator,
+	)
 	if list_err != nil {
 		return .Offline
 	}

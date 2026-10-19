@@ -60,7 +60,10 @@ to_json :: proc(v: any) -> Raw_JSON {
 // callers that must reject them check the keys first. The text is validated
 // first because unmarshal asserts, rather than failing, on malformed input.
 decode :: proc(text: string, v: ^$T) -> bool {
-	return json.is_valid(transmute([]byte)text, .JSON, parse_integers = true) && json.unmarshal_string(text, v, .JSON) == nil
+	return(
+		json.is_valid(transmute([]byte)text, .JSON, parse_integers = true) &&
+		json.unmarshal_string(text, v, .JSON) == nil \
+	)
 }
 
 // Dynamic accessors for documents without a fixed shape, such as provider
@@ -77,8 +80,10 @@ jstr :: proc(v: json.Value) -> string {
 
 jint :: proc(v: json.Value) -> int {
 	#partial switch n in v {
-	case json.Integer: return int(n)
-	case json.Float:   return int(n)
+	case json.Integer:
+		return int(n)
+	case json.Float:
+		return int(n)
 	}
 	return 0
 }

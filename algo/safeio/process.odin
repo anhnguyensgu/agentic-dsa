@@ -33,7 +33,9 @@ run :: proc(
 	timeout := 10 * time.Second,
 	output_limit := DEFAULT_OUTPUT_LIMIT,
 	keep_credentials := false,
-) -> (result: Process_Result) {
+) -> (
+	result: Process_Result,
+) {
 	tmp, tmp_err := os.make_directory_temp("", "safeio-run-*", context.allocator)
 	if tmp_err != nil {
 		result.start_failed = true
@@ -52,9 +54,9 @@ run :: proc(
 	out_file, out_err := os.create(out_path)
 	err_file, err_err := os.create(err_path)
 	defer {
-		if in_file != nil { os.close(in_file) }
-		if out_file != nil { os.close(out_file) }
-		if err_file != nil { os.close(err_file) }
+		if in_file != nil {os.close(in_file)}
+		if out_file != nil {os.close(out_file)}
+		if err_file != nil {os.close(err_file)}
 	}
 	if in_err != nil || out_err != nil || err_err != nil {
 		result.start_failed = true
@@ -67,13 +69,9 @@ run :: proc(
 	} else {
 		env = scrubbed_environment()
 	}
-	process, start_err := os.process_start({
-		command = command,
-		env     = env,
-		stdin   = in_file,
-		stdout  = out_file,
-		stderr  = err_file,
-	})
+	process, start_err := os.process_start(
+		{command = command, env = env, stdin = in_file, stdout = out_file, stderr = err_file},
+	)
 	if start_err != nil {
 		result.start_failed = true
 		return
@@ -134,10 +132,10 @@ is_credential :: proc(item: string) -> bool {
 
 	lower := strings.to_lower(item, context.temp_allocator)
 	for marker in MARKERS {
-		if strings.contains(lower, marker) { return true }
+		if strings.contains(lower, marker) {return true}
 	}
 	for prefix in PREFIXES {
-		if strings.has_prefix(lower, prefix) { return true }
+		if strings.has_prefix(lower, prefix) {return true}
 	}
 	return false
 }

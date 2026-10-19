@@ -5,8 +5,8 @@ package kattis
 // reports them because an empty catalogue page is otherwise indistinguishable
 // from moved markup.
 
-import "core:strings"
 import judge ".."
+import "core:strings"
 
 Problem_Summary :: struct {
 	id:              string, // URL slug, e.g. "twostones"
@@ -62,13 +62,16 @@ parse_problem_list :: proc(html: string) -> (rows: []Problem_Summary, ok: bool) 
 			continue
 		}
 		id, _ := judge.between(cells[0], `href="/problems/`, `"`)
-		append(&list, Problem_Summary{
-			id              = id,
-			name            = judge.strip_tags(cells[0]),
-			difficulty      = judge.strip_tags(cells[6]),
-			acceptance_rate = judge.strip_tags(cells[5]),
-			submissions     = judge.strip_tags(cells[2]),
-		})
+		append(
+			&list,
+			Problem_Summary {
+				id = id,
+				name = judge.strip_tags(cells[0]),
+				difficulty = judge.strip_tags(cells[6]),
+				acceptance_rate = judge.strip_tags(cells[5]),
+				submissions = judge.strip_tags(cells[2]),
+			},
+		)
 	}
 	return list[:], true
 }
@@ -142,7 +145,14 @@ parse_search_results :: proc(html: string) -> []Search_Match {
 			break
 		}
 		pos = after_name
-		append(&matches, Search_Match{id = id, name = judge.strip_tags(judge.cell_content(name)), problem_key = problem_key(id)})
+		append(
+			&matches,
+			Search_Match {
+				id = id,
+				name = judge.strip_tags(judge.cell_content(name)),
+				problem_key = problem_key(id),
+			},
+		)
 	}
 	return matches[:]
 }

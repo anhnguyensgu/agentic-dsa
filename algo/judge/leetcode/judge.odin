@@ -1,38 +1,59 @@
 package leetcode
 
+import judge ".."
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:time"
-import judge ".."
 
 // LeetCode's status_code for a finished, accepted-shaped result.
 STATUS_ACCEPTED :: 10
 
 language_extension :: proc(lang: string) -> string {
 	switch lang {
-	case "odin":                                    return ".odin"
-	case "python", "python3", "pythondata":         return ".py"
-	case "cpp":                                     return ".cpp"
-	case "c":                                       return ".c"
-	case "java":                                    return ".java"
-	case "rust":                                    return ".rs"
-	case "golang":                                  return ".go"
-	case "javascript":                              return ".js"
-	case "typescript":                              return ".ts"
-	case "csharp":                                  return ".cs"
-	case "ruby":                                    return ".rb"
-	case "swift":                                   return ".swift"
-	case "kotlin":                                  return ".kt"
-	case "scala":                                   return ".scala"
-	case "php":                                     return ".php"
-	case "dart":                                    return ".dart"
-	case "elixir":                                  return ".ex"
-	case "erlang":                                  return ".erl"
-	case "racket":                                  return ".rkt"
-	case "mysql", "mssql", "oraclesql", "postgresql": return ".sql"
-	case "bash":                                    return ".sh"
+	case "odin":
+		return ".odin"
+	case "python", "python3", "pythondata":
+		return ".py"
+	case "cpp":
+		return ".cpp"
+	case "c":
+		return ".c"
+	case "java":
+		return ".java"
+	case "rust":
+		return ".rs"
+	case "golang":
+		return ".go"
+	case "javascript":
+		return ".js"
+	case "typescript":
+		return ".ts"
+	case "csharp":
+		return ".cs"
+	case "ruby":
+		return ".rb"
+	case "swift":
+		return ".swift"
+	case "kotlin":
+		return ".kt"
+	case "scala":
+		return ".scala"
+	case "php":
+		return ".php"
+	case "dart":
+		return ".dart"
+	case "elixir":
+		return ".ex"
+	case "erlang":
+		return ".erl"
+	case "racket":
+		return ".rkt"
+	case "mysql", "mssql", "oraclesql", "postgresql":
+		return ".sql"
+	case "bash":
+		return ".sh"
 	}
 	return ".txt"
 }
@@ -63,7 +84,9 @@ solution_language :: proc(q: json.Value, requested, file: string) -> (lang: stri
 		}
 	}
 	if lang == "odin" {
-		fmt.eprintln("LeetCode does not judge Odin; use `algo judge leetcode test <directory>` for local practice")
+		fmt.eprintln(
+			"LeetCode does not judge Odin; use `algo judge leetcode test <directory>` for local practice",
+		)
 		return "", .Unsupported
 	}
 	for s in jarray(jget(q, "codeSnippets")) {
@@ -71,7 +94,9 @@ solution_language :: proc(q: json.Value, requested, file: string) -> (lang: stri
 			return lang, nil
 		}
 	}
-	fmt.eprintln("language is unavailable for this problem; use `algo judge leetcode languages <problem>`")
+	fmt.eprintln(
+		"language is unavailable for this problem; use `algo judge leetcode languages <problem>`",
+	)
 	return "", .Unsupported
 }
 
@@ -101,7 +126,12 @@ poll_judge :: proc(id: string, cfg: Config, timeout: int) -> (result: json.Value
 			fmt.eprintf("judge still pending; resume with `algo judge leetcode check %s`\n", id)
 			return nil, .Timeout
 		}
-		result = http_request("GET", judge.concat("/submissions/detail/", id, "/check/"), cfg, timeout = min(remaining, 20)) or_return
+		result = http_request(
+			"GET",
+			judge.concat("/submissions/detail/", id, "/check/"),
+			cfg,
+			timeout = min(remaining, 20),
+		) or_return
 		switch state := jstr(jget(result, "state")); state {
 		case "SUCCESS":
 			return result, nil
@@ -130,7 +160,8 @@ judge_verdict :: proc(result: json.Value) -> Error {
 	if correct, ok := jget(result, "correct_answer").(bool); ok && !correct {
 		return .Judge_Failed
 	}
-	if jget(result, "total_testcases") != nil && jint(jget(result, "total_correct")) < jint(jget(result, "total_testcases")) {
+	if jget(result, "total_testcases") != nil &&
+	   jint(jget(result, "total_correct")) < jint(jget(result, "total_testcases")) {
 		return .Judge_Failed
 	}
 	return nil
@@ -145,10 +176,16 @@ print_judge :: proc(result: json.Value, as_json: bool) {
 	if label == "" {
 		label = "Finished"
 	}
-	if judge_verdict(result) == .Judge_Failed && jint(jget(result, "status_code")) == STATUS_ACCEPTED {
+	if judge_verdict(result) == .Judge_Failed &&
+	   jint(jget(result, "status_code")) == STATUS_ACCEPTED {
 		label = "Wrong Answer"
 	}
-	fmt.printf("%s | runtime: %s | memory: %s\n", label, jstr(jget(result, "status_runtime")), jstr(jget(result, "status_memory")))
+	fmt.printf(
+		"%s | runtime: %s | memory: %s\n",
+		label,
+		jstr(jget(result, "status_runtime")),
+		jstr(jget(result, "status_memory")),
+	)
 	DETAIL_KEYS :: [?]string {
 		"full_compile_error",
 		"compile_error",
@@ -188,7 +225,9 @@ cmd_judge :: proc(o: Options) -> Error {
 		return judge_verdict(result)
 	}
 	if cfg.csrf_token == "" {
-		fmt.eprintln("run and submit require csrftoken as well as LEETCODE_SESSION; use `algo judge leetcode paste`")
+		fmt.eprintln(
+			"run and submit require csrftoken as well as LEETCODE_SESSION; use `algo judge leetcode paste`",
+		)
 		return .No_Input
 	}
 
@@ -206,14 +245,20 @@ cmd_judge :: proc(o: Options) -> Error {
 
 	is_run := Command(o.command) == .Run || Command(o.command) == .Run_Start
 	body := jobject()
-	body["lang"], body["question_id"], body["typed_code"] = lang, jget(q, "questionId"), string(code)
+	body["lang"], body["question_id"], body["typed_code"] =
+		lang, jget(q, "questionId"), string(code)
 	if is_run {
 		body["data_input"] = example_input(q, o.input) or_return
 	}
 
 	slug := jstr(jget(q, "titleSlug"))
 	action := "interpret_solution" if is_run else "submit"
-	response := http_request("POST", judge.concat("/problems/", slug, "/", action, "/"), cfg, jencode(body)) or_return
+	response := http_request(
+		"POST",
+		judge.concat("/problems/", slug, "/", action, "/"),
+		cfg,
+		jencode(body),
+	) or_return
 	id := judge_job_id(response, is_run)
 	if !valid_judge_id(id) || id == "0" {
 		report_rejected_job(o, response, id, cfg)
@@ -223,13 +268,15 @@ cmd_judge :: proc(o: Options) -> Error {
 
 	if Command(o.command) == .Run_Start || Command(o.command) == .Submit_Start {
 		if o.json {
-			judge.print_json(Job_Started{
-				job_id      = id,
-				state       = "queued",
-				operation   = "example_run" if is_run else "submission",
-				problem_key = judge.concat("leetcode:", slug),
-				language    = lang,
-			})
+			judge.print_json(
+				Job_Started {
+					job_id = id,
+					state = "queued",
+					operation = "example_run" if is_run else "submission",
+					problem_key = judge.concat("leetcode:", slug),
+					language = lang,
+				},
+			)
 		} else {
 			fmt.printf("resume with: algo judge leetcode check %s\n", id)
 		}

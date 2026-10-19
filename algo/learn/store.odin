@@ -11,17 +11,26 @@ package learn
 // - A truncated final record is preserved and reported; corruption earlier in
 //   the log stops writes until repaired.
 
+import "../safeio"
 import "core:crypto/sha2"
 import "core:encoding/hex"
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:time"
-import "../safeio"
 
 LOCK_STALE_AFTER :: 10 * time.Minute
 
-STORAGE_DIRS :: [?]string{"catalog", "sessions", "attempts", "artifacts", "jobs", "imports", "exports", "backups"}
+STORAGE_DIRS :: [?]string {
+	"catalog",
+	"sessions",
+	"attempts",
+	"artifacts",
+	"jobs",
+	"imports",
+	"exports",
+	"backups",
+}
 
 Event :: struct {
 	schema_version: int,
@@ -42,7 +51,7 @@ Store :: struct {
 	workspace:    string,
 	workspace_id: string,
 	events:       [dynamic]Event,
-	revision:     int,    // highest applied sequence; 0 for an empty workspace
+	revision:     int, // highest applied sequence; 0 for an empty workspace
 	tail_warning: string, // set when the final record is truncated
 }
 
@@ -57,9 +66,9 @@ learning_path :: proc(workspace: string, parts: ..string) -> string {
 	return join(..all[:])
 }
 
-events_path :: proc(ws: string) -> string { return learning_path(ws, EVENTS_FILE) }
-state_path :: proc(ws: string) -> string { return learning_path(ws, STATE_FILE) }
-manifest_path :: proc(ws: string) -> string { return learning_path(ws, MANIFEST_FILE) }
+events_path :: proc(ws: string) -> string {return learning_path(ws, EVENTS_FILE)}
+state_path :: proc(ws: string) -> string {return learning_path(ws, STATE_FILE)}
+manifest_path :: proc(ws: string) -> string {return learning_path(ws, MANIFEST_FILE)}
 
 write_private_file :: proc(path: string, data: string) -> os.Error {
 	return safeio.write_private_file(path, transmute([]byte)data)
@@ -81,7 +90,8 @@ workspace_id_for :: proc(workspace: string) -> string {
 // ensure_dirs creates the storage tree; existing files are never touched.
 ensure_dirs :: proc(ws: string) -> os.Error {
 	for sub in STORAGE_DIRS {
-		if err := os.make_directory_all(learning_path(ws, sub), os.perm(0o700)); err != nil && err != .Exist {
+		if err := os.make_directory_all(learning_path(ws, sub), os.perm(0o700));
+		   err != nil && err != .Exist {
 			return err
 		}
 	}
@@ -149,7 +159,8 @@ lock_workspace :: proc(ws: string) -> Engine_Error {
 	if err == .Exist {
 		// A crashed client's lock is reclaimed after the staleness window;
 		// transactions are short, so a live lock never ages that far.
-		if info, stat_err := os.stat(lock, context.allocator); stat_err == nil && time.since(info.modification_time) > LOCK_STALE_AFTER {
+		if info, stat_err := os.stat(lock, context.allocator);
+		   stat_err == nil && time.since(info.modification_time) > LOCK_STALE_AFTER {
 			os.remove(lock)
 			err = os.make_directory(lock, os.perm(0o700))
 		}
@@ -180,7 +191,11 @@ commit_event :: proc(
 	req: Request,
 	session_id, attempt_id: string,
 	payload: Raw_JSON,
-) -> (ev: Event, replayed: bool, err: Engine_Error) {
+) -> (
+	ev: Event,
+	replayed: bool,
+	err: Engine_Error,
+) {
 	lock_workspace(store.workspace) or_return
 	defer unlock_workspace(store.workspace)
 
@@ -209,8 +224,9 @@ commit_event :: proc(
 	}
 
 	sequence := fresh.revision + 1
-	workspace_id := fresh.workspace_id if fresh.workspace_id != "" else workspace_id_for(store.workspace)
-	ev = Event{
+	workspace_id :=
+		fresh.workspace_id if fresh.workspace_id != "" else workspace_id_for(store.workspace)
+	ev = Event {
 		schema_version = SCHEMA_VERSION,
 		event_id       = fmt.aprintf("ev_%s_%06d", workspace_id[3:], sequence),
 		sequence       = sequence,

@@ -20,9 +20,12 @@ jstr :: proc(v: json.Value) -> string {
 // jint also accepts numeric strings, which judges use for some ids.
 jint :: proc(v: json.Value) -> int {
 	#partial switch n in v {
-	case json.Integer: return int(n)
-	case json.Float:   return int(n)
-	case string:       return strconv.parse_int(n) or_else 0
+	case json.Integer:
+		return int(n)
+	case json.Float:
+		return int(n)
+	case string:
+		return strconv.parse_int(n) or_else 0
 	}
 	return 0
 }

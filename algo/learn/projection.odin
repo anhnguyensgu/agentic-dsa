@@ -292,7 +292,7 @@ apply_event :: proc(st: ^State, ev: Event, kind: Event_Type) {
 	case .Session_Started:
 		p: Session_Started
 		decode(payload, &p)
-		s := Session_State{
+		s := Session_State {
 			id             = ev.session_id,
 			objective      = p.objective,
 			status         = .Active,
@@ -309,17 +309,20 @@ apply_event :: proc(st: ^State, ev: Event, kind: Event_Type) {
 	case .Attempt_Started:
 		p: Attempt_Started
 		decode(payload, &p)
-		append(&st.attempts, Attempt_State{
-			id                  = ev.attempt_id,
-			session_id          = ev.session_id,
-			problem_key         = p.problem_key,
-			language            = p.language,
-			source_path         = p.source_path,
-			source_hash         = p.source_hash,
-			runner_kind         = p.runner_kind,
-			previous_attempt_id = p.previous_attempt_id,
-			fresh               = p.fresh,
-		})
+		append(
+			&st.attempts,
+			Attempt_State {
+				id = ev.attempt_id,
+				session_id = ev.session_id,
+				problem_key = p.problem_key,
+				language = p.language,
+				source_path = p.source_path,
+				source_hash = p.source_hash,
+				runner_kind = p.runner_kind,
+				previous_attempt_id = p.previous_attempt_id,
+				fresh = p.fresh,
+			},
+		)
 		if session != nil {
 			session.current_attempt_id = ev.attempt_id
 			session.has_fresh_attempt = p.fresh
@@ -365,15 +368,18 @@ apply_event :: proc(st: ^State, ev: Event, kind: Event_Type) {
 				continue
 			}
 			credit, _ := parse_enum(CREDIT_NAMES, u.credit)
-			append(&st.reviews, Review_Item{
-				id                = fmt.aprintf("rev_%06d_%d", ev.sequence, i),
-				concept           = u.concept,
-				task_type         = u.task_type,
-				origin_session_id = ev.session_id,
-				state             = .Open,
-				credit            = credit,
-				due_ts            = u.due_ts,
-			})
+			append(
+				&st.reviews,
+				Review_Item {
+					id = fmt.aprintf("rev_%06d_%d", ev.sequence, i),
+					concept = u.concept,
+					task_type = u.task_type,
+					origin_session_id = ev.session_id,
+					state = .Open,
+					credit = credit,
+					due_ts = u.due_ts,
+				},
+			)
 		}
 
 	case .Hint_Delivered:
@@ -406,14 +412,21 @@ apply_event :: proc(st: ^State, ev: Event, kind: Event_Type) {
 		p: Runner_Observed
 		decode(payload, &p)
 		if session != nil && session.current_attempt_id == ev.attempt_id {
-			session.verified_behavior = p.verified_passed > 0 && p.verified_failed == 0 && p.unchecked == 0 && p.source_hash != ""
+			session.verified_behavior =
+				p.verified_passed > 0 &&
+				p.verified_failed == 0 &&
+				p.unchecked == 0 &&
+				p.source_hash != ""
 			session.verified_source_hash = p.source_hash
 		}
 
 	case .Job_Observed:
 		p: Job_Observed
 		decode(payload, &p)
-		accepted := p.state == "terminal" && strings.to_lower(p.verdict) == "accepted" && p.source_hash != ""
+		accepted :=
+			p.state == "terminal" &&
+			strings.to_lower(p.verdict) == "accepted" &&
+			p.source_hash != ""
 		if accepted && session != nil && session.current_attempt_id == ev.attempt_id {
 			session.verified_behavior = true
 			session.verified_source_hash = p.source_hash
@@ -434,10 +447,14 @@ apply_event :: proc(st: ^State, ev: Event, kind: Event_Type) {
 		if p.score == 3 && len(p.evidence_ids) > 0 {
 			dimension, _ := parse_enum(DIMENSION_NAMES, p.dimension)
 			#partial switch dimension {
-			case .Approach, .Approach_Invariant: session.approach_score3 = true
-			case .Correctness:                   session.correctness_score3 = true
-			case .Complexity:                    session.complexity_score3 = true
-			case .Transfer:                      session.transfer_score3 = true
+			case .Approach, .Approach_Invariant:
+				session.approach_score3 = true
+			case .Correctness:
+				session.correctness_score3 = true
+			case .Complexity:
+				session.complexity_score3 = true
+			case .Transfer:
+				session.transfer_score3 = true
 			}
 		}
 
@@ -516,7 +533,11 @@ is_delayed_review :: proc(st: ^State, s: ^Session_State) -> bool {
 	}
 	origin_time, origin_consumed := time.rfc3339_to_time_utc(origin.closed_ts)
 	review_time, review_consumed := time.rfc3339_to_time_utc(s.closed_ts)
-	return origin_consumed > 0 && review_consumed > 0 && time.diff(origin_time, review_time) >= RETENTION_DELAY
+	return(
+		origin_consumed > 0 &&
+		review_consumed > 0 &&
+		time.diff(origin_time, review_time) >= RETENTION_DELAY \
+	)
 }
 
 // qualifies_independent is the deterministic eligibility gate for an
@@ -536,7 +557,14 @@ qualifies_independent :: proc(st: ^State, s: ^Session_State, workspace := "") ->
 	mode_ok := s.mode == .Independent || s.mode == .Assessment || s.mode == .Review
 	unassisted := s.max_hint_level <= 1 && !s.solution_exposed && !s.agent_authored_algorithm
 	scored := s.approach_score3 && s.correctness_score3 && s.complexity_score3
-	return mode_ok && s.has_fresh_attempt && s.verified_behavior && source_current && scored && unassisted
+	return(
+		mode_ok &&
+		s.has_fresh_attempt &&
+		s.verified_behavior &&
+		source_current &&
+		scored &&
+		unassisted \
+	)
 }
 
 // -- public views -----------------------------------------------------------------
@@ -611,57 +639,57 @@ State_View :: struct {
 
 session_view :: proc(s: Session_State) -> Session_View {
 	return {
-		id                    = s.id,
-		objective             = s.objective,
-		mode                  = MODE_NAMES[s.mode],
-		status                = SESSION_STATUS_NAMES[s.status],
-		activity              = ACTIVITY_NAMES[s.activity],
-		next_action           = s.next_action,
-		summary               = s.summary,
-		closure_reason        = CLOSURE_REASON_NAMES[s.closure_reason],
-		max_hint_level        = s.max_hint_level,
-		solution_exposed      = s.solution_exposed,
-		current_attempt_id    = s.current_attempt_id,
-		review_item_id        = s.review_item_id,
-		verified_behavior     = s.verified_behavior,
-		verified_source_hash  = s.verified_source_hash,
+		id = s.id,
+		objective = s.objective,
+		mode = MODE_NAMES[s.mode],
+		status = SESSION_STATUS_NAMES[s.status],
+		activity = ACTIVITY_NAMES[s.activity],
+		next_action = s.next_action,
+		summary = s.summary,
+		closure_reason = CLOSURE_REASON_NAMES[s.closure_reason],
+		max_hint_level = s.max_hint_level,
+		solution_exposed = s.solution_exposed,
+		current_attempt_id = s.current_attempt_id,
+		review_item_id = s.review_item_id,
+		verified_behavior = s.verified_behavior,
+		verified_source_hash = s.verified_source_hash,
 		independent_qualified = s.independent_qualified,
-		transfer_score3       = s.transfer_score3,
-		started_ts            = s.started_ts,
-		closed_ts             = s.closed_ts,
-		concepts              = s.concepts[:],
+		transfer_score3 = s.transfer_score3,
+		started_ts = s.started_ts,
+		closed_ts = s.closed_ts,
+		concepts = s.concepts[:],
 	}
 }
 
 attempt_view :: proc(a: Attempt_State) -> Attempt_View {
 	return {
-		id                  = a.id,
-		session_id          = a.session_id,
-		problem_key         = a.problem_key,
-		language            = a.language,
-		source_path         = a.source_path,
-		source_hash         = a.source_hash,
-		runner_kind         = a.runner_kind,
+		id = a.id,
+		session_id = a.session_id,
+		problem_key = a.problem_key,
+		language = a.language,
+		source_path = a.source_path,
+		source_hash = a.source_hash,
+		runner_kind = a.runner_kind,
 		previous_attempt_id = a.previous_attempt_id,
-		fresh               = a.fresh,
-		status              = "active",
-		hint_count          = a.hint_count,
-		max_hint_level      = a.max_hint_level,
-		solution_exposed    = a.solution_exposed,
+		fresh = a.fresh,
+		status = "active",
+		hint_count = a.hint_count,
+		max_hint_level = a.max_hint_level,
+		solution_exposed = a.solution_exposed,
 	}
 }
 
 review_view :: proc(r: Review_Item) -> Review_View {
 	return {
-		id                = r.id,
-		concept           = r.concept,
-		task_type         = r.task_type,
+		id = r.id,
+		concept = r.concept,
+		task_type = r.task_type,
 		origin_session_id = r.origin_session_id,
-		state             = REVIEW_STATE_NAMES[r.state],
-		credit            = CREDIT_NAMES[r.credit],
-		interval_index    = r.interval_index,
-		due_ts            = r.due_ts,
-		last_outcome      = r.last_outcome,
+		state = REVIEW_STATE_NAMES[r.state],
+		credit = CREDIT_NAMES[r.credit],
+		interval_index = r.interval_index,
+		due_ts = r.due_ts,
+		last_outcome = r.last_outcome,
 	}
 }
 
@@ -709,19 +737,20 @@ concept_views :: proc(concepts: []Concept_State) -> []Concept_View {
 state_view :: proc(st: ^State) -> State_View {
 	return {
 		schema_version = SCHEMA_VERSION,
-		workspace_id   = st.workspace_id,
-		revision       = st.revision,
-		profile        = profile_view(st.profile),
-		sessions       = session_views(st.sessions[:]),
-		attempts       = attempt_views(st.attempts[:]),
-		reviews        = review_views(st.reviews[:]),
-		concepts       = concept_views(st.concepts[:]),
+		workspace_id = st.workspace_id,
+		revision = st.revision,
+		profile = profile_view(st.profile),
+		sessions = session_views(st.sessions[:]),
+		attempts = attempt_views(st.attempts[:]),
+		reviews = review_views(st.reviews[:]),
+		concepts = concept_views(st.concepts[:]),
 	}
 }
 
 // write_state atomically replaces the projection file.
 write_state :: proc(workspace: string, st: ^State) -> Engine_Error {
-	if err := write_private_file(state_path(workspace), string(to_json(state_view(st)))); err != nil {
+	if err := write_private_file(state_path(workspace), string(to_json(state_view(st))));
+	   err != nil {
 		fmt.eprintln("algolearn: failed to write projection:", os.error_string(err))
 		return .Storage_Error
 	}

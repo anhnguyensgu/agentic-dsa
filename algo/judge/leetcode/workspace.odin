@@ -1,12 +1,12 @@
 package leetcode
 
+import judge ".."
+import "../../safeio"
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:time"
-import judge ".."
-import "../../safeio"
 
 odin_type :: proc(lc: string) -> (name: string, supported: bool) {
 	if strings.has_suffix(lc, "[]") {
@@ -47,7 +47,8 @@ odin_source :: proc(q: json.Value) -> (solution, adapter: string) {
 	metadata, _ := json.parse(jstr(jget(q, "metaData")), .JSON, parse_integers = true)
 	params := jarray(jget(metadata, "params"))
 	return_type, return_ok := odin_type(jstr(jget(jget(metadata, "return"), "type")))
-	typed := return_ok && jstr(jget(metadata, "name")) != "" && !jbool(jget(metadata, "systemdesign"))
+	typed :=
+		return_ok && jstr(jget(metadata, "name")) != "" && !jbool(jget(metadata, "systemdesign"))
 
 	param_types := make([]string, len(params))
 	for p, i in params {
@@ -79,7 +80,11 @@ odin_source :: proc(q: json.Value) -> (solution, adapter: string) {
 		fmt.sbprintf(&args, "%sarg%d", ", " if i > 0 else "", i)
 	}
 	adp := strings.builder_make()
-	fmt.sbprintf(&adp, "\tif len(input) != %d {{ panic(\"wrong number of inputs\") }}\n", len(params))
+	fmt.sbprintf(
+		&adp,
+		"\tif len(input) != %d {{ panic(\"wrong number of inputs\") }}\n",
+		len(params),
+	)
 	for type_name, i in param_types {
 		fmt.sbprintf(&adp, "\targ%d: %s\n\tdecode(input[%d], &arg%d)\n", i, type_name, i, i)
 	}
@@ -121,10 +126,12 @@ example_cases :: proc(q: json.Value) -> json.Array {
 		}
 		c := jobject()
 		c["name"] = fmt.aprintf("Example %d", i + 1)
-		c["input"], c["check"], c["unordered"], c["expected"] = inputs, false, false, json.Null(nil)
+		c["input"], c["check"], c["unordered"], c["expected"] =
+			inputs, false, false, json.Null(nil)
 		if i + 1 < len(outputs) {
 			line, _ := judge.split_once(strings.trim_space(outputs[i + 1]), "\n")
-			if v, parse_err := json.parse(strings.trim_space(line), .JSON, parse_integers = true); parse_err == nil {
+			if v, parse_err := json.parse(strings.trim_space(line), .JSON, parse_integers = true);
+			   parse_err == nil {
 				c["expected"], c["check"] = v, true
 			}
 		}
@@ -173,7 +180,8 @@ scaffold :: proc(o: Options, q: json.Value) -> Error {
 		prefix := judge.concat(id, "-") if judge.digits(id) else ""
 		dir = judge.join(o.workspace, judge.concat(prefix, jstr(jget(q, "titleSlug")), "-", lang))
 	}
-	if mkdir_err := os.make_directory_all(os.dir(dir), os.perm(0o700)); mkdir_err != nil && mkdir_err != .Exist {
+	if mkdir_err := os.make_directory_all(os.dir(dir), os.perm(0o700));
+	   mkdir_err != nil && mkdir_err != .Exist {
 		return .File
 	}
 	if os.make_directory(dir, os.perm(0o700)) != nil {
@@ -196,11 +204,24 @@ scaffold :: proc(o: Options, q: json.Value) -> Error {
 	)
 	judge.write_file(judge.join(dir, "problem.json"), jencode(q)) or_return
 	judge.write_file(judge.join(dir, "README.md"), readme) or_return
-	judge.write_file(judge.join(dir, judge.concat("solution", language_extension(lang))), judge.concat(source, "\n")) or_return
-	judge.write_file(judge.join(dir, "input.txt"), judge.concat(strings.join(example_inputs, "\n"), "\n")) or_return
-	judge.write_file(judge.join(dir, "cases.json"), judge.concat(jencode(example_cases(q)), "\n")) or_return
+	judge.write_file(
+		judge.join(dir, judge.concat("solution", language_extension(lang))),
+		judge.concat(source, "\n"),
+	) or_return
+	judge.write_file(
+		judge.join(dir, "input.txt"),
+		judge.concat(strings.join(example_inputs, "\n"), "\n"),
+	) or_return
+	judge.write_file(
+		judge.join(dir, "cases.json"),
+		judge.concat(jencode(example_cases(q)), "\n"),
+	) or_return
 	if lang == "odin" {
-		runner, _ := strings.replace_all(#load("local_runner.txt", string), "// GENERATED_ADAPTER", adapter)
+		runner, _ := strings.replace_all(
+			#load("local_runner.txt", string),
+			"// GENERATED_ADAPTER",
+			adapter,
+		)
 		judge.write_file(judge.join(dir, "runner.odin"), runner) or_return
 	}
 
@@ -209,7 +230,10 @@ scaffold :: proc(o: Options, q: json.Value) -> Error {
 	} else {
 		fmt.println("Created", dir)
 		if lang == "odin" {
-			fmt.printf("Implement solution.odin, review cases.json, then: algo judge leetcode test %s\n", dir)
+			fmt.printf(
+				"Implement solution.odin, review cases.json, then: algo judge leetcode test %s\n",
+				dir,
+			)
 		}
 	}
 	return nil
@@ -224,8 +248,10 @@ run_local :: proc(command: []string, timeout: int) -> (exit_code: int, err: Erro
 	case result.start_failed:
 		fmt.eprintln("could not start", command[0])
 		return 0, .File
-	case result.timed_out:       return 0, .Timeout
-	case result.output_exceeded: return 0, .Output_Limit
+	case result.timed_out:
+		return 0, .Timeout
+	case result.output_exceeded:
+		return 0, .Output_Limit
 	}
 	return result.exit_code, nil
 }
@@ -243,13 +269,18 @@ cmd_local_test :: proc(o: Options) -> Error {
 	defer os.remove_all(tmp)
 
 	binary := judge.join(tmp, "solution")
-	if code := run_local({"odin", "build", dir, judge.concat("-out:", binary)}, o.timeout) or_return; code != 0 {
+	if code := run_local(
+		   {"odin", "build", dir, judge.concat("-out:", binary)},
+		   o.timeout,
+	   ) or_return; code != 0 {
 		return .Judge_Failed
 	}
 	command := [?]string{binary, judge.join(dir, "cases.json"), "--json"}
 	switch run_local(command[:3 if o.json else 2], o.timeout) or_return {
-	case 0: return nil
-	case 4: return .Unchecked
+	case 0:
+		return nil
+	case 4:
+		return .Unchecked
 	}
 	return .Judge_Failed
 }

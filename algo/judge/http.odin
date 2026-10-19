@@ -1,9 +1,9 @@
 package judge
 
+import "../safeio"
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import "../safeio"
 
 // curl runs curl with the shared transport flags followed by args and returns
 // its stdout. No shell is involved, and secrets never travel in argv: callers
@@ -16,7 +16,11 @@ curl :: proc(args: ..string) -> (output: string, err: Error) {
 	state, stdout, stderr, exec_err := os.process_exec({command = command[:]}, context.allocator)
 	if exec_err != nil || state.exit_code != 0 {
 		// curl's error text never contains request headers or response bodies.
-		fmt.eprintf("curl failed (exit %d): %s\n", state.exit_code, strings.trim_space(string(stderr)))
+		fmt.eprintf(
+			"curl failed (exit %d): %s\n",
+			state.exit_code,
+			strings.trim_space(string(stderr)),
+		)
 		return "", .Network
 	}
 	return string(stdout), nil

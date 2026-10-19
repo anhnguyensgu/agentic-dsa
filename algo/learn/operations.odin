@@ -13,7 +13,7 @@ import "core:time"
 
 Input :: struct {
 	fields: json.Object, // for presence checks
-	text:   string,      // for typed decoding
+	text:   string, // for typed decoding
 }
 
 Failure :: struct {
@@ -27,7 +27,15 @@ Op_Error :: union {
 	Failure,
 }
 
-Handler :: #type proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (Result, Op_Error)
+Handler :: #type proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	Result,
+	Op_Error,
+)
 
 Operation :: struct {
 	name:     string,
@@ -41,24 +49,66 @@ Operation :: struct {
 ENVELOPE_FIELDS :: [?]string{"request_id", "expected_revision"}
 
 OPERATIONS := [?]Operation {
-	{"workspace_init", op_workspace_init, Workspace_Init_Params, {"goal", "language", "timezone", "experience", "time_budget_minutes"}, true},
+	{
+		"workspace_init",
+		op_workspace_init,
+		Workspace_Init_Params,
+		{"goal", "language", "timezone", "experience", "time_budget_minutes"},
+		true,
+	},
 	{"doctor", op_doctor, Doctor_Params, {}, false},
 	{"profile_update", op_profile_update, Profile_Update_Params, {}, true},
 	{"state_get", op_state_get, State_Get_Params, {}, false},
 	{"problem_search", op_problem_search, Problem_Search_Params, {}, false},
 	{"problem_get", op_problem_get, Problem_Get_Params, {"problem_key"}, false},
 	{"session_start", op_session_start, Session_Start_Params, {"objective", "mode"}, true},
-	{"attempt_start", op_attempt_start, Attempt_Start_Params, {"session_id", "problem_key", "language"}, true},
-	{"case_add", op_case_add, Case_Add_Params, {"attempt_id", "input", "comparator", "provenance"}, true},
+	{
+		"attempt_start",
+		op_attempt_start,
+		Attempt_Start_Params,
+		{"session_id", "problem_key", "language"},
+		true,
+	},
+	{
+		"case_add",
+		op_case_add,
+		Case_Add_Params,
+		{"attempt_id", "input", "comparator", "provenance"},
+		true,
+	},
 	{"test_run", op_test_run, Test_Run_Params, {"attempt_id"}, true},
 	{"submission_prepare", op_submission_prepare, Submission_Prepare_Params, {"attempt_id"}, true},
-	{"submission_send", op_submission_send, Submission_Send_Params, {"intent_id", "authorization_reference"}, true},
+	{
+		"submission_send",
+		op_submission_send,
+		Submission_Send_Params,
+		{"intent_id", "authorization_reference"},
+		true,
+	},
 	{"job_check", op_job_check, Job_Check_Params, {"job_id"}, true},
-	{"session_checkpoint", op_session_checkpoint, Session_Checkpoint_Params, {"session_id", "activity", "summary", "next_action"}, true},
+	{
+		"session_checkpoint",
+		op_session_checkpoint,
+		Session_Checkpoint_Params,
+		{"session_id", "activity", "summary", "next_action"},
+		true,
+	},
 	{"session_resume", op_session_resume, Session_Resume_Params, {}, false},
 	{"hint_record", op_hint_record, Hint_Record_Params, {"session_id", "level"}, true},
-	{"evidence_record", op_evidence_record, Evidence_Record_Params, {"session_id", "evidence_type", "producer"}, true},
-	{"assessment_record", op_assessment_record, Assessment_Record_Params, {"session_id", "concept_id", "dimension", "score", "rationale", "rubric_version"}, true},
+	{
+		"evidence_record",
+		op_evidence_record,
+		Evidence_Record_Params,
+		{"session_id", "evidence_type", "producer"},
+		true,
+	},
+	{
+		"assessment_record",
+		op_assessment_record,
+		Assessment_Record_Params,
+		{"session_id", "concept_id", "dimension", "score", "rationale", "rubric_version"},
+		true,
+	},
 	{"session_close", op_session_close, Session_Close_Params, {"session_id", "reason"}, true},
 	{"review_due", op_review_due, Review_Due_Params, {}, false},
 	{"review_update", op_review_update, Review_Update_Params, {"review_id", "action"}, true},
@@ -100,10 +150,22 @@ new_request :: proc(text: string) -> (input: Input, req: Request, message: strin
 	return
 }
 
-run_operation :: proc(name: string, ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, found: bool) {
+run_operation :: proc(
+	name: string,
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	found: bool,
+) {
 	op, known := find_operation(name)
 	if !known {
-		return failure_result(Failure{code = .Not_Found, message = fmt.aprintf("unknown operation %q", name)}), false
+		return failure_result(
+				Failure{code = .Not_Found, message = fmt.aprintf("unknown operation %q", name)},
+			),
+			false
 	}
 	err := check_fields(op, input)
 	if err == nil {
@@ -119,7 +181,12 @@ run_operation :: proc(name: string, ctx: ^Context, store: ^Store, input: Input, 
 }
 
 failure_result :: proc(f: Failure) -> (res: Result) {
-	res = {status = .Error, err = f.code, message = f.message, data = EMPTY_OBJECT}
+	res = {
+		status  = .Error,
+		err     = f.code,
+		message = f.message,
+		data    = EMPTY_OBJECT,
+	}
 	if f.next_action != "" {
 		append(&res.next_actions, f.next_action)
 	}
@@ -226,15 +293,30 @@ commit :: proc(
 	payload: any,
 	session_id := "",
 	attempt_id := "",
-) -> (ev: Event, replayed: bool, err: Op_Error) {
+) -> (
+	ev: Event,
+	replayed: bool,
+	err: Op_Error,
+) {
 	commit_err: Engine_Error
-	ev, replayed, commit_err = commit_event(store, EVENT_TYPE_NAMES[type], ctx.actor, req, session_id, attempt_id, to_json(payload))
+	ev, replayed, commit_err = commit_event(
+		store,
+		EVENT_TYPE_NAMES[type],
+		ctx.actor,
+		req,
+		session_id,
+		attempt_id,
+		to_json(payload),
+	)
 	if commit_err != nil {
 		return {}, false, commit_failure(commit_err)
 	}
 	st := fold(store)
 	if write_state(store.workspace, &st) != nil {
-		return ev, replayed, fail(.Storage_Error, "event committed but the projection could not be written")
+		return ev, replayed, fail(
+			.Storage_Error,
+			"event committed but the projection could not be written",
+		)
 	}
 	store.revision, store.workspace_id = st.revision, st.workspace_id
 	return ev, replayed, nil
@@ -276,7 +358,7 @@ Envelope_Error :: struct {
 }
 
 envelope :: proc(req: Request, revision: int, res: Result) -> Raw_JSON {
-	e := Envelope{
+	e := Envelope {
 		schema_version     = SCHEMA_VERSION,
 		request_id         = req.request_id,
 		workspace_revision = revision,

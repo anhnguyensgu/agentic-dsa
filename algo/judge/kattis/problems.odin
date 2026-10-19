@@ -1,9 +1,9 @@
 package kattis
 
+import judge ".."
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import judge ".."
 
 SCHEMA_VERSION :: 1
 PROVIDER :: "kattis"
@@ -126,17 +126,19 @@ cmd_show :: proc(o: Options) -> Error {
 		for s, i in page.samples {
 			samples[i] = {fmt.aprintf("sample%d", i + 1), s.input, s.output, "official_sample"}
 		}
-		judge.print_json(Show_Report{
-			schema_version = SCHEMA_VERSION,
-			provider       = PROVIDER,
-			problem_key    = problem_key(page.id),
-			id             = page.id,
-			title          = page.title,
-			difficulty     = page.difficulty,
-			level          = page.level,
-			statement      = judge.strip_tags(page.statement),
-			samples        = samples,
-		})
+		judge.print_json(
+			Show_Report {
+				schema_version = SCHEMA_VERSION,
+				provider = PROVIDER,
+				problem_key = problem_key(page.id),
+				id = page.id,
+				title = page.title,
+				difficulty = page.difficulty,
+				level = page.level,
+				statement = judge.strip_tags(page.statement),
+				samples = samples,
+			},
+		)
 		return nil
 	}
 	fmt.println(page.title)
@@ -147,7 +149,12 @@ cmd_show :: proc(o: Options) -> Error {
 		fmt.println("no inline samples found")
 	}
 	for s, i in page.samples {
-		fmt.printf("Sample %d\n> %s\n< %s\n", i + 1, strings.trim_space(s.input), strings.trim_space(s.output))
+		fmt.printf(
+			"Sample %d\n> %s\n< %s\n",
+			i + 1,
+			strings.trim_space(s.input),
+			strings.trim_space(s.output),
+		)
 	}
 	return nil
 }
@@ -160,7 +167,9 @@ cmd_get :: proc(o: Options) -> (err: Error) {
 		return .Invalid_Problem_Id
 	}
 	if o.lang != "" && o.lang != "odin" {
-		fmt.eprintln("algo judge kattis get scaffolds Odin only; other languages can still be submitted with --lang")
+		fmt.eprintln(
+			"algo judge kattis get scaffolds Odin only; other languages can still be submitted with --lang",
+		)
 		return .Unsupported
 	}
 	dir := o.dir if o.dir != "" else judge.join(o.workspace, id)
@@ -179,8 +188,14 @@ cmd_get :: proc(o: Options) -> (err: Error) {
 		os.remove_all(dir)
 	}
 
-	write_text(judge.join(dir, "README.md"), fmt.tprintf(README_TEMPLATE, page.title, page.id)) or_return
-	write_text(judge.join(dir, "statement.txt"), strings.concatenate({judge.strip_tags(page.statement), "\n"})) or_return
+	write_text(
+		judge.join(dir, "README.md"),
+		fmt.tprintf(README_TEMPLATE, page.title, page.id),
+	) or_return
+	write_text(
+		judge.join(dir, "statement.txt"),
+		strings.concatenate({judge.strip_tags(page.statement), "\n"}),
+	) or_return
 	write_text(judge.join(dir, "solution.odin"), SOLUTION_TEMPLATE) or_return
 	for s, i in page.samples {
 		write_text(judge.join(samples_dir, fmt.tprintf("sample%d.in", i + 1)), s.input) or_return
@@ -188,11 +203,24 @@ cmd_get :: proc(o: Options) -> (err: Error) {
 	}
 
 	if o.json {
-		judge.print_json(Get_Report{SCHEMA_VERSION, PROVIDER, problem_key(id), dir, "odin", len(page.samples)})
+		judge.print_json(
+			Get_Report{SCHEMA_VERSION, PROVIDER, problem_key(id), dir, "odin", len(page.samples)},
+		)
 		return nil
 	}
-	fmt.printf("created %s (%s, difficulty %s %s), %d samples\n", dir, page.title, page.difficulty, page.level, len(page.samples))
-	fmt.printf("next: edit %s, then: algo judge kattis test %s\n", judge.join(dir, "solution.odin"), dir)
+	fmt.printf(
+		"created %s (%s, difficulty %s %s), %d samples\n",
+		dir,
+		page.title,
+		page.difficulty,
+		page.level,
+		len(page.samples),
+	)
+	fmt.printf(
+		"next: edit %s, then: algo judge kattis test %s\n",
+		judge.join(dir, "solution.odin"),
+		dir,
+	)
 	return nil
 }
 

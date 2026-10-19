@@ -46,7 +46,19 @@ FLAG_NAMES := [Flag]string {
 }
 
 // Flags that are followed by a value.
-VALUE_FLAGS :: Flags{.Workspace, .Lang, .Dir, .Input, .Difficulty, .Status, .Tag, .Limit, .Skip, .Page, .Timeout}
+VALUE_FLAGS :: Flags {
+	.Workspace,
+	.Lang,
+	.Dir,
+	.Input,
+	.Difficulty,
+	.Status,
+	.Tag,
+	.Limit,
+	.Skip,
+	.Page,
+	.Timeout,
+}
 
 // Commands every provider has, answered from Provider data.
 Builtin :: enum {
@@ -57,9 +69,9 @@ Builtin :: enum {
 }
 
 BUILTINS := [Builtin]Command_Spec {
-	.None         = {},
-	.Help         = {names = {"help", "--help", "-h"}},
-	.Version      = {names = {"version", "--version"}},
+	.None = {},
+	.Help = {names = {"help", "--help", "-h"}},
+	.Version = {names = {"version", "--version"}},
 	.Capabilities = {names = {"capabilities"}, flags = {.Json}},
 }
 
@@ -129,21 +141,36 @@ parse_options :: proc(p: Provider, args: []string) -> (o: Options, err: Error) {
 			value = args[i]
 		}
 		switch flag {
-		case .Json:       o.json = true
-		case .Offline:    o.offline = true
-		case .Refresh:    o.refresh = true
-		case .Free:       o.free = true
-		case .Workspace:  o.workspace = value
-		case .Lang:       o.lang = value
-		case .Dir:        o.dir = value
-		case .Input:      o.input = value
-		case .Difficulty: o.difficulty = value
-		case .Status:     o.status = value
-		case .Tag:        append(&o.tags, value)
-		case .Limit:      o.limit = parse_count(arg, value) or_return
-		case .Skip:       o.skip = parse_count(arg, value) or_return
-		case .Page:       o.page = parse_count(arg, value) or_return
-		case .Timeout:    o.timeout = parse_count(arg, value) or_return
+		case .Json:
+			o.json = true
+		case .Offline:
+			o.offline = true
+		case .Refresh:
+			o.refresh = true
+		case .Free:
+			o.free = true
+		case .Workspace:
+			o.workspace = value
+		case .Lang:
+			o.lang = value
+		case .Dir:
+			o.dir = value
+		case .Input:
+			o.input = value
+		case .Difficulty:
+			o.difficulty = value
+		case .Status:
+			o.status = value
+		case .Tag:
+			append(&o.tags, value)
+		case .Limit:
+			o.limit = parse_count(arg, value) or_return
+		case .Skip:
+			o.skip = parse_count(arg, value) or_return
+		case .Page:
+			o.page = parse_count(arg, value) or_return
+		case .Timeout:
+			o.timeout = parse_count(arg, value) or_return
 		}
 	}
 	if !known {

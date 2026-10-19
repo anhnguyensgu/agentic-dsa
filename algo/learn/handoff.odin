@@ -35,7 +35,12 @@ Handoff :: struct {
 	next_action:             string,
 }
 
-HANDOFF_RESULT_EVENTS :: bit_set[Event_Type]{.Runner_Observed, .Job_Observed, .Judge_Observed, .Assessment_Recorded}
+HANDOFF_RESULT_EVENTS :: bit_set[Event_Type] {
+	.Runner_Observed,
+	.Job_Observed,
+	.Judge_Observed,
+	.Assessment_Recorded,
+}
 
 session_handoff :: proc(store: ^Store, session_id: string) -> (doc: Raw_JSON, found: bool) {
 	st := fold(store)
@@ -43,7 +48,7 @@ session_handoff :: proc(store: ^Store, session_id: string) -> (doc: Raw_JSON, fo
 	if session == nil {
 		return "", false
 	}
-	handoff := Handoff{
+	handoff := Handoff {
 		schema_version     = SCHEMA_VERSION,
 		engine_version     = ENGINE_VERSION,
 		catalog_version    = CATALOG_VERSION,
@@ -58,7 +63,11 @@ session_handoff :: proc(store: ^Store, session_id: string) -> (doc: Raw_JSON, fo
 	#reverse for a in st.attempts {
 		if a.session_id == session_id {
 			current_hash, _ := read_source_hash(join(store.workspace, a.source_path))
-			handoff.attempt = Handoff_Attempt{attempt_view(a), current_hash, current_hash != "" && current_hash != a.source_hash}
+			handoff.attempt = Handoff_Attempt {
+				attempt_view(a),
+				current_hash,
+				current_hash != "" && current_hash != a.source_hash,
+			}
 			break
 		}
 	}
@@ -78,12 +87,24 @@ session_handoff :: proc(store: ^Store, session_id: string) -> (doc: Raw_JSON, fo
 		case is_event(ev, {.Submission_Sent}):
 			sent: Submission_Sent
 			decode(string(ev.payload), &sent)
-			if job, job_found := find_job(store, sent.job_id); job_found && job.state != "terminal" {
-				append(&jobs, Pending_Job{job.job_id, job.provider, job.remote_id, job.problem_key, job.source_hash, job.state})
+			if job, job_found := find_job(store, sent.job_id);
+			   job_found && job.state != "terminal" {
+				append(
+					&jobs,
+					Pending_Job {
+						job.job_id,
+						job.provider,
+						job.remote_id,
+						job.problem_key,
+						job.source_hash,
+						job.state,
+					},
+				)
 			}
 		}
 	}
-	handoff.hints, handoff.results_and_assessments, handoff.pending_jobs = hints[:], results[:], jobs[:]
+	handoff.hints, handoff.results_and_assessments, handoff.pending_jobs =
+		hints[:], results[:], jobs[:]
 	return to_json(handoff), true
 }
 

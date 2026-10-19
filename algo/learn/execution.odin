@@ -5,12 +5,12 @@ package learn
 // runner. Commands are argument vectors; learner input is stdin data and never
 // part of a command line.
 
+import "../judge"
+import "../safeio"
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:time"
-import "../judge"
-import "../safeio"
 
 DEFAULT_TIMEOUT_SECONDS :: 10
 MAX_TIMEOUT_SECONDS :: 60
@@ -34,7 +34,18 @@ attempt_cases :: proc(store: ^Store, attempt_id: string) -> []Case_Record {
 		p: Case_Added
 		decode(string(ev.payload), &p)
 		comparator, _ := parse_enum(COMPARATOR_NAMES, p.comparator)
-		append(&cases, Case_Record{p.case_id, p.name, p.input, p.expected, comparator, p.provenance, p.oracle_verified})
+		append(
+			&cases,
+			Case_Record {
+				p.case_id,
+				p.name,
+				p.input,
+				p.expected,
+				comparator,
+				p.provenance,
+				p.oracle_verified,
+			},
+		)
 	}
 	return cases[:]
 }
@@ -67,7 +78,15 @@ Case_Result :: struct {
 	stderr:                string,
 }
 
-op_test_run :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) -> (res: Result, err: Op_Error) {
+op_test_run :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
 	p := params(input, Test_Run_Params) or_return
 	if first_nonempty(p.mode, "local") != "local" {
 		return {}, fail(.Unsupported_Capability, "remote example execution is available only through a configured provider adapter")
@@ -106,7 +125,10 @@ op_test_run :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 			source_hash:     string,
 		}
 		res.data = to_json(Empty{outcome = "unverified", source_hash = source_hash})
-		append(&res.warnings, "no cases are registered; zero cases cannot establish passing behavior")
+		append(
+			&res.warnings,
+			"no cases are registered; zero cases cannot establish passing behavior",
+		)
 		append(&res.next_actions, "add an official or independently verified case with case_add")
 		res.cli_exit = EXIT_UNVERIFIED
 		return
@@ -130,7 +152,15 @@ op_test_run :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 			output_limit_exceeded: bool,
 			diagnostic:            string,
 		}
-		res.data = to_json(Compile_Error{"compile_error", source_hash, build.timed_out, build.output_exceeded, build.stderr})
+		res.data = to_json(
+			Compile_Error {
+				"compile_error",
+				source_hash,
+				build.timed_out,
+				build.output_exceeded,
+				build.stderr,
+			},
+		)
 		res.cli_exit = EXIT_FAILED_SOLUTION
 		return
 	}
@@ -146,9 +176,12 @@ op_test_run :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 		unchecked:       int,
 		cases:           []Case_Result,
 	}
-	report := Report{
+	report := Report {
 		schema_version = SCHEMA_VERSION,
-		artifact_id    = fmt.aprintf("artifact_%s", hash_hex(fmt.tprintf("%s:%s:%s", p.attempt_id, source_hash, req.request_id))[:16]),
+		artifact_id    = fmt.aprintf(
+			"artifact_%s",
+			hash_hex(fmt.tprintf("%s:%s:%s", p.attempt_id, source_hash, req.request_id))[:16],
+		),
 		attempt_id     = p.attempt_id,
 		source_hash    = source_hash,
 		cases          = make([]Case_Result, len(cases)),
@@ -175,18 +208,44 @@ op_test_run :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 		}
 	}
 	report.outcome = judge.outcome(tally)
-	report.verified_passed, report.verified_failed, report.unchecked = tally.verified_passed, tally.verified_failed, tally.unchecked
+	report.verified_passed, report.verified_failed, report.unchecked =
+		tally.verified_passed, tally.verified_failed, tally.unchecked
 
 	// Persist the report and the exact tested source before recording the run.
-	if write_private_file(learning_path(ctx.workspace, "artifacts", report.artifact_id, "report.json"), string(to_json(report))) != nil {
+	if write_private_file(
+		   learning_path(ctx.workspace, "artifacts", report.artifact_id, "report.json"),
+		   string(to_json(report)),
+	   ) !=
+	   nil {
 		return {}, fail(.Storage_Error, "could not persist the run artifact")
 	}
-	snapshot := learning_path(ctx.workspace, "attempts", p.attempt_id, "snapshots", strings.concatenate({source_hash, ".odin"}))
+	snapshot := learning_path(
+		ctx.workspace,
+		"attempts",
+		p.attempt_id,
+		"snapshots",
+		strings.concatenate({source_hash, ".odin"}),
+	)
 	if write_private_file(snapshot, string(source)) != nil {
 		return {}, fail(.Storage_Error, "could not persist the exact tested source snapshot")
 	}
-	payload := Runner_Observed{report.artifact_id, source_hash, report.outcome, report.verified_passed, report.verified_failed, report.unchecked}
-	_, replayed := commit(ctx, store, req, .Runner_Observed, payload, attempt.session_id, p.attempt_id) or_return
+	payload := Runner_Observed {
+		report.artifact_id,
+		source_hash,
+		report.outcome,
+		report.verified_passed,
+		report.verified_failed,
+		report.unchecked,
+	}
+	_, replayed := commit(
+		ctx,
+		store,
+		req,
+		.Runner_Observed,
+		payload,
+		attempt.session_id,
+		p.attempt_id,
+	) or_return
 
 	Data :: struct {
 		replayed:        Replayed `json:",omitempty"`,
@@ -199,16 +258,18 @@ op_test_run :: proc(ctx: ^Context, store: ^Store, input: Input, req: Request) ->
 		cases:           []Case_Result,
 	}
 	res = mutation_result(replayed)
-	res.data = to_json(Data{
-		replayed_flag(replayed),
-		report.artifact_id,
-		report.outcome,
-		source_hash,
-		report.verified_passed,
-		report.verified_failed,
-		report.unchecked,
-		report.cases,
-	})
+	res.data = to_json(
+		Data {
+			replayed_flag(replayed),
+			report.artifact_id,
+			report.outcome,
+			source_hash,
+			report.verified_passed,
+			report.verified_failed,
+			report.unchecked,
+			report.cases,
+		},
+	)
 	switch report.outcome {
 	case "failed":
 		res.cli_exit = EXIT_FAILED_SOLUTION

@@ -5,10 +5,10 @@ package judge
 // the case input on stdin, and compare stdout. Every child is bounded by a
 // timeout and an output limit and gets a credential-free environment (safeio).
 
+import "../safeio"
 import "core:fmt"
 import "core:strings"
 import "core:time"
-import "../safeio"
 
 Compare_Proc :: proc(actual, expected: string) -> bool
 
@@ -45,13 +45,26 @@ compare_trailing :: proc(actual, expected: string) -> bool {
 
 // build_odin compiles one Odin source file into binary, an absolute path (a
 // bare name would be searched on PATH when run).
-build_odin :: proc(source, binary, optimization: string, timeout: time.Duration) -> safeio.Process_Result {
-	return safeio.run({"odin", "build", source, "-file", optimization, concat("-out:", binary)}, timeout = timeout)
+build_odin :: proc(
+	source, binary, optimization: string,
+	timeout: time.Duration,
+) -> safeio.Process_Result {
+	return safeio.run(
+		{"odin", "build", source, "-file", optimization, concat("-out:", binary)},
+		timeout = timeout,
+	)
 }
 
 // run_case runs binary once with input on stdin. The case passes only when the
 // process finished cleanly and compare accepts its stdout.
-run_case :: proc(binary, input, expected: string, compare: Compare_Proc, timeout: time.Duration) -> (result: safeio.Process_Result, passed: bool) {
+run_case :: proc(
+	binary, input, expected: string,
+	compare: Compare_Proc,
+	timeout: time.Duration,
+) -> (
+	result: safeio.Process_Result,
+	passed: bool,
+) {
 	result = safeio.run({binary}, stdin = input, timeout = timeout)
 	passed = safeio.ok(result) && compare(result.stdout, expected)
 	return
@@ -82,9 +95,12 @@ Tally :: struct {
 
 tally_case :: proc(t: ^Tally, verified, passed: bool) {
 	switch {
-	case !verified: t.unchecked += 1
-	case passed:    t.verified_passed += 1
-	case:           t.verified_failed += 1
+	case !verified:
+		t.unchecked += 1
+	case passed:
+		t.verified_passed += 1
+	case:
+		t.verified_failed += 1
 	}
 }
 

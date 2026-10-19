@@ -1,9 +1,9 @@
 package leetcode
 
+import "../../safeio"
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
-import "../../safeio"
 
 // String storage belongs to the command arena; this record is non-owning.
 Config :: struct {
@@ -21,7 +21,10 @@ config_path :: proc() -> (path: string, err: Error) {
 	if home_err != nil || !os.is_absolute_path(home) {
 		return "", .Config_Path
 	}
-	joined, join_err := os.join_path({home, ".config", CONFIG_DIR_NAME, "config.json"}, context.allocator)
+	joined, join_err := os.join_path(
+		{home, ".config", CONFIG_DIR_NAME, "config.json"},
+		context.allocator,
+	)
 	if join_err != nil {
 		return "", .Config_Path
 	}
@@ -49,7 +52,10 @@ save_config :: proc(cfg: Config, path: string) -> Error {
 load_config :: proc(path: string) -> (cfg: Config, err: Error) {
 	data, read_err := os.read_entire_file(path, context.allocator)
 	// unmarshal asserts on malformed input, so a corrupt file is checked first.
-	if read_err != nil || !json.is_valid(data, .JSON) || json.unmarshal(data, &cfg, .JSON) != nil || !valid_credentials(cfg) {
+	if read_err != nil ||
+	   !json.is_valid(data, .JSON) ||
+	   json.unmarshal(data, &cfg, .JSON) != nil ||
+	   !valid_credentials(cfg) {
 		return {}, .Config_Read
 	}
 	return cfg, nil
