@@ -78,7 +78,7 @@ op_plan_next :: proc(
 	}
 
 	topic := p.topic if p.topic != "" else next_topic(&st)
-	concept, known := find_concept(topic)
+	concept, known := find_concept(concept_group(topic))
 	limitations := make([dynamic]string)
 	if language == "odin" {
 		append(
@@ -93,7 +93,7 @@ op_plan_next :: proc(
 	)
 	if !known {
 		reason = fmt.aprintf(
-			"%s is not a curriculum concept; choose a provider problem for it that fits the %d-minute budget",
+			"%s is not in a curriculum group; choose a provider problem for it that fits the %d-minute budget",
 			topic,
 			budget,
 		)
@@ -129,12 +129,12 @@ op_plan_next :: proc(
 	return
 }
 
-// next_topic is the first curriculum concept not yet mastered, or its first
+// next_topic is the first curriculum group not yet mastered, or its first
 // unmet prerequisite.
 next_topic :: proc(st: ^State) -> string {
 	concepts, ok := curriculum_concepts()
-	if !ok {
-		return "foundations"
+	if !ok || len(concepts) == 0 {
+		return ""
 	}
 	for c in concepts {
 		if mastered(st, c.id) {
@@ -147,12 +147,15 @@ next_topic :: proc(st: ^State) -> string {
 		}
 		return c.id
 	}
-	return "foundations"
+	return concepts[0].id
 }
 
+// mastered reports an independent or retained concept. A group also counts as
+// mastered when one of its sub-patterns is.
 mastered :: proc(st: ^State, concept_id: string) -> bool {
 	for c in st.concepts {
-		if c.concept_id == concept_id && (c.state == .Independent || c.state == .Retained) {
+		in_group := c.concept_id == concept_id || concept_group(c.concept_id) == concept_id
+		if in_group && (c.state == .Independent || c.state == .Retained) {
 			return true
 		}
 	}
@@ -262,25 +265,33 @@ op_progress_get :: proc(
 		}
 	}
 
-	// Every curriculum concept appears, in curriculum order.
+	// Every curriculum group appears in curriculum order, followed by its
+	// recorded sub-patterns; concepts outside every group come last.
 	concepts := make([dynamic]Concept_View)
-	if curriculum, ok := curriculum_concepts(); ok {
-		for c in curriculum {
-			state := Concept_State {
-				concept_id = c.id,
-				state      = .Unknown,
-			}
-			for known in st.concepts {
-				if known.concept_id == c.id {
-					state = known
-					break
-				}
-			}
-			append(&concepts, concept_view(state))
+	listed := make([dynamic]string)
+	curriculum, _ := curriculum_concepts()
+	for group in curriculum {
+		state := Concept_State {
+			concept_id = group.id,
+			state      = .Unknown,
 		}
-	} else {
-		for c in st.concepts {
-			append(&concepts, concept_view(c))
+		for known in st.concepts {
+			if known.concept_id == group.id {
+				state = known
+			}
+		}
+		append(&concepts, concept_view(state))
+		append(&listed, group.id)
+		for known in st.concepts {
+			if known.concept_id != group.id && concept_group(known.concept_id) == group.id {
+				append(&concepts, concept_view(known))
+				append(&listed, known.concept_id)
+			}
+		}
+	}
+	for known in st.concepts {
+		if !contains(listed[:], known.concept_id) {
+			append(&concepts, concept_view(known))
 		}
 	}
 

@@ -6,7 +6,11 @@ unrun opt-in checks are recorded in [VERIFICATION.md](VERIFICATION.md).
 Changed on 2026-10-20: the bundled problem set was removed. Any problem on a
 supported judge can be practised and tracked by its `<provider>:<slug>` key;
 the concept graph remains. Section 8 and the `problem_search`/`problem_get` rows
-in section 11 describe the current behaviour.
+in section 11 describe the current behaviour. The concept graph was then
+replaced by 18 interview pattern groups (see `curriculum/concepts.json`), and
+agents may record free-form `<group>/<pattern>` sub-patterns that planning and
+progress roll up under their group; the concept-group table in section 8 is
+superseded.
 
 Prepared against this workspace on 2026-09-19. This document defines one complete build and its acceptance contract. The sections describe parts of the finished system, not staged releases.
 
