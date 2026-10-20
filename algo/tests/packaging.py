@@ -9,8 +9,9 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO = ROOT.parent
-PLUGIN = ROOT / "plugins" / "algorithm-learning"
+# algo/plugins/ is the marketplace root for both Claude Code and Codex.
+MARKETPLACE = ROOT / "plugins"
+PLUGIN = MARKETPLACE / "algorithm-learning"
 LAUNCHER = PLUGIN / "scripts" / "launch_algolearn_mcp"
 NAME = "algorithm-learning"
 VERSION = "0.3.0"
@@ -41,12 +42,12 @@ def check_claude() -> None:
     server = manifest["mcpServers"][NAME]
     assert server["command"] == "${CLAUDE_PLUGIN_ROOT}/scripts/launch_algolearn_mcp"
 
-    [entry] = read_json(REPO / ".claude-plugin" / "marketplace.json")["plugins"]
-    assert entry["name"] == NAME and (REPO / entry["source"]).resolve() == PLUGIN.resolve()
+    [entry] = read_json(MARKETPLACE / ".claude-plugin" / "marketplace.json")["plugins"]
+    assert entry["name"] == NAME and (MARKETPLACE / entry["source"]).resolve() == PLUGIN.resolve()
 
     # Claude's own validator, when this machine has Claude Code installed.
     if claude := shutil.which("claude"):
-        for target in (PLUGIN, REPO):
+        for target in (PLUGIN, MARKETPLACE):
             result = subprocess.run([claude, "plugin", "validate", "--strict", str(target)], text=True, capture_output=True, timeout=60)
             assert result.returncode == 0, (target, result.stdout, result.stderr)
 
@@ -58,9 +59,9 @@ def check_codex() -> None:
     server = read_json(PLUGIN / ".mcp.json")["mcpServers"][NAME]
     assert server["command"] == "./scripts/launch_algolearn_mcp"
 
-    [entry] = read_json(REPO / ".agents" / "plugins" / "marketplace.json")["plugins"]
+    [entry] = read_json(MARKETPLACE / ".agents" / "plugins" / "marketplace.json")["plugins"]
     assert entry["name"] == NAME and entry["source"]["source"] == "local"
-    assert (REPO / entry["source"]["path"]).resolve() == PLUGIN.resolve()
+    assert (MARKETPLACE / entry["source"]["path"]).resolve() == PLUGIN.resolve()
 
 
 def check_pi() -> None:
