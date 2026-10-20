@@ -1,0 +1,25 @@
+{
+  "extraKnownMarketplaces": {
+    "agentic-dsa": {
+      "source": {
+        "source": "directory",
+        "path": "./algo/plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "algorithm-learning@agentic-dsa": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
