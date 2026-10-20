@@ -26,12 +26,10 @@ algo/
 ├── safeio/              atomic owner-only writes, bounded credential-free child processes
 ├── curriculum/          concepts.json (concept graph; there is no bundled problem set)
 ├── schemas/             JSON schemas: envelope, event, export (v1)
-├── skills/algorithm-learning/   shared tutoring skill (source of truth)
-├── plugins/             one plugin per agent; README.md is the setup guide
-│   ├── claude/            Claude Code plugin (marketplace: ../.claude-plugin/)
-│   ├── codex/             Codex plugin, bundles bin/algo (marketplace: ../.agents/plugins/)
-│   └── pi/                Pi package
-├── scripts/             package_plugins.py, launch_algolearn_mcp (shared MCP launcher)
+├── plugins/             README.md is the per-agent setup guide
+│   └── algorithm-learning/  one plugin for Claude Code, Codex, and Pi: the tutoring
+│                            skill, MCP launcher, bundled bin/algo, one manifest per
+│                            agent (marketplaces: ../.claude-plugin/, ../.agents/plugins/)
 ├── tests/               Python integration, MCP, packaging, teaching suites
 ├── README.md            CLI reference      AGENTIC_LEARNING.md  engine design spec
 ├── VERIFICATION.md      tested scope and expected test counts
@@ -89,7 +87,7 @@ covers the change (`make test` for anything cross-package).
 - If a change alters test counts, update `VERIFICATION.md`.
 - Command or flag changes must also update `README.md` (and `learn/README.md`
   for `algo learn`).
-- Edit the tutoring skill only in `skills/algorithm-learning/` and the MCP
-  launcher only in `scripts/`, then run `make package-plugins`. Never edit a
-  plugin's `skills/`, `scripts/launch_algolearn_mcp`, or Codex's `bin/algo`;
-  packaging overwrites them. Edit a plugin's own manifest files directly.
+- The tutoring skill exists once, in `plugins/algorithm-learning/skills/`;
+  never copy it. Keep the version in all three manifests equal to the engine
+  version. Never edit `plugins/algorithm-learning/bin/algo`;
+  `make package-plugin` regenerates it.

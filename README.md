@@ -9,7 +9,7 @@ Two pieces:
 - **`algo`**: one native command-line program. `algo judge` fetches, tests, and
   submits LeetCode and Kattis problems; `algo learn` is the tutoring engine that
   stores sessions, hints, test evidence, and reviews.
-- **Agent plugins** for Claude Code, Codex, and Pi that teach your agent to use it.
+- **One agent plugin** for Claude Code, Codex, and Pi that teaches your agent to use it.
 
 ```text
 algo/       source for the algo program, the teaching skill, and the plugins
@@ -51,7 +51,7 @@ The Codex plugin bundles a macOS arm64 build of `algo`; on other platforms set
 **Pi** (from your clone):
 
 ```sh
-pi install ./algo/plugins/pi/algorithm-learning
+pi install ./algo/plugins/algorithm-learning
 ```
 
 ### 3. Practise

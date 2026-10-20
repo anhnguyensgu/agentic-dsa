@@ -1,37 +1,41 @@
-# Agent plugins
+# Agent plugin
 
-Each supported agent has its own plugin under `plugins/<agent>/algorithm-learning/`.
-All of them wrap the same two things: the native `algo` binary (its `algo learn`
-command group) and the teaching skill in `skills/algorithm-learning/`. Agents
-reach one operation registry and one workspace event stream, so a session
-started in one agent can be resumed in another.
+One plugin, `plugins/algorithm-learning/`, serves Claude Code, Codex, and Pi.
+It holds the only copy of the teaching skill, and each agent reads its own
+manifest from the same folder:
 
-| Agent | Plugin | Provides | Finds `algo` |
-| --- | --- | --- | --- |
-| Claude Code | `claude/algorithm-learning/` | skill + MCP server | `PATH` |
-| Codex | `codex/algorithm-learning/` | skill + MCP server | bundled `bin/algo` (macOS arm64) |
-| Pi | `pi/algorithm-learning/` | skill (runs the JSON CLI) | `PATH` |
-
-Only each agent's manifest files are edited by hand. The skill copy, the
-`scripts/launch_algolearn_mcp` launcher, and Codex's `bin/algo` are generated
-from `skills/algorithm-learning/`, `scripts/launch_algolearn_mcp`, and
-`bin/algo`:
-
-```sh
-make package-plugins   # rebuild and regenerate every plugin
-make test-packaging    # validate them, including Claude's own validator when installed
+```text
+plugins/algorithm-learning/
+├── skills/algorithm-learning/      the teaching skill (edit here)
+├── scripts/launch_algolearn_mcp    starts `algo learn serve` (edit here)
+├── bin/algo                        bundled macOS arm64 build (generated)
+├── .claude-plugin/plugin.json      Claude Code: skill + MCP server (inline)
+├── .codex-plugin/plugin.json       Codex: skill + MCP server (.mcp.json)
+├── .mcp.json                       Codex's MCP config
+└── package.json                    Pi: skill
 ```
 
-Install `algo` on `PATH` for the Claude Code and Pi plugins:
+Every agent reaches the same `algo learn` operation registry and workspace event
+stream, so a session started in one agent can be resumed in another.
+
+The two marketplace files live at the repository root, `.claude-plugin/` for
+Claude Code and `.agents/plugins/` for Codex, because both agents look for them
+there when installing from `owner/repo`. Each lists this folder.
+
+```sh
+make package-plugin   # rebuild bin/algo and copy it into the plugin
+make test-packaging   # validate the plugin, including Claude's own validator when installed
+```
+
+The MCP launcher uses `ALGOLEARN_BIN` when set, then the bundled `bin/algo` when
+it runs on this machine, then `algo` on `PATH`. Its workspace is
+`ALGOLEARN_WORKSPACE` when set, otherwise the directory the agent started the
+server in. Off macOS arm64, and for Pi, install `algo` on `PATH`:
 
 ```sh
 make install PREFIX="$HOME/.local"
 algo learn doctor --workspace /path/to/practice --json
 ```
-
-The MCP launcher uses `ALGOLEARN_BIN` when set, then a bundled `bin/algo`, then
-`algo` on `PATH`. Its workspace is `ALGOLEARN_WORKSPACE` when set, otherwise the
-directory the agent started the server in.
 
 ## Claude Code
 
@@ -45,7 +49,7 @@ The repository root is a Claude Code marketplace
 
 For a local checkout, add the marketplace by path instead
 (`/plugin marketplace add /path/to/agentic-dsa`), or load the plugin for one
-session with `claude --plugin-dir algo/plugins/claude/algorithm-learning`.
+session with `claude --plugin-dir algo/plugins/algorithm-learning`.
 
 The plugin adds the `algorithm-learning` skill and an `algorithm-learning` MCP
 server with one tool per engine operation; `claude mcp list` shows it as
@@ -53,8 +57,8 @@ server with one tool per engine operation; `claude mcp list` shows it as
 practice workspace, or set `ALGOLEARN_WORKSPACE`. The plugin adds about 100
 tokens to every session (`claude plugin details algorithm-learning`).
 
-If `~/.claude/skills/algorithm-learning` already links to the shared skill,
-remove that link after installing the plugin so the skill is not loaded twice.
+If `~/.claude/skills/algorithm-learning` links to this skill, remove that link
+after installing the plugin so the skill is not loaded twice.
 
 ## Codex
 
@@ -66,23 +70,22 @@ codex plugin marketplace add anhnguyensgu/agentic-dsa   # or a local checkout pa
 codex plugin add algorithm-learning@agentic-dsa
 ```
 
-`.codex-plugin/plugin.json` names the shared skill and `.mcp.json`, and the
-launcher runs the bundled `bin/algo learn serve`. The committed binary is a
-macOS arm64 build: on another platform, set `ALGOLEARN_BIN` to a locally built
-`algo`, or run `make package-plugins` to rebuild the bundle. Packaging never
-changes personal Codex settings.
+`.codex-plugin/plugin.json` names the skill and `.mcp.json`. The launcher runs
+the bundled macOS arm64 `bin/algo`; elsewhere it falls back to `algo` on `PATH`
+or `ALGOLEARN_BIN`. Packaging never changes personal Codex settings.
 
 ## Pi
 
-The Pi plugin is a Pi package that provides the skill:
+The plugin folder is also a Pi package that provides the skill:
 
 ```sh
-pi install ./algo/plugins/pi/algorithm-learning       # personal
-pi install -l ./algo/plugins/pi/algorithm-learning    # this project only
-pi -e ./algo/plugins/pi/algorithm-learning            # one session, no install
+pi install ./algo/plugins/algorithm-learning       # personal
+pi install -l ./algo/plugins/algorithm-learning    # this project only
+pi -e ./algo/plugins/algorithm-learning            # one session, no install
 ```
 
-Pi packages cannot declare MCP servers, so the skill drives the JSON CLI through
+Pi packages cannot declare MCP servers and Pi ignores the other manifests, so
+the skill drives the JSON CLI through
 Pi's `bash` tool; keep that tool enabled. To use MCP tools instead, register the
 server yourself:
 

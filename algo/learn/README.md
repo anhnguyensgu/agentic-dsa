@@ -18,9 +18,9 @@ make install PREFIX="$HOME/.local"
 
 The build produces `bin/algo`, plus the legacy names `bin/algolearn`,
 `bin/leetcode`, and `bin/kattis` as symlinks that act as `algo learn`,
-`algo judge leetcode`, and `algo judge kattis`. `make package-plugins` assembles
-the shared teaching skill into the Claude Code, Codex, and Pi plugins under
-`plugins/<agent>/algorithm-learning/`; the Codex plugin also bundles the binary.
+`algo judge leetcode`, and `algo judge kattis`. `make package-plugin` copies the
+binary into `plugins/algorithm-learning/`, the one plugin for Claude Code,
+Codex, and Pi.
 
 ## Start a workspace
 
@@ -116,7 +116,7 @@ The native server implements newline-delimited MCP stdio for protocol
 `2025-11-25`, including initialization, `tools/list`, `tools/call`, cancellation,
 shutdown, typed input/output schemas, and equivalent text plus structured
 content. Diagnostics stay on stderr. The portable teaching skill is in
-`skills/algorithm-learning/`.
+`plugins/algorithm-learning/skills/algorithm-learning/`.
 
 See [`plugins/README.md`](../plugins/README.md) to set up Claude Code, Codex,
 Pi, or any other agent through MCP or the JSON CLI.

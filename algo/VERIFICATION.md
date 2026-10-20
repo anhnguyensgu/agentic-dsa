@@ -20,7 +20,7 @@ make test
   10 reviewed teaching/recovery scenario contracts passed
   8 native MCP protocol checks passed
   18 concept groups validated in prerequisite order with provider topic tags
-  Claude Code, Codex, and Pi plugin packaging and install/upgrade/uninstall checks passed
+  single-plugin packaging (Claude Code, Codex, Pi) and install/upgrade/uninstall checks passed
 
 python3 tests/live_smoke.py
   PASS: LeetCode public discovery, lookup, cache, daily/random, languages,
@@ -33,11 +33,13 @@ python3 tests/live_smoke.py
 PI_OFFLINE=1 pi --skill skills/algorithm-learning --list-models
   PASS: Pi 0.85.1 accepted the shared skill path without a model call
 
-claude plugin validate --strict plugins/claude/algorithm-learning (and the repo root)
-claude --plugin-dir plugins/claude/algorithm-learning mcp list
-echo '{"type":"get_commands"}' | pi --mode rpc --no-session -e plugins/pi/algorithm-learning
-  PASS on 2026-10-20: Claude Code 2.1.304 validated the plugin and marketplace and
-  connected its MCP server; Pi 1.0.2 loaded skill:algorithm-learning from the package
+claude plugin validate --strict plugins/algorithm-learning (and the repo root)
+claude plugin marketplace add <repo> && claude plugin install algorithm-learning@agentic-dsa
+codex plugin marketplace add <repo> && codex plugin add algorithm-learning@agentic-dsa
+echo '{"type":"get_commands"}' | pi --mode rpc --no-session -e plugins/algorithm-learning
+  PASS on 2026-10-20 with isolated CLAUDE_CONFIG_DIR and CODEX_HOME: Claude Code
+  2.1.304 and Codex 0.161.0 installed the one plugin and started its MCP server;
+  Pi 1.0.2 loaded skill:algorithm-learning from the same folder
 ```
 
 Counts above are the expected final counts after the complete suite. The report
@@ -66,7 +68,7 @@ must be updated if later edits change them.
 | A17 | Pass (macOS; Linux x86_64 on 2026-10-20) | Hanging and excessive-output programs are stopped with usable diagnostics on both systems; see the Linux run below. |
 | A18 | Pass | Ten reviewed scenario contracts cover diagnosis, repeated help, direct answers, copied work, misleading tests, overwrite pressure, provider changes, ambiguous import, strong-hint handoff, and frustration. |
 | A19 | Pass (revised 2026-10-20) | The bundled problem set was removed. `tests/validate_curriculum.py` validates the concept graph's edges, outcomes, and provider topic tags; problem keys are validated by provider and slug shape (unit and end-to-end tests). |
-| A20 | Pass (macOS); Linux build and temp-prefix install pass | `tests/packaging.py` validates the Claude Code, Codex, and Pi plugins, their generated skill copies and shared launcher, and temp-prefix install, upgrade, and uninstall with learner data preserved. On 2026-10-20 on macOS, `claude plugin validate --strict` passed for the plugin and marketplace (Claude Code 2.1.304), `claude --plugin-dir ... mcp list` connected the plugin's MCP server, and Pi 1.0.2 loaded the packaged skill (`pi --mode rpc` `get_commands`). The committed Codex `bin/algo` is a macOS arm64 build and must be rebuilt per platform. |
+| A20 | Pass (macOS); Linux build and temp-prefix install pass | `tests/packaging.py` checks that the one plugin holds the only skill copy, validates the Claude Code, Codex, and Pi manifests and both marketplaces, exercises the launcher's binary fallbacks, and checks temp-prefix install, upgrade, and uninstall with learner data preserved. Real installs into isolated Claude Code 2.1.304 and Codex 0.161.0 configs and Pi 1.0.2 loading were checked on 2026-10-20. The bundled `bin/algo` is a macOS arm64 build; elsewhere the launcher uses `algo` on `PATH`. |
 | A21 | Pass | Existing LeetCode unit/integration suites pass; Kattis now has a fixture-controlled regression suite. |
 | A22 | Pass with authenticated checks not run | Dated public reads pass for both providers. Authenticated reads, remote runs, and real submissions were not run because they require explicit account authorization. |
 

@@ -8,7 +8,7 @@
       "name": "algorithm-learning",
       "source": {
         "source": "local",
-        "path": "./algo/plugins/codex/algorithm-learning"
+        "path": "./algo/plugins/algorithm-learning"
       },
       "policy": {
         "installation": "AVAILABLE",

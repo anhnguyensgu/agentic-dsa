@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Validate the assembled Claude Code, Codex, and Pi plugins without installing them."""
+"""Validate the one plugin that serves Claude Code, Codex, and Pi, without installing it."""
 
-import filecmp
 import json
 import os
 from pathlib import Path
@@ -11,8 +10,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parent
-SHARED_SKILL = ROOT / "skills" / "algorithm-learning"
-LAUNCHER = ROOT / "scripts" / "launch_algolearn_mcp"
+PLUGIN = ROOT / "plugins" / "algorithm-learning"
+LAUNCHER = PLUGIN / "scripts" / "launch_algolearn_mcp"
+NAME = "algorithm-learning"
 VERSION = "0.3.0"
 MCP_HANDSHAKE = (
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}\n'
@@ -21,28 +21,60 @@ MCP_HANDSHAKE = (
 )
 
 
-def plugin(host: str) -> Path:
-    return ROOT / "plugins" / host / "algorithm-learning"
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text())
 
 
-def same_tree(left: Path, right: Path) -> bool:
-    comparison = filecmp.dircmp(left, right)
-    if comparison.left_only or comparison.right_only or comparison.diff_files or comparison.funny_files:
-        return False
-    return all(same_tree(left / name, right / name) for name in comparison.common_dirs)
-
-
-def check_shared_parts(host: str, launcher: bool) -> None:
-    root = plugin(host)
-    assert same_tree(SHARED_SKILL, root / "skills" / "algorithm-learning"), f"{host} skill copy is stale"
-    script = root / "scripts" / LAUNCHER.name
-    if launcher:
-        assert filecmp.cmp(LAUNCHER, script, shallow=False) and os.access(script, os.X_OK), host
-    else:
-        assert not script.exists(), host
-    for file in root.rglob("*"):
+def check_skill() -> None:
+    # One skill, shared by every agent: no copies anywhere in the tree.
+    skills = sorted(path.relative_to(ROOT) for path in ROOT.rglob("SKILL.md"))
+    assert skills == [Path("plugins/algorithm-learning/skills/algorithm-learning/SKILL.md")], skills
+    for file in PLUGIN.rglob("*"):
         if file.is_file() and file.suffix in {".json", ".md", ".yaml"}:
             assert "[TODO:" not in file.read_text(errors="ignore")
+
+
+def check_claude() -> None:
+    manifest = read_json(PLUGIN / ".claude-plugin" / "plugin.json")
+    assert manifest["name"] == NAME and manifest["version"] == VERSION
+    # Inline, so Claude does not read the Codex-format .mcp.json.
+    server = manifest["mcpServers"][NAME]
+    assert server["command"] == "${CLAUDE_PLUGIN_ROOT}/scripts/launch_algolearn_mcp"
+
+    [entry] = read_json(REPO / ".claude-plugin" / "marketplace.json")["plugins"]
+    assert entry["name"] == NAME and (REPO / entry["source"]).resolve() == PLUGIN.resolve()
+
+    # Claude's own validator, when this machine has Claude Code installed.
+    if claude := shutil.which("claude"):
+        for target in (PLUGIN, REPO):
+            result = subprocess.run([claude, "plugin", "validate", "--strict", str(target)], text=True, capture_output=True, timeout=60)
+            assert result.returncode == 0, (target, result.stdout, result.stderr)
+
+
+def check_codex() -> None:
+    manifest = read_json(PLUGIN / ".codex-plugin" / "plugin.json")
+    assert manifest["name"] == NAME and manifest["version"] == VERSION
+    assert manifest["skills"] == "./skills/" and manifest["mcpServers"] == "./.mcp.json"
+    server = read_json(PLUGIN / ".mcp.json")["mcpServers"][NAME]
+    assert server["command"] == "./scripts/launch_algolearn_mcp"
+
+    [entry] = read_json(REPO / ".agents" / "plugins" / "marketplace.json")["plugins"]
+    assert entry["name"] == NAME and entry["source"]["source"] == "local"
+    assert (REPO / entry["source"]["path"]).resolve() == PLUGIN.resolve()
+
+
+def check_pi() -> None:
+    package = read_json(PLUGIN / "package.json")
+    assert package["name"] == NAME and package["version"] == VERSION
+    assert package["private"] is True and "pi-package" in package["keywords"]
+    assert package["pi"] == {"skills": ["./skills"]}
+
+
+def check_binary() -> None:
+    binary = PLUGIN / "bin" / "algo"
+    assert binary.is_file() and not binary.is_symlink() and os.access(binary, os.X_OK)
+    version = subprocess.run([str(binary), "learn", "version"], text=True, capture_output=True, check=True)
+    assert f"algolearn {VERSION}" in version.stdout
 
 
 def serve(launcher: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -56,75 +88,31 @@ def check_handshake(process: subprocess.CompletedProcess[str]) -> None:
     assert messages[1]["result"] is None
 
 
-def check_claude() -> None:
-    root = plugin("claude")
-    manifest = json.loads((root / ".claude-plugin" / "plugin.json").read_text())
-    assert manifest["name"] == root.name and manifest["version"] == VERSION
-    assert manifest["mcpServers"] == "./.mcp.json"
-    mcp = json.loads((root / ".mcp.json").read_text())["mcpServers"]["algorithm-learning"]
-    assert mcp["command"] == "${CLAUDE_PLUGIN_ROOT}/scripts/launch_algolearn_mcp"
-    assert not (root / "bin").exists(), "the Claude plugin finds algo on PATH"
-    check_shared_parts("claude", launcher=True)
-
-    marketplace = json.loads((REPO / ".claude-plugin" / "marketplace.json").read_text())
-    [entry] = marketplace["plugins"]
-    assert entry["name"] == manifest["name"]
-    assert (REPO / entry["source"]).resolve() == root.resolve()
-
-    # Claude's own validator, when this machine has Claude Code installed.
-    if claude := shutil.which("claude"):
-        for target in (root, REPO):
-            result = subprocess.run([claude, "plugin", "validate", "--strict", str(target)], text=True, capture_output=True, timeout=60)
-            assert result.returncode == 0, (target, result.stdout, result.stderr)
-
-
-def check_codex() -> None:
-    root = plugin("codex")
-    manifest = json.loads((root / ".codex-plugin" / "plugin.json").read_text())
-    assert manifest["name"] == root.name and manifest["version"] == VERSION
-    assert manifest["mcpServers"] == "./.mcp.json"
-    mcp = json.loads((root / ".mcp.json").read_text())["mcpServers"]["algorithm-learning"]
-    assert mcp["command"] == "./scripts/launch_algolearn_mcp"
-    binary = root / "bin" / "algo"
-    assert binary.is_file() and not binary.is_symlink()
-    version = subprocess.run([str(binary), "learn", "version"], text=True, capture_output=True, check=True)
-    assert f"algolearn {VERSION}" in version.stdout
-    check_shared_parts("codex", launcher=True)
-
-    marketplace = json.loads((REPO / ".agents" / "plugins" / "marketplace.json").read_text())
-    [entry] = marketplace["plugins"]
-    assert entry["name"] == manifest["name"] and entry["source"]["source"] == "local"
-    assert (REPO / entry["source"]["path"]).resolve() == root.resolve()
-
-
-def check_pi() -> None:
-    root = plugin("pi")
-    package = json.loads((root / "package.json").read_text())
-    assert package["name"] == root.name and package["version"] == VERSION
-    assert package["private"] is True and "pi-package" in package["keywords"]
-    assert package["pi"] == {"skills": ["./skills"]}
-    assert (root / "skills" / "algorithm-learning" / "SKILL.md").is_file()
-    check_shared_parts("pi", launcher=False)
-
-
 def check_launcher() -> None:
+    assert os.access(LAUNCHER, os.X_OK)
     with tempfile.TemporaryDirectory(prefix="algolearn-plugin-") as tmp:
-        workspace = Path(tmp) / "practice"
+        temp = Path(tmp)
+        workspace = temp / "practice"
         workspace.mkdir()
-        base = dict(os.environ, ALGOLEARN_WORKSPACE=str(workspace))
+        base = dict(os.environ, ALGOLEARN_WORKSPACE=str(workspace), PATH="/usr/bin:/bin")
         base.pop("ALGOLEARN_BIN", None)
+        check_handshake(serve(LAUNCHER, base))
 
-        # Codex runs its bundled binary.
-        check_handshake(serve(plugin("codex") / "scripts" / LAUNCHER.name, base))
-
-        # Claude has no bundled binary and finds algo on PATH.
-        path_dir = Path(tmp) / "path"
+        # A plugin copy whose bundled binary cannot run here (another
+        # platform's build) falls back to ALGOLEARN_BIN, then algo on PATH.
+        copy = temp / "plugin"
+        (copy / "scripts").mkdir(parents=True)
+        (copy / "bin").mkdir()
+        launcher = copy / "scripts" / LAUNCHER.name
+        shutil.copy2(LAUNCHER, launcher)
+        (copy / "bin" / "algo").write_text("#!/bin/sh\nexit 126\n")
+        (copy / "bin" / "algo").chmod(0o755)
+        path_dir = temp / "path"
         path_dir.mkdir()
         (path_dir / "algo").symlink_to(ROOT / "bin" / "algo")
-        claude = plugin("claude") / "scripts" / LAUNCHER.name
-        check_handshake(serve(claude, dict(base, PATH=f"{path_dir}:/usr/bin:/bin")))
-        check_handshake(serve(claude, dict(base, PATH="/usr/bin:/bin", ALGOLEARN_BIN=str(ROOT / "bin" / "algo"))))
-        missing = serve(claude, dict(base, PATH="/usr/bin:/bin"))
+        check_handshake(serve(launcher, dict(base, PATH=f"{path_dir}:/usr/bin:/bin")))
+        check_handshake(serve(launcher, dict(base, ALGOLEARN_BIN=str(ROOT / "bin" / "algo"))))
+        missing = serve(launcher, base)
         assert missing.returncode == 127 and "make install" in missing.stderr
 
 
@@ -156,12 +144,14 @@ def check_install() -> None:
 
 
 def main() -> None:
+    check_skill()
     check_claude()
     check_codex()
     check_pi()
+    check_binary()
     check_launcher()
     check_install()
-    print("PASS: Claude Code, Codex, and Pi plugins, shared skill copies, launcher, and install")
+    print("PASS: one plugin for Claude Code, Codex, and Pi: single skill, manifests, launcher, and install")
 
 
 if __name__ == "__main__":
