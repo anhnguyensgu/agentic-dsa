@@ -13,13 +13,13 @@ make test
   odin check -vet -strict-style passed for every package
   4 shared judge core unit tests passed
   19 LeetCode unit tests passed
-  16 Algorithm Learning unit tests passed (memory tracking enabled)
+  17 Algorithm Learning unit tests passed (memory tracking enabled)
   68 LeetCode fixture checks passed
   38 Kattis fixture/bounded-runner checks passed
-  28 end-to-end learning checks passed
+  29 end-to-end learning checks passed
   10 reviewed teaching/recovery scenario contracts passed
   8 native MCP protocol checks passed
-  40 mappings / 10 concepts validated, minimum mapping coverage 4
+  10 concepts validated with prerequisites and provider topic tags
   native plugin packaging and install/upgrade/uninstall checks passed
 
 python3 tests/live_smoke.py
@@ -42,7 +42,7 @@ must be updated if later edits change them.
 | ID | Status | Evidence |
 | --- | --- | --- |
 | A01 | Pass | `tests/learning_integration.py` initializes, plans, practises, tests, assesses, closes, schedules, exports, and resumes state; frozen-clock unit tests verify due dates. |
-| A02 | Pass | LeetCode and Kattis fixture suites exercise structured discovery, problem data, safe scaffolds, local runners, and job contracts; both use the shared normalized engine catalogue. |
+| A02 | Pass | LeetCode and Kattis fixture suites exercise structured discovery, problem data, safe scaffolds, local runners, and job contracts; both feed the same engine through `<provider>:<slug>` problem keys. |
 | A03 | Pass | `tests/mcp_protocol.py` compares MCP `state_get` with CLI state and checks equivalent structured/text envelopes. |
 | A04 | Pass | Checkpoint handoffs, changed-source hashes, portable export/import, and restored source bytes are exercised end to end. |
 | A05 | Pass | `host-guides/README.md` documents shell and text-only behavior; the CLI and native MCP process are exercised directly. |
@@ -57,17 +57,24 @@ must be updated if later edits change them.
 | A14 | Pass | Run artifacts include source hashes and immutable source snapshots; edits invalidate current eligibility and prepared submissions. |
 | A15 | Pass | Tests cover atomic projection writes, truncated-tail preservation, middle corruption, duplicate requests, stale revisions, and concurrent client locking. |
 | A16 | Pass | Exports exclude credentials/caches/statements, synthetic secrets are absent from child runners, and provider diagnostics are bounded. |
-| A17 | macOS pass; Linux pending | Hanging and excessive-output programs are stopped on macOS. Linux source is portable, but no live Linux runner was available in this workspace. |
+| A17 | Pass (macOS; Linux x86_64 on 2026-10-20) | Hanging and excessive-output programs are stopped with usable diagnostics on both systems; see the Linux run below. |
 | A18 | Pass | Ten reviewed scenario contracts cover diagnosis, repeated help, direct answers, copied work, misleading tests, overwrite pressure, provider changes, ambiguous import, strong-hint handoff, and frustration. |
-| A19 | Pass | `tests/validate_curriculum.py` validates graph edges, 40 mappings, provider identities, capabilities, URLs, origins, and at least four mappings per concept. |
-| A20 | macOS/Pi pass; Linux pending | Native Codex manifest and skill validators pass; temp-prefix install, upgrade, and uninstall preserve learner data; Pi 0.85.1 accepts the shared skill. Linux packaging awaits a Linux runner. |
+| A19 | Pass (revised 2026-10-20) | The bundled problem set was removed. `tests/validate_curriculum.py` validates the concept graph's edges, outcomes, and provider topic tags; problem keys are validated by provider and slug shape (unit and end-to-end tests). |
+| A20 | macOS/Pi pass; Linux build and temp-prefix install pass | Native Codex manifest and skill validators pass; temp-prefix install, upgrade, and uninstall preserve learner data; Pi 0.85.1 accepts the shared skill. On Linux the suite builds and validates the bundle, but the committed `plugins/codex/algorithm-learning/bin/algo` is a macOS arm64 build and must be rebuilt per platform. |
 | A21 | Pass | Existing LeetCode unit/integration suites pass; Kattis now has a fixture-controlled regression suite. |
 | A22 | Pass with authenticated checks not run | Dated public reads pass for both providers. Authenticated reads, remote runs, and real submissions were not run because they require explicit account authorization. |
 
+## Linux run, 2026-10-20
+
+Environment: Linux x86_64, Odin `dev-2026-07:819fdc7` built from source against
+LLVM 20. `make test` passed with the counts listed above, after the bundled
+problem set was removed. Live LeetCode reads were not run because the host
+network blocked leetcode.com, so the LeetCode topic tags in
+`curriculum/concepts.json` are not live-verified.
+
 ## Remaining release evidence
 
-Run `make test` on a supported Linux host and append its OS, Odin version, and
-results here. Authenticated provider checks remain opt-in. A learner study with
+Authenticated provider checks remain opt-in. A learner study with
 pre/post and delayed transfer tasks is also still required before making any
 claim that the product improves learning; technical acceptance does not prove
 educational effectiveness.

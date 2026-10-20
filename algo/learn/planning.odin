@@ -6,16 +6,13 @@ import "core:fmt"
 import "core:strings"
 
 DEFAULT_BUDGET_MINUTES :: 30
-MAX_PLAN_CANDIDATES :: 3
 
 Plan_Next_Params :: struct {
-	goal:                 string,
-	time_budget_minutes:  int,
-	topic:                string,
-	mode:                 string,
-	language:             string,
-	offline:              bool,
-	exclude_problem_keys: []string,
+	goal:                string,
+	time_budget_minutes: int,
+	topic:               string,
+	mode:                string,
+	language:            string,
 }
 
 Review_Candidate :: struct {
@@ -25,17 +22,20 @@ Review_Candidate :: struct {
 	reason:    string,
 }
 
+// Practice_Candidate names a concept, not a problem: there is no bundled
+// problem set, so the agent picks a provider problem using the tags.
 Practice_Candidate :: struct {
 	kind:                   string,
 	concept:                string,
-	problem:                Problem_View,
+	title:                  string,
+	leetcode_tags:          []string,
+	hide_tags_from_learner: bool,
 	reason:                 string,
 	capability_limitations: []string,
 }
 
 // op_plan_next is a deterministic policy: one due review first, then new
-// practice on the first unmet prerequisite or goal concept, in stable
-// catalogue order.
+// practice on the first unmet prerequisite or goal concept.
 op_plan_next :: proc(
 	ctx: ^Context,
 	store: ^Store,
@@ -57,7 +57,6 @@ op_plan_next :: proc(
 	}
 	language := first_nonempty(p.language, st.profile.language, "odin")
 	mode := enum_value(MODE_NAMES, "mode", first_nonempty(p.mode, "guided")) or_return
-	nonempty_items("exclude_problem_keys", p.exclude_problem_keys) or_return
 
 	candidates := make([dynamic]Raw_JSON)
 	now := rfc3339_utc(context_now(ctx))
@@ -79,58 +78,54 @@ op_plan_next :: proc(
 	}
 
 	topic := p.topic if p.topic != "" else next_topic(&st)
-	problems, catalog_err := catalog_problems()
-	if catalog_err != nil {
-		return {}, fail(catalog_err, "the bundled catalogue could not be read")
-	}
-	audience :=
-		Audience.Assessment if mode == .Assessment || mode == .Independent else Audience.Learning
-	for problem in problems {
-		if len(candidates) >= MAX_PLAN_CANDIDATES {
-			break
-		}
-		if contains(p.exclude_problem_keys, problem.problem_key) ||
-		   !contains(problem.concept_ids, topic) ||
-		   problem.effort_minutes > budget ||
-		   !supports_language(problem, language) ||
-		   attempted(&st, problem.problem_key) {
-			continue
-		}
-		limitations := make([dynamic]string)
-		if problem.provider == "leetcode" && language == "odin" {
-			append(&limitations, "Odin is local-practice only for LeetCode")
-		}
+	concept, known := find_concept(topic)
+	limitations := make([dynamic]string)
+	if language == "odin" {
 		append(
-			&candidates,
-			to_json(
-				Practice_Candidate {
-					kind = "new_practice",
-					concept = topic,
-					problem = problem_view(problem, audience),
-					reason = fmt.aprintf(
-						"targets %s, fits the %d-minute budget, and has no recorded prior attempt",
-						topic,
-						budget,
-					),
-					capability_limitations = limitations[:],
-				},
-			),
+			&limitations,
+			"LeetCode does not judge Odin; Odin practice on LeetCode is local only",
 		)
+	}
+	reason := fmt.aprintf(
+		"%s is the next concept to practise; choose a provider problem the learner has not attempted that fits the %d-minute budget",
+		topic,
+		budget,
+	)
+	if !known {
+		reason = fmt.aprintf(
+			"%s is not a curriculum concept; choose a provider problem for it that fits the %d-minute budget",
+			topic,
+			budget,
+		)
+	}
+	append(
+		&candidates,
+		to_json(
+			Practice_Candidate {
+				kind = "new_practice",
+				concept = topic,
+				title = concept.title,
+				leetcode_tags = concept.leetcode_tags,
+				hide_tags_from_learner = mode == .Independent || mode == .Assessment,
+				reason = reason,
+				capability_limitations = limitations[:],
+			},
+		),
+	)
+
+	attempted := make([dynamic]string)
+	for a in st.attempts {
+		note_concept(&attempted, a.problem_key)
 	}
 
 	Data :: struct {
-		candidates:          []Raw_JSON,
-		target_concept:      string,
-		time_budget_minutes: int,
-		language:            string,
+		candidates:             []Raw_JSON,
+		target_concept:         string,
+		time_budget_minutes:    int,
+		language:               string,
+		attempted_problem_keys: []string,
 	}
-	res.data = to_json(Data{candidates[:], topic, budget, language})
-	if len(candidates) == 0 {
-		append(
-			&res.warnings,
-			"no bundled problem satisfies the current constraints; choose a cached review or a clearly labelled local micro-exercise",
-		)
-	}
+	res.data = to_json(Data{candidates[:], topic, budget, language, attempted[:]})
 	return
 }
 
@@ -158,15 +153,6 @@ next_topic :: proc(st: ^State) -> string {
 mastered :: proc(st: ^State, concept_id: string) -> bool {
 	for c in st.concepts {
 		if c.concept_id == concept_id && (c.state == .Independent || c.state == .Retained) {
-			return true
-		}
-	}
-	return false
-}
-
-attempted :: proc(st: ^State, problem_key: string) -> bool {
-	for a in st.attempts {
-		if a.problem_key == problem_key {
 			return true
 		}
 	}

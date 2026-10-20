@@ -97,10 +97,7 @@ op_submission_prepare :: proc(
 	if attempt == nil {
 		return {}, fail(.Not_Found, "attempt does not exist")
 	}
-	problem, found := catalog_find(attempt.problem_key)
-	if !found {
-		return {}, fail(.Not_Found, "attempt problem is missing from the catalogue")
-	}
+	problem := parse_problem_key(attempt.problem_key) or_return
 	if problem.provider == "leetcode" && attempt.language == "odin" {
 		return {}, fail(.Unsupported_Capability, "LeetCode does not judge Odin; preserve this attempt and create a separately tracked supported-language attempt for remote submission")
 	}
@@ -128,7 +125,7 @@ op_submission_prepare :: proc(
 		intent_id     = intent_id,
 		provider      = problem.provider,
 		problem_key   = attempt.problem_key,
-		provider_id   = problem.native_id,
+		provider_id   = problem.slug,
 		slug          = problem.slug,
 		language      = attempt.language,
 		source_path   = attempt.source_path,

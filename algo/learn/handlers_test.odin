@@ -306,6 +306,17 @@ handlers_reject_invalid_inputs :: proc(t: ^testing.T) {
 		{"session_start", `{"objective":"x","mode":"guided","sneaky":"field"}`, .Invalid_Input},
 		// Invalid enums are rejected.
 		{"session_start", `{"objective":"x","mode":"speedrun"}`, .Invalid_Input},
+		// Problem keys name a known provider and a path-safe slug.
+		{
+			"session_start",
+			`{"objective":"x","mode":"guided","problem_key":"two-sum"}`,
+			.Invalid_Input,
+		},
+		{
+			"attempt_start",
+			`{"session_id":"sess_000002","problem_key":"leetcode:../x","language":"odin"}`,
+			.Invalid_Input,
+		},
 		// Hint levels are bounded 0..4 (section 7).
 		{"hint_record", `{"session_id":"sess_000002","level":9}`, .Invalid_Input},
 		// Wrongly typed fields are rejected.
@@ -364,19 +375,53 @@ handlers_emit_structured_object_arrays :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(state.sessions), 1)
 	testing.expect_value(t, state.sessions[0].mode, "guided")
 
-	Search_Data :: struct {
-		problems: []Problem_View,
+	Plan_Data :: struct {
+		candidates: []Practice_Candidate,
 	}
-	search: Search_Data
+	plan: Plan_Data
 	testing.expect(
 		t,
 		decode(
-			string(call(t, &f, "problem_search", `{"provider":"leetcode","limit":1}`).data),
-			&search,
+			string(call(t, &f, "plan_next", `{"topic":"prefix-window","mode":"assessment"}`).data),
+			&plan,
 		),
 	)
-	testing.expect_value(t, len(search.problems), 1)
-	testing.expect_value(t, search.problems[0].provider, "leetcode")
+	testing.expect_value(t, len(plan.candidates), 1)
+	testing.expect_value(t, plan.candidates[0].kind, "new_practice")
+	testing.expect(t, contains(plan.candidates[0].leetcode_tags, "sliding-window"))
+	testing.expect(t, plan.candidates[0].hide_tags_from_learner)
+}
+
+@(test)
+problem_keys_name_any_provider_problem_as_one_path_component :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+
+	for key in ([?]string{"leetcode:trapping-rain-water", "kattis:hello", "kattis:3dprinter"}) {
+		problem, err := parse_problem_key(key)
+		testing.expectf(t, err == nil, "%s should be accepted", key)
+		testing.expect_value(t, problem.key, key)
+	}
+	problem, _ := parse_problem_key("leetcode:two-sum")
+	testing.expect_value(t, problem.provider, "leetcode")
+	testing.expect_value(t, problem.slug, "two-sum")
+
+	rejected := [?]string {
+		"",
+		"two-sum",
+		"leetcode:",
+		"codeforces:1a",
+		"leetcode:Two-Sum",
+		"leetcode:..",
+		"leetcode:.hidden",
+		"leetcode:a/b",
+		"leetcode:a b",
+		"kattis:../../etc",
+	}
+	for key in rejected {
+		_, err := parse_problem_key(key)
+		testing.expectf(t, err != nil, "%q should be rejected", key)
+	}
 }
 
 @(test)

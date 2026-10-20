@@ -23,7 +23,7 @@ Pending_Job :: struct {
 Handoff :: struct {
 	schema_version:          int,
 	engine_version:          string,
-	catalog_version:         string,
+	curriculum_version:      string,
 	workspace_id:            string,
 	workspace_revision:      int,
 	profile:                 Raw_JSON,
@@ -51,7 +51,7 @@ session_handoff :: proc(store: ^Store, session_id: string) -> (doc: Raw_JSON, fo
 	handoff := Handoff {
 		schema_version     = SCHEMA_VERSION,
 		engine_version     = ENGINE_VERSION,
-		catalog_version    = CATALOG_VERSION,
+		curriculum_version = curriculum_version(),
 		workspace_id       = st.workspace_id,
 		workspace_revision = st.revision,
 		profile            = profile_view(st.profile),

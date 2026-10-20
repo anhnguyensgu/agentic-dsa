@@ -332,8 +332,8 @@ page or API parsing, login, submission, and verdict mapping.
 2. Register it in the provider list in `main.odin`.
 3. Add a fixture-server integration test under `tests/` that covers the shared
    command surface.
-4. Add reviewed problem mappings to `curriculum/problems.json` so `algo learn`
-   can plan and track them.
+4. Add the name to `PROVIDERS` in `learn/providers.odin` so `algo learn` accepts
+   `<name>:<slug>` problem keys and can run its jobs.
 
 ## Verification and troubleshooting
 

@@ -70,7 +70,11 @@ conflict, 3 failed solution, 4 unverified local result, and 5 pending.
 
 ## Practice workflow
 
-Use `problem_search` or `plan_next`, then `session_start` and `attempt_start`.
+Any problem on a supported judge can be practised and tracked; there is no
+bundled problem set. Name it by `<provider>:<slug>`, such as `leetcode:two-sum`
+or `kattis:twostones`, and discover problems with `algo judge <provider> list`,
+`show`, or `daily`. Use `plan_next` for a recommendation, then `session_start`
+and `attempt_start`.
 Fresh attempts never overwrite an existing path. `case_add` records comparator
 and oracle provenance. `test_run` compiles and executes Odin with time and
 output limits, a credential-filtered child environment, immutable source
@@ -125,7 +129,7 @@ generic shell setup.
   manifest.json
   events.jsonl
   state.json
-  catalog/ sessions/ attempts/ artifacts/ jobs/
+  sessions/ attempts/ artifacts/ jobs/
   imports/ exports/ backups/
 ```
 
@@ -144,13 +148,15 @@ confirmation string. Session deletion redacts plugin event content and removes
 plugin-managed handoffs and snapshots while preserving solution directories.
 `all_learning` removes only `.algo/learning/`.
 
-## Offline curriculum and limits
+## Curriculum and limits
 
-The bundled catalogue contains 40 curated mappings across Kattis and LeetCode,
-covering 10 concept groups with at least four mappings each. Selection is
-deterministic, filters by time/language/offline constraints, prefers due reviews
-and prerequisites, hides spoiler tags in independent assessment, and explains
-capability limits.
+`curriculum/concepts.json` holds 10 concept groups with prerequisites and the
+LeetCode topic tags that practise each one. Reviews and progress are tracked
+per concept. `plan_next` is deterministic: it offers one due review first,
+then the next unmastered concept (or its first unmet prerequisite) with those
+tags, and lists already-attempted problem keys so the agent can choose a new
+provider problem. In independent and assessment modes it marks the tags as
+hidden from the learner, since they can reveal the technique.
 
 Local execution limits reduce accidental hangs and excessive output; they are
 not a security sandbox for arbitrary code. Use an operating-system sandbox when

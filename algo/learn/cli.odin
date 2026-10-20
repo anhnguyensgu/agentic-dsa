@@ -22,12 +22,12 @@ usage:
 Examples:
   algo learn call session_start --workspace . --input request.json --json
 
-Operations: workspace_init, doctor, profile_update, state_get, problem_search,
-  problem_get, plan_next, session_start, session_resume, attempt_start,
-  evidence_record, hint_record, case_add, test_run, submission_prepare,
-  submission_send, job_check, assessment_record, session_checkpoint,
-  session_close, review_due, review_update, progress_get, export_create,
-  import_validate, import_apply, data_delete
+Operations: workspace_init, doctor, profile_update, state_get, plan_next,
+  session_start, session_resume, attempt_start, evidence_record, hint_record,
+  case_add, test_run, submission_prepare, submission_send, job_check,
+  assessment_record, session_checkpoint, session_close, review_due,
+  review_update, progress_get, export_create, import_validate, import_apply,
+  data_delete
 
 Mutating operations require request_id and expected_revision inside the
 input JSON. Paths are workspace-relative; diagnostics go to stderr.`

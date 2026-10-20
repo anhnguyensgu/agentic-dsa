@@ -10,7 +10,7 @@ import "core:fmt"
 import "core:time"
 
 SCHEMA_VERSION :: 1
-ENGINE_VERSION :: "0.2.0"
+ENGINE_VERSION :: "0.3.0"
 
 // Workspace layout (section 10): the learning subtree sits beside, and never
 // modifies, the legacy .algo files.

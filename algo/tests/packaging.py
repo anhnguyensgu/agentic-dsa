@@ -26,7 +26,7 @@ def main() -> None:
         if file.is_file() and file.suffix in {".json", ".md", ".yaml"}:
             assert "[TODO:" not in file.read_text(errors="ignore")
     version = subprocess.run([str(PLUGIN / "bin" / "algo"), "learn", "version"], text=True, capture_output=True, check=True)
-    assert "algolearn 0.2.0" in version.stdout
+    assert "algolearn 0.3.0" in version.stdout
     with tempfile.TemporaryDirectory(prefix="algolearn-plugin-") as workspace:
         env = dict(os.environ, ALGOLEARN_WORKSPACE=workspace)
         process = subprocess.run(
