@@ -5,7 +5,7 @@ description: Run evidence-backed algorithm tutoring sessions with the local algo
 
 # Algorithm Learning
 
-Use the `algolearn` MCP tools when available; otherwise invoke the JSON CLI, `algo learn`. Online judges are reached through `algo judge <provider> <command>` (providers today: `leetcode`, `kattis`). The legacy executable names `algolearn`, `leetcode`, and `kattis` still work as aliases. Treat the engine's workspace state as authoritative across conversations and hosts.
+Use the `algorithm-learning` MCP server's tools when available (the Claude Code and Codex plugins provide it); otherwise invoke the JSON CLI, `algo learn`. Online judges are reached through `algo judge <provider> <command>` (providers today: `leetcode`, `kattis`). The legacy executable names `algolearn`, `leetcode`, and `kattis` still work as aliases. Treat the engine's workspace state as authoritative across conversations and hosts.
 
 Resume once when entering an existing learning workspace or after context loss or a host switch. Use `doctor` for first setup or a tooling failure. Reuse the returned profile, session, attempt, problem metadata, and workspace revision during the conversation. Ordinary explanations and follow-up questions should usually require no engine calls.
 

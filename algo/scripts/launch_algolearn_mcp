@@ -1,0 +1,23 @@
+#!/bin/sh
+# Starts the algo learning MCP server for a plugin; packaging copies this file
+# into each plugin's scripts/. The binary is ALGOLEARN_BIN, else one bundled at
+# <plugin>/bin/algo, else `algo` on PATH. The workspace is ALGOLEARN_WORKSPACE,
+# else the directory the host started the server in.
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+plugin_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
+binary=${ALGOLEARN_BIN:-}
+if [ -z "$binary" ]; then
+	if [ -x "$plugin_dir/bin/algo" ]; then
+		binary="$plugin_dir/bin/algo"
+	elif command -v algo >/dev/null 2>&1; then
+		binary=$(command -v algo)
+	else
+		echo "algorithm-learning: algo not found; run 'make install' in algo/ or set ALGOLEARN_BIN" >&2
+		exit 127
+	fi
+fi
+workspace=${ALGOLEARN_WORKSPACE:-"$PWD"}
+
+exec "$binary" learn serve --workspace "$workspace"

@@ -1,4 +1,4 @@
-.PHONY: build check test test-unit test-integration test-learning test-mcp test-packaging package-plugin install uninstall clean
+.PHONY: build check test test-unit test-integration test-learning test-mcp test-packaging package-plugins install uninstall clean
 
 PREFIX ?= $(HOME)/.local
 ODIN_FLAGS := -vet -strict-style
@@ -38,10 +38,11 @@ test-learning: build
 test-mcp: build
 	python3 tests/mcp_protocol.py
 
-package-plugin: build
-	python3 scripts/package_plugin.py
+# Assemble plugins/<host>/algorithm-learning for Claude Code, Codex, and Pi.
+package-plugins: build
+	python3 scripts/package_plugins.py
 
-test-packaging: package-plugin
+test-packaging: package-plugins
 	python3 tests/packaging.py
 
 test: check test-unit test-integration test-learning test-mcp test-packaging

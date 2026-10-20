@@ -1,0 +1,10 @@
+{
+  "name": "algorithm-learning",
+  "version": "0.3.0",
+  "description": "Persistent, evidence-backed algorithm tutoring with local Odin execution, spaced review, and resumable judge jobs.",
+  "private": true,
+  "keywords": ["pi-package"],
+  "pi": {
+    "skills": ["./skills"]
+  }
+}
