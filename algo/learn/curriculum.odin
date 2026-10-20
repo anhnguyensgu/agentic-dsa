@@ -2,9 +2,10 @@ package learn
 
 // The concept curriculum and problem identity (section 8). There is no
 // bundled problem set: any provider problem can be practised, named by its key
-// `<provider>:<slug>`. The concept graph is what reviews and progress are
-// tracked against; #load keeps the binary independent of its working
-// directory.
+// `<provider>:<slug>`. The curriculum is a graph of pattern groups; agents may
+// also record free-form sub-patterns named `<group>/<pattern>`, such as
+// graphs/topological-sort, which planning and progress roll up under their
+// group. #load keeps the binary independent of its working directory.
 
 import "core:fmt"
 import "core:strings"
@@ -39,6 +40,13 @@ curriculum_version :: proc() -> string {
 curriculum_concepts :: proc() -> (concepts: []Curriculum_Concept, ok: bool) {
 	doc := curriculum() or_return
 	return doc.concepts, true
+}
+
+// concept_group is the group part of a concept id: `graphs` for both graphs
+// and graphs/topological-sort.
+concept_group :: proc(id: string) -> string {
+	group, _, _ := strings.partition(id, "/")
+	return group
 }
 
 find_concept :: proc(id: string) -> (Curriculum_Concept, bool) {

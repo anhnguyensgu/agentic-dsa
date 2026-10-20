@@ -1,16 +1,24 @@
 {
   "schema_version": 1,
-  "curriculum_version": "2026-10-20",
+  "curriculum_version": "2026-10-20.2",
   "concepts": [
-    {"id":"foundations","title":"Foundations","prerequisites":[],"outcomes":["trace control flow","reason about integer bounds","estimate time and space"],"leetcode_tags":["math","simulation"]},
-    {"id":"arrays-strings","title":"Arrays and strings","prerequisites":["foundations"],"outcomes":["traverse safely","reason about indices","maintain local state"],"leetcode_tags":["array","string"]},
-    {"id":"maps-sets","title":"Maps and sets","prerequisites":["arrays-strings"],"outcomes":["use keyed lookup","count frequencies","handle duplicates"],"leetcode_tags":["hash-table","counting"]},
-    {"id":"sorting-search","title":"Sorting and search","prerequisites":["arrays-strings","foundations"],"outcomes":["state ordering assumptions","derive search boundaries","prove termination"],"leetcode_tags":["sorting","binary-search"]},
-    {"id":"prefix-window","title":"Prefix sums, two pointers, and windows","prerequisites":["arrays-strings","foundations"],"outcomes":["reuse aggregates","justify moving boundaries","maintain a window invariant"],"leetcode_tags":["prefix-sum","two-pointers","sliding-window"]},
-    {"id":"linear-structures","title":"Stacks and queues","prerequisites":["arrays-strings"],"outcomes":["choose stack or queue semantics","reason about processing order","maintain structure invariants"],"leetcode_tags":["stack","queue","monotonic-stack"]},
-    {"id":"recursion-backtracking","title":"Recursion and backtracking","prerequisites":["foundations","arrays-strings"],"outcomes":["define state and base cases","show progress","undo choices correctly"],"leetcode_tags":["recursion","backtracking"]},
-    {"id":"trees-graphs","title":"Trees and graphs","prerequisites":["linear-structures","recursion-backtracking"],"outcomes":["choose a representation","traverse without repetition","reason about reachability"],"leetcode_tags":["tree","binary-tree","depth-first-search","breadth-first-search"]},
-    {"id":"heap-greedy-dsu","title":"Heaps, greedy methods, and disjoint sets","prerequisites":["sorting-search","trees-graphs"],"outcomes":["choose an ordering rule","justify a local choice","maintain components"],"leetcode_tags":["heap-priority-queue","greedy","union-find"]},
-    {"id":"dynamic-programming","title":"Dynamic programming","prerequisites":["recursion-backtracking","foundations"],"outcomes":["derive state and transitions","choose evaluation order","bound time and space"],"leetcode_tags":["dynamic-programming","memoization"]}
+    {"id":"arrays-hashing","title":"Arrays and hashing","prerequisites":[],"outcomes":["traverse with safe indices","use keyed lookup and frequency counts","reuse prefix aggregates","estimate time and space"],"leetcode_tags":["array","hash-table","string","prefix-sum","counting"]},
+    {"id":"two-pointers","title":"Two pointers","prerequisites":["arrays-hashing"],"outcomes":["state why each pointer move discards no answer","handle duplicates at a boundary"],"leetcode_tags":["two-pointers"]},
+    {"id":"stack","title":"Stack","prerequisites":["arrays-hashing"],"outcomes":["choose what the stack stores","maintain a monotonic invariant","flush remaining items at the end"],"leetcode_tags":["stack","monotonic-stack"]},
+    {"id":"binary-search","title":"Binary search","prerequisites":["arrays-hashing"],"outcomes":["state the monotonic predicate","derive loop boundaries","search on the answer"],"leetcode_tags":["binary-search"]},
+    {"id":"sliding-window","title":"Sliding window","prerequisites":["two-pointers"],"outcomes":["define when a window is valid","justify when to shrink","update window state in constant time"],"leetcode_tags":["sliding-window"]},
+    {"id":"linked-list","title":"Linked list","prerequisites":["two-pointers"],"outcomes":["rewire pointers without losing nodes","use a dummy head","detect cycles and midpoints"],"leetcode_tags":["linked-list"]},
+    {"id":"trees","title":"Trees","prerequisites":["binary-search","linked-list"],"outcomes":["define what a recursive call returns","choose depth-first or level-order traversal","use the binary search tree ordering"],"leetcode_tags":["tree","binary-tree","binary-search-tree"]},
+    {"id":"tries","title":"Tries","prerequisites":["trees"],"outcomes":["store prefixes in nodes","mark word ends","prune a search by prefix"],"leetcode_tags":["trie"]},
+    {"id":"heap","title":"Heap and priority queue","prerequisites":["trees"],"outcomes":["choose a min-heap or max-heap","keep the top k items","merge sorted streams"],"leetcode_tags":["heap-priority-queue"]},
+    {"id":"backtracking","title":"Backtracking","prerequisites":["trees"],"outcomes":["define the choice at each level","undo a choice correctly","prune duplicate branches"],"leetcode_tags":["backtracking"]},
+    {"id":"intervals","title":"Intervals","prerequisites":["heap"],"outcomes":["sort by the right endpoint","merge or count overlaps","sweep start and end events"],"leetcode_tags":["sorting","sweep-line"]},
+    {"id":"greedy","title":"Greedy","prerequisites":["heap"],"outcomes":["state the local choice","justify it with an exchange argument","find a counterexample to a wrong rule"],"leetcode_tags":["greedy"]},
+    {"id":"graphs","title":"Graphs","prerequisites":["backtracking"],"outcomes":["build an adjacency representation","traverse with a visited set","order by topological sort","merge components with union-find"],"leetcode_tags":["graph","depth-first-search","breadth-first-search","union-find","topological-sort"]},
+    {"id":"advanced-graphs","title":"Advanced graphs","prerequisites":["graphs","heap"],"outcomes":["find weighted shortest paths","build a minimum spanning tree","explain when Dijkstra fails"],"leetcode_tags":["shortest-path","minimum-spanning-tree"]},
+    {"id":"dp-1d","title":"1-D dynamic programming","prerequisites":["backtracking"],"outcomes":["define the state","derive the recurrence and base cases","reduce memory to a few variables"],"leetcode_tags":["dynamic-programming","memoization"]},
+    {"id":"dp-2d","title":"2-D dynamic programming","prerequisites":["dp-1d","graphs"],"outcomes":["define a two-index state","choose the evaluation order","distinguish 0/1 from unbounded reuse"],"leetcode_tags":["dynamic-programming","matrix"]},
+    {"id":"bit-manipulation","title":"Bit manipulation","prerequisites":["arrays-hashing"],"outcomes":["use xor, and, and shift identities","enumerate subsets with masks","reason about integer width"],"leetcode_tags":["bit-manipulation","bitmask"]},
+    {"id":"math-geometry","title":"Math and geometry","prerequisites":["arrays-hashing"],"outcomes":["reason about integer bounds and overflow","use modular arithmetic and number theory","transform matrices in place"],"leetcode_tags":["math","geometry","number-theory","matrix"]}
   ]
 }

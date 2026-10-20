@@ -53,19 +53,20 @@ def main() -> None:
 
         doctor = call("doctor", {})
         assert doctor["data"]["ready_for_local_practice"] is True
-        assert doctor["data"]["concept_count"] >= 10
+        assert doctor["data"]["concept_count"] >= 18
         assert doctor["data"]["curriculum_version"]
         assert {provider["provider"] for provider in doctor["data"]["providers"]} == {"leetcode", "kattis"}
 
-        plan = call("plan_next", {"topic": "foundations", "time_budget_minutes": 30, "language": "odin"})
+        plan = call("plan_next", {"topic": "math-geometry", "time_budget_minutes": 30, "language": "odin"})
         practice = plan["data"]["candidates"][-1]
-        assert practice["kind"] == "new_practice" and practice["concept"] == "foundations"
+        assert practice["kind"] == "new_practice" and practice["concept"] == "math-geometry"
         assert "math" in practice["leetcode_tags"]
 
+        # Sessions may name a free-form sub-pattern under a curriculum group.
         session = call("session_start", {
             "request_id": "session-1", "expected_revision": 1,
             "objective": "explain parity and test both branches", "mode": "independent",
-            "concept_ids": ["foundations"], "problem_key": "kattis:twostones",
+            "concept_ids": ["math-geometry/parity"], "problem_key": "kattis:twostones",
         })
         session_id = session["data"]["session_id"]
         assert session_id == "sess_000002"
@@ -113,7 +114,7 @@ main :: proc() {
         for dimension in ("approach", "correctness", "complexity"):
             assessment = call("assessment_record", {
                 "request_id": f"assess-{dimension}", "expected_revision": revision,
-                "session_id": session_id, "concept_id": "foundations", "dimension": dimension,
+                "session_id": session_id, "concept_id": "math-geometry/parity", "dimension": dimension,
                 "score": 3, "rationale": f"learner independently justified {dimension}",
                 "rubric_version": "1", "evidence_ids": [evidence_id],
             })
@@ -142,7 +143,11 @@ main :: proc() {
         progress = call("progress_get", {})
         assert progress["data"]["counts"]["independent_sessions"] == 1
         assert progress["data"]["execution"]["verified_passed_runs"] == 1
-        assert progress["data"]["concepts"][0]["state"] == "independent"
+        concepts = progress["data"]["concepts"]
+        ids = [concept["concept_id"] for concept in concepts]
+        assert ids[0] == "arrays-hashing"
+        assert ids.index("math-geometry/parity") == ids.index("math-geometry") + 1
+        assert concepts[ids.index("math-geometry/parity")]["state"] == "independent"
 
         prepared = call("submission_prepare", {
             "request_id": "prepare-1", "expected_revision": revision,
@@ -160,7 +165,7 @@ main :: proc() {
 
         unsupported_session = call("session_start", {
             "request_id": "session-lc", "expected_revision": revision,
-            "objective": "local LeetCode practice", "mode": "guided", "concept_ids": ["maps-sets"],
+            "objective": "local LeetCode practice", "mode": "guided", "concept_ids": ["arrays-hashing"],
         })
         revision += 1
         # There is no bundled problem set: any well-formed provider key works.

@@ -382,7 +382,9 @@ handlers_emit_structured_object_arrays :: proc(t: ^testing.T) {
 	testing.expect(
 		t,
 		decode(
-			string(call(t, &f, "plan_next", `{"topic":"prefix-window","mode":"assessment"}`).data),
+			string(
+				call(t, &f, "plan_next", `{"topic":"sliding-window","mode":"assessment"}`).data,
+			),
 			&plan,
 		),
 	)
@@ -390,6 +392,75 @@ handlers_emit_structured_object_arrays :: proc(t: ^testing.T) {
 	testing.expect_value(t, plan.candidates[0].kind, "new_practice")
 	testing.expect(t, contains(plan.candidates[0].leetcode_tags, "sliding-window"))
 	testing.expect(t, plan.candidates[0].hide_tags_from_learner)
+}
+
+@(test)
+sub_patterns_roll_up_under_their_curriculum_group :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	f := setup(t)
+	defer os.remove_all(f.ctx.workspace)
+
+	// A sub-pattern plans with its group's provider tags.
+	Plan_Data :: struct {
+		candidates: []Practice_Candidate,
+	}
+	plan: Plan_Data
+	testing.expect(
+		t,
+		decode(
+			string(call(t, &f, "plan_next", `{"topic":"graphs/topological-sort"}`).data),
+			&plan,
+		),
+	)
+	testing.expect_value(t, plan.candidates[0].concept, "graphs/topological-sort")
+	testing.expect(t, contains(plan.candidates[0].leetcode_tags, "topological-sort"))
+
+	// Progress lists each group, then its sub-patterns; other ids come last.
+	call(
+		t,
+		&f,
+		"session_start",
+		`{"objective":"order courses","mode":"guided","concept_ids":["custom-topic","graphs/topological-sort"]}`,
+		{"s1", "hs", 1},
+	)
+	call(
+		t,
+		&f,
+		"session_close",
+		`{"session_id":"sess_000002","reason":"abandoned"}`,
+		{"c1", "hc", 2},
+	)
+	Progress_Data :: struct {
+		concepts: []Concept_View,
+	}
+	progress: Progress_Data
+	testing.expect(t, decode(string(call(t, &f, "progress_get", `{}`).data), &progress))
+	graphs, sub := -1, -1
+	for c, i in progress.concepts {
+		switch c.concept_id {
+		case "graphs":
+			graphs = i
+		case "graphs/topological-sort":
+			sub = i
+		}
+	}
+	testing.expect_value(t, progress.concepts[0].concept_id, "arrays-hashing")
+	testing.expect(t, graphs >= 0 && sub == graphs + 1)
+	testing.expect_value(
+		t,
+		progress.concepts[len(progress.concepts) - 1].concept_id,
+		"custom-topic",
+	)
+
+	// One independent sub-pattern masters its group for planning.
+	st: State
+	append(&st.concepts, Concept_State{concept_id = "arrays-hashing", state = .Independent})
+	testing.expect_value(t, next_topic(&st), "two-pointers")
+	append(&st.concepts, Concept_State{concept_id = "two-pointers/pair-sum", state = .Retained})
+	testing.expect(t, mastered(&st, "two-pointers"))
+	testing.expect(t, !mastered(&st, "stack"))
+	testing.expect_value(t, next_topic(&st), "stack")
 }
 
 @(test)

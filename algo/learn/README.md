@@ -150,13 +150,24 @@ plugin-managed handoffs and snapshots while preserving solution directories.
 
 ## Curriculum and limits
 
-`curriculum/concepts.json` holds 10 concept groups with prerequisites and the
-LeetCode topic tags that practise each one. Reviews and progress are tracked
-per concept. `plan_next` is deterministic: it offers one due review first,
-then the next unmastered concept (or its first unmet prerequisite) with those
-tags, and lists already-attempted problem keys so the agent can choose a new
-provider problem. In independent and assessment modes it marks the tags as
-hidden from the learner, since they can reveal the technique.
+`curriculum/concepts.json` holds 18 pattern groups in study order (arrays and
+hashing, two pointers, stack, binary search, sliding window, linked list,
+trees, tries, heap, backtracking, intervals, greedy, graphs, advanced graphs,
+1-D and 2-D dynamic programming, bit manipulation, math and geometry), each
+with prerequisites and the LeetCode topic tags that practise it.
+
+Agents may also record free-form sub-patterns as `<group>/<pattern>`, such as
+`graphs/topological-sort` or `dp-2d/knapsack`. Reviews and progress are tracked
+per recorded ID, so a sub-pattern gets its own retrieval schedule. Planning and
+progress roll sub-patterns up: a group counts as mastered when it or one of its
+sub-patterns is, and `progress_get` lists each group followed by its
+sub-patterns, then any IDs outside every group.
+
+`plan_next` is deterministic: it offers one due review first, then the next
+unmastered group (or its first unmet prerequisite) with its tags, and lists
+already-attempted problem keys so the agent can choose a new provider problem.
+In independent and assessment modes it marks the tags as hidden from the
+learner, since they can reveal the technique.
 
 Local execution limits reduce accidental hangs and excessive output; they are
 not a security sandbox for arbitrary code. Use an operating-system sandbox when
