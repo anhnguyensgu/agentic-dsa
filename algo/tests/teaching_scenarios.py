@@ -8,6 +8,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / "bin" / "algolearn"
+SKILL = ROOT / "plugins" / "algorithm-learning" / "skills" / "algorithm-learning"
 
 
 def registered_operations() -> set[str]:
@@ -35,8 +36,8 @@ def main() -> None:
     ids = [scenario["id"] for scenario in scenarios]
     assert len(ids) == len(set(ids))
     registered = registered_operations()
-    skill = (ROOT / "skills" / "algorithm-learning" / "SKILL.md").read_text()
-    references = "\n".join(path.read_text() for path in (ROOT / "skills" / "algorithm-learning" / "references").glob("*.md"))
+    skill = (SKILL / "SKILL.md").read_text()
+    references = "\n".join(path.read_text() for path in (SKILL / "references").glob("*.md"))
     corpus = (skill + "\n" + references).lower()
     required_topics = ["hint", "independent", "unverified", "checkpoint", "submission", "frustrat", "legacy"]
     assert all(topic in corpus for topic in required_topics)
