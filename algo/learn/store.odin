@@ -22,7 +22,6 @@ import "core:time"
 LOCK_STALE_AFTER :: 10 * time.Minute
 
 STORAGE_DIRS :: [?]string {
-	"catalog",
 	"sessions",
 	"attempts",
 	"artifacts",

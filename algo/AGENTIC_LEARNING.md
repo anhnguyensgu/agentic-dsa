@@ -3,6 +3,11 @@
 Status: implemented on 2026-09-20. Technical acceptance evidence and explicitly
 unrun opt-in checks are recorded in [VERIFICATION.md](VERIFICATION.md).
 
+Changed on 2026-10-20: the bundled problem set was removed. Any problem on a
+supported judge can be practised and tracked by its `<provider>:<slug>` key;
+the concept graph remains. Section 8 and the `problem_search`/`problem_get` rows
+in section 11 describe the current behaviour.
+
 Prepared against this workspace on 2026-09-19. This document defines one complete build and its acceptance contract. The sections describe parts of the finished system, not staged releases.
 
 ## 1. Product outcome
@@ -254,9 +259,7 @@ Represent the curriculum as a versioned prerequisite graph. Nodes are concrete c
 
 These groups are a curriculum outline, not rigid levels every learner must follow. Store edges per concept: for example, heap use should not automatically require every graph concept.
 
-Ship at least 36 reviewed problem mappings across both providers, covering the groups above and including at least two distinct usable exercises per taught concept. A problem may cover several concepts, but cannot provide all the evidence for all of them. Mark specialist topics outside the curated coverage as custom study; do not imply an exhaustive algorithms course.
-
-Every mapping records provider/problem ID, canonical URL, curated concept IDs, prerequisites, estimated effort band, spoiler-sensitive tags, access requirements, supported practice/judge modes, verification date, and origin of its labels. Keep platform difficulty in its original scale. A Kattis rating and LeetCode difficulty must not be converted by an invented universal formula.
+Do not bundle a problem set. Any problem on a supported judge can be practised and tracked by its key `<provider>:<slug>`; the provider tools supply its statement, examples, and metadata. Each concept lists the provider topic tags that practise it, so recommendations point at the provider's own catalogue. A problem may cover several concepts, but cannot provide all the evidence for all of them; the agent records which concepts a session actually exercised. Keep platform difficulty in its original scale. A Kattis rating and LeetCode difficulty must not be converted by an invented universal formula.
 
 ### Deterministic selection policy
 
@@ -336,7 +339,6 @@ practice-workspace/
       manifest.json                 schema/workspace identity and installed versions
       events.jsonl                  authoritative learning event stream
       state.json                    replaceable projection, with last applied sequence
-      catalog/                      versioned mappings and cached normalized metadata
       sessions/<session-id>/        checkpoints and handoff documents
       attempts/<attempt-id>/        metadata and immutable source/test snapshots
       artifacts/<artifact-id>/      run reports and learner-visible evidence
@@ -420,9 +422,8 @@ Read JSON from a file or stdin so text, paths, and learner responses do not requ
 | `doctor` | Optional provider/account checks. | Readiness, incompatibilities, and actionable remedies; no implicit login. |
 | `profile_update` | Validated preference changes. | Versioned profile/policy change; reports affected future scheduling decisions. |
 | `state_get` | Optional session ID and bounded detail level. | Current profile, progress summary, active state, capabilities, and revision. |
-| `problem_search` | Provider, query, constraints, cursor, limit. | Normalized candidates; bounded result page. |
-| `problem_get` | Problem reference, offline/refresh choice, audience mode. | Statement, examples, metadata, and supported operations; hides spoiler tags in assessment view. |
-| `plan_next` | Goal, time budget, optional topic/mode. | Ranked candidates and selection reasons; does not start a session. |
+| `problem_search`, `problem_get` | Removed with the bundled problem set. | Problem discovery and statements come from `algo judge <provider> list`, `show`, and `daily`. |
+| `plan_next` | Goal, time budget, optional topic/mode. | A due review and the next concept with provider topic tags; does not start a session or pick a problem. |
 | `session_start` | Objective, mode, time budget, selected problem and review-item ID if applicable. | New session and next action. |
 | `session_resume` | Session ID or latest selection. | Validated checkpoint, changed-file notice, pending jobs, and next action. |
 | `attempt_start` | Session, problem key, language, fresh/register-existing choice. | Safe workspace preparation and new attempt identity. |

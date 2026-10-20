@@ -98,10 +98,7 @@ op_attempt_start :: proc(
 	if p.language != "odin" && runner_kind != "provider_workspace" {
 		return {}, fail(.Unsupported_Capability, "the guaranteed local runner is Odin; use provider_workspace for another language")
 	}
-	problem, found := catalog_find(p.problem_key)
-	if !found {
-		return {}, fail(.Not_Found, "problem is not present in the bundled catalogue")
-	}
+	problem := parse_problem_key(p.problem_key) or_return
 	st := fold(store)
 	session := find_session(&st, p.session_id)
 	if session == nil {
@@ -225,7 +222,7 @@ op_attempt_start :: proc(
 @(private = "file")
 create_fresh_attempt :: proc(
 	workspace: string,
-	problem: Catalog_Problem,
+	problem: Problem,
 	attempt_id: string,
 ) -> (
 	source_path: string,

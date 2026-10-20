@@ -24,7 +24,7 @@ algo/
 │   ├── cli.odin           `algo learn` CLI      mcp.odin  MCP stdio server
 │   └── README.md          engine user guide
 ├── safeio/              atomic owner-only writes, bounded credential-free child processes
-├── curriculum/          concepts.json, problems.json (reviewed problem mappings)
+├── curriculum/          concepts.json (concept graph; there is no bundled problem set)
 ├── schemas/             JSON schemas: envelope, event, export (v1)
 ├── skills/algorithm-learning/   shared tutoring skill (source of truth)
 ├── plugins/codex/       Codex plugin; its skill copy and bin/algo are generated

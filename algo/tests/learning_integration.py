@@ -53,12 +53,14 @@ def main() -> None:
 
         doctor = call("doctor", {})
         assert doctor["data"]["ready_for_local_practice"] is True
-        assert doctor["data"]["catalog_problem_count"] >= 36
+        assert doctor["data"]["concept_count"] >= 10
+        assert doctor["data"]["curriculum_version"]
         assert {provider["provider"] for provider in doctor["data"]["providers"]} == {"leetcode", "kattis"}
 
         plan = call("plan_next", {"topic": "foundations", "time_budget_minutes": 30, "language": "odin"})
-        assert plan["data"]["candidates"]
-        assert isinstance(plan["data"]["candidates"][0], dict)
+        practice = plan["data"]["candidates"][-1]
+        assert practice["kind"] == "new_practice" and practice["concept"] == "foundations"
+        assert "math" in practice["leetcode_tags"]
 
         session = call("session_start", {
             "request_id": "session-1", "expected_revision": 1,
@@ -161,11 +163,19 @@ main :: proc() {
             "objective": "local LeetCode practice", "mode": "guided", "concept_ids": ["maps-sets"],
         })
         revision += 1
+        # There is no bundled problem set: any well-formed provider key works.
+        unknown_provider = call("attempt_start", {
+            "request_id": "attempt-cf", "expected_revision": revision,
+            "session_id": unsupported_session["data"]["session_id"], "problem_key": "codeforces:1a",
+            "language": "odin", "runner_kind": "stdin_stdout",
+        }, expected=2)
+        assert unknown_provider["error"]["code"] == "invalid_input"
         lc_attempt = call("attempt_start", {
             "request_id": "attempt-lc", "expected_revision": revision,
-            "session_id": unsupported_session["data"]["session_id"], "problem_key": "leetcode:two-sum",
+            "session_id": unsupported_session["data"]["session_id"], "problem_key": "leetcode:trapping-rain-water",
             "language": "odin", "runner_kind": "stdin_stdout",
         })
+        assert lc_attempt["data"]["source_path"].startswith("problems/leetcode/trapping-rain-water/")
         revision += 1
         refused = call("submission_prepare", {
             "request_id": "prepare-lc", "expected_revision": revision,

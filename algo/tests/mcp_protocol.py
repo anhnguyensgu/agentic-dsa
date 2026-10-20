@@ -89,7 +89,7 @@ def main() -> None:
         tools = receive(2)["result"]["tools"]
         names = {tool["name"] for tool in tools}
         required = {
-            "workspace_init", "doctor", "profile_update", "state_get", "problem_search", "problem_get",
+            "workspace_init", "doctor", "profile_update", "state_get",
             "plan_next", "session_start", "session_resume", "attempt_start", "evidence_record", "hint_record",
             "case_add", "test_run", "submission_prepare", "submission_send", "job_check", "assessment_record",
             "session_checkpoint", "session_close", "review_due", "review_update", "progress_get", "export_create",

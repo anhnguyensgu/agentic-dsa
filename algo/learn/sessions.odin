@@ -30,6 +30,9 @@ op_session_start :: proc(
 	nonempty({"objective", p.objective}, {"mode", p.mode}) or_return
 	nonempty_items("concept_ids", p.concept_ids) or_return
 	mode := enum_value(MODE_NAMES, "mode", p.mode) or_return
+	if p.problem_key != "" {
+		parse_problem_key(p.problem_key) or_return
+	}
 	if p.review_item_id != "" {
 		if mode != .Review {
 			return {}, invalid("review_item_id may only be used with review mode")

@@ -59,8 +59,6 @@ OPERATIONS := [?]Operation {
 	{"doctor", op_doctor, Doctor_Params, {}, false},
 	{"profile_update", op_profile_update, Profile_Update_Params, {}, true},
 	{"state_get", op_state_get, State_Get_Params, {}, false},
-	{"problem_search", op_problem_search, Problem_Search_Params, {}, false},
-	{"problem_get", op_problem_get, Problem_Get_Params, {"problem_key"}, false},
 	{"session_start", op_session_start, Session_Start_Params, {"objective", "mode"}, true},
 	{
 		"attempt_start",

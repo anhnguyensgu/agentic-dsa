@@ -132,17 +132,16 @@ op_doctor :: proc(
 	for name, i in PROVIDERS {
 		providers[i] = provider_status(name, self, provider_version(name))
 	}
-	problems, catalog_err := catalog_problems()
+	concepts, curriculum_ok := curriculum_concepts()
 	workspace_accessible := os.is_directory(ctx.workspace)
 	odin_available := find_executable(ctx.workspace, "odin") != ""
-	ready := workspace_accessible && odin_available && catalog_err == nil
+	ready := workspace_accessible && odin_available && curriculum_ok
 
 	Data :: struct {
 		engine_version:           string,
 		schema_version:           int,
-		catalog_version:          string,
-		catalog_available:        bool,
-		catalog_problem_count:    int,
+		curriculum_version:       string,
+		concept_count:            int,
 		workspace_accessible:     bool,
 		workspace_initialized:    bool,
 		event_log_readable:       bool,
@@ -154,9 +153,8 @@ op_doctor :: proc(
 		Data {
 			engine_version = ENGINE_VERSION,
 			schema_version = SCHEMA_VERSION,
-			catalog_version = CATALOG_VERSION,
-			catalog_available = catalog_err == nil && len(problems) >= MIN_CATALOG_PROBLEMS,
-			catalog_problem_count = len(problems),
+			curriculum_version = curriculum_version(),
+			concept_count = len(concepts),
 			workspace_accessible = workspace_accessible,
 			workspace_initialized = os.is_file(manifest_path(ctx.workspace)),
 			event_log_readable = store.tail_warning == "",
@@ -168,7 +166,7 @@ op_doctor :: proc(
 	if !ready {
 		append(
 			&res.next_actions,
-			"fix the reported workspace, compiler, or catalogue problem before local practice",
+			"fix the reported workspace, compiler, or curriculum problem before local practice",
 		)
 	}
 	if p.check_accounts {
