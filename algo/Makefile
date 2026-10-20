@@ -1,4 +1,4 @@
-.PHONY: build check test test-unit test-integration test-learning test-mcp test-packaging package-plugin install uninstall clean
+.PHONY: build check test test-unit test-integration test-learning test-mcp test-packaging install uninstall clean
 
 PREFIX ?= $(HOME)/.local
 ODIN_FLAGS := -vet -strict-style
@@ -38,15 +38,7 @@ test-learning: build
 test-mcp: build
 	python3 tests/mcp_protocol.py
 
-# The one plugin serves Claude Code, Codex, and Pi; only its bundled binary is
-# generated.
-PLUGIN := plugins/algorithm-learning
-
-package-plugin: build
-	install -d $(PLUGIN)/bin
-	install -m 755 bin/algo $(PLUGIN)/bin/algo
-
-test-packaging: package-plugin
+test-packaging: build
 	python3 tests/packaging.py
 
 test: check test-unit test-integration test-learning test-mcp test-packaging
@@ -61,4 +53,4 @@ uninstall:
 	for name in $(LEGACY_NAMES); do rm -f "$(PREFIX)/bin/$$name"; done
 
 clean:
-	rm -rf bin $(PLUGIN)/bin/algo
+	rm -rf bin
