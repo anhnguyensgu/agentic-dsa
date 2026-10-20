@@ -60,6 +60,20 @@ tokens to every session (`claude plugin details algorithm-learning`).
 If `~/.claude/skills/algorithm-learning` links to this skill, remove that link
 after installing the plugin so the skill is not loaded twice.
 
+### Claude Code on the web
+
+Cloud sessions start from a fresh clone and do not install plugins from a
+repository's marketplace, so the repository root provides the same pieces
+directly: `.claude/skills/algorithm-learning` links to this skill, `.mcp.json`
+starts the launcher, and `.claude/settings.json` enables that server. Its
+SessionStart hook (`.claude/hooks/session-start.sh`, web only) builds Odin
+`dev-2026-07` from source against the system LLVM and runs `make install`;
+the first session takes about two minutes, later ones about twenty seconds.
+The practice workspace is the repository root.
+
+Locally, the same files load whenever Claude Code starts in this repository,
+so a user-scope install of the plugin there shows the skill and server twice.
+
 ## Codex
 
 From the repository root:
