@@ -600,7 +600,7 @@ curriculum/                        reviewed concept graph and problem mappings
 schemas/                           versioned operations, events, exports
 plugins/
   codex/algorithm-learning/         generated native wrapper, skill, .mcp.json
-host-guides/                       verified setup and capability instructions
+host-guides/                       verified setup and capability instructions (now plugins/README.md)
 tests/
   learning/                        deterministic domain and storage tests
   providers/                       mock/fixture contract tests for both sites

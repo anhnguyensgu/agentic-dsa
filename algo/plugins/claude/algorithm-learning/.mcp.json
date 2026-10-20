@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "algorithm-learning": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/launch_algolearn_mcp",
+      "args": []
+    }
+  }
+}

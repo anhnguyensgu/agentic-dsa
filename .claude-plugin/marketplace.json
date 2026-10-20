@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agentic-dsa",
+  "description": "Algorithm practice tools: an evidence-backed DSA tutor for coding agents.",
+  "owner": {
+    "name": "anh nguyen"
+  },
+  "plugins": [
+    {
+      "name": "algorithm-learning",
+      "source": "./algo/plugins/claude/algorithm-learning",
+      "description": "Persistent, evidence-backed algorithm tutoring with local Odin execution, spaced review, and resumable judge jobs."
+    }
+  ]
+}

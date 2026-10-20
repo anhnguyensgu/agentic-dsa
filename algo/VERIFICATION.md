@@ -20,7 +20,7 @@ make test
   10 reviewed teaching/recovery scenario contracts passed
   8 native MCP protocol checks passed
   18 concept groups validated in prerequisite order with provider topic tags
-  native plugin packaging and install/upgrade/uninstall checks passed
+  Claude Code, Codex, and Pi plugin packaging and install/upgrade/uninstall checks passed
 
 python3 tests/live_smoke.py
   PASS: LeetCode public discovery, lookup, cache, daily/random, languages,
@@ -32,6 +32,12 @@ python3 tests/live_smoke.py
 
 PI_OFFLINE=1 pi --skill skills/algorithm-learning --list-models
   PASS: Pi 0.85.1 accepted the shared skill path without a model call
+
+claude plugin validate --strict plugins/claude/algorithm-learning (and the repo root)
+claude --plugin-dir plugins/claude/algorithm-learning mcp list
+echo '{"type":"get_commands"}' | pi --mode rpc --no-session -e plugins/pi/algorithm-learning
+  PASS on 2026-10-20: Claude Code 2.1.304 validated the plugin and marketplace and
+  connected its MCP server; Pi 1.0.2 loaded skill:algorithm-learning from the package
 ```
 
 Counts above are the expected final counts after the complete suite. The report
@@ -45,7 +51,7 @@ must be updated if later edits change them.
 | A02 | Pass | LeetCode and Kattis fixture suites exercise structured discovery, problem data, safe scaffolds, local runners, and job contracts; both feed the same engine through `<provider>:<slug>` problem keys. |
 | A03 | Pass | `tests/mcp_protocol.py` compares MCP `state_get` with CLI state and checks equivalent structured/text envelopes. |
 | A04 | Pass | Checkpoint handoffs, changed-source hashes, portable export/import, and restored source bytes are exercised end to end. |
-| A05 | Pass | `host-guides/README.md` documents shell and text-only behavior; the CLI and native MCP process are exercised directly. |
+| A05 | Pass | `plugins/README.md` documents shell and text-only behavior; the CLI and native MCP process are exercised directly. |
 | A06 | Pass | LeetCode and Kattis collision fixtures preserve existing source bytes; engine fresh attempts reject existing or symlink-escaped destinations. |
 | A07 | Pass | Legacy hashes remain unchanged, imported shell commands stay inert, ambiguous events remain unresolved, and identical reimport is idempotent. |
 | A08 | Pass | Unit and reviewed teaching scenarios cover light/decisive help, cumulative disclosure, copied or agent-authored code, direct solutions, and translation-level exposure. |
@@ -60,7 +66,7 @@ must be updated if later edits change them.
 | A17 | Pass (macOS; Linux x86_64 on 2026-10-20) | Hanging and excessive-output programs are stopped with usable diagnostics on both systems; see the Linux run below. |
 | A18 | Pass | Ten reviewed scenario contracts cover diagnosis, repeated help, direct answers, copied work, misleading tests, overwrite pressure, provider changes, ambiguous import, strong-hint handoff, and frustration. |
 | A19 | Pass (revised 2026-10-20) | The bundled problem set was removed. `tests/validate_curriculum.py` validates the concept graph's edges, outcomes, and provider topic tags; problem keys are validated by provider and slug shape (unit and end-to-end tests). |
-| A20 | macOS/Pi pass; Linux build and temp-prefix install pass | Native Codex manifest and skill validators pass; temp-prefix install, upgrade, and uninstall preserve learner data; Pi 0.85.1 accepts the shared skill. On Linux the suite builds and validates the bundle, but the committed `plugins/codex/algorithm-learning/bin/algo` is a macOS arm64 build and must be rebuilt per platform. |
+| A20 | Pass (macOS); Linux build and temp-prefix install pass | `tests/packaging.py` validates the Claude Code, Codex, and Pi plugins, their generated skill copies and shared launcher, and temp-prefix install, upgrade, and uninstall with learner data preserved. On 2026-10-20 on macOS, `claude plugin validate --strict` passed for the plugin and marketplace (Claude Code 2.1.304), `claude --plugin-dir ... mcp list` connected the plugin's MCP server, and Pi 1.0.2 loaded the packaged skill (`pi --mode rpc` `get_commands`). The committed Codex `bin/algo` is a macOS arm64 build and must be rebuilt per platform. |
 | A21 | Pass | Existing LeetCode unit/integration suites pass; Kattis now has a fixture-controlled regression suite. |
 | A22 | Pass with authenticated checks not run | Dated public reads pass for both providers. Authenticated reads, remote runs, and real submissions were not run because they require explicit account authorization. |
 

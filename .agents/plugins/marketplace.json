@@ -1,0 +1,20 @@
+{
+  "name": "agentic-dsa",
+  "interface": {
+    "displayName": "Agentic DSA"
+  },
+  "plugins": [
+    {
+      "name": "algorithm-learning",
+      "source": {
+        "source": "local",
+        "path": "./algo/plugins/codex/algorithm-learning"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Education"
+    }
+  ]
+}

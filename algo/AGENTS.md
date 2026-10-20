@@ -27,9 +27,11 @@ algo/
 ├── curriculum/          concepts.json (concept graph; there is no bundled problem set)
 ├── schemas/             JSON schemas: envelope, event, export (v1)
 ├── skills/algorithm-learning/   shared tutoring skill (source of truth)
-├── plugins/codex/       Codex plugin; its skill copy and bin/algo are generated
-├── scripts/             package_plugin.py
-├── host-guides/         per-host setup (shell, MCP, Codex, Pi)
+├── plugins/             one plugin per agent; README.md is the setup guide
+│   ├── claude/            Claude Code plugin (marketplace: ../.claude-plugin/)
+│   ├── codex/             Codex plugin, bundles bin/algo (marketplace: ../.agents/plugins/)
+│   └── pi/                Pi package
+├── scripts/             package_plugins.py, launch_algolearn_mcp (shared MCP launcher)
 ├── tests/               Python integration, MCP, packaging, teaching suites
 ├── README.md            CLI reference      AGENTIC_LEARNING.md  engine design spec
 ├── VERIFICATION.md      tested scope and expected test counts
@@ -87,6 +89,7 @@ covers the change (`make test` for anything cross-package).
 - If a change alters test counts, update `VERIFICATION.md`.
 - Command or flag changes must also update `README.md` (and `learn/README.md`
   for `algo learn`).
-- Edit the tutoring skill only in `skills/algorithm-learning/`, then run
-  `make package-plugin`. Never edit `plugins/codex/algorithm-learning/skills/`
-  or its `bin/algo`; packaging overwrites both.
+- Edit the tutoring skill only in `skills/algorithm-learning/` and the MCP
+  launcher only in `scripts/`, then run `make package-plugins`. Never edit a
+  plugin's `skills/`, `scripts/launch_algolearn_mcp`, or Codex's `bin/algo`;
+  packaging overwrites them. Edit a plugin's own manifest files directly.
