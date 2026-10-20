@@ -29,7 +29,8 @@ algo/
 ├── plugins/             README.md is the per-agent setup guide
 │   └── algorithm-learning/  one plugin for Claude Code, Codex, and Pi: the tutoring
 │                            skill, MCP launcher, and one manifest per
-│                            agent (marketplaces: ../.claude-plugin/, ../.agents/plugins/)
+│                            agent; plugins/.claude-plugin/ and plugins/.agents/ hold
+│                            the Claude Code and Codex marketplaces
 ├── tests/               Python integration, MCP, packaging, teaching suites
 ├── README.md            CLI reference      AGENTIC_LEARNING.md  engine design spec
 ├── VERIFICATION.md      tested scope and expected test counts

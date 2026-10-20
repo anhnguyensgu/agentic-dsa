@@ -33,9 +33,9 @@ python3 tests/live_smoke.py
 PI_OFFLINE=1 pi --skill skills/algorithm-learning --list-models
   PASS: Pi 0.85.1 accepted the shared skill path without a model call
 
-claude plugin validate --strict plugins/algorithm-learning (and the repo root)
-claude plugin marketplace add <repo> && claude plugin install algorithm-learning@agentic-dsa
-codex plugin marketplace add <repo> && codex plugin add algorithm-learning@agentic-dsa
+claude plugin validate --strict plugins/algorithm-learning (and plugins/)
+claude plugin marketplace add ./algo/plugins && claude plugin install algorithm-learning@agentic-dsa
+codex plugin marketplace add ./algo/plugins && codex plugin add algorithm-learning@agentic-dsa
 echo '{"type":"get_commands"}' | pi --mode rpc --no-session -e plugins/algorithm-learning
   PASS on 2026-10-20 with isolated CLAUDE_CONFIG_DIR and CODEX_HOME: Claude Code
   2.1.304 and Codex 0.161.0 installed the one plugin and started its MCP server;
