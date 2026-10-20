@@ -31,23 +31,20 @@ algo learn doctor --workspace . --json
 
 ### 2. Add the plugin to your agent
 
-**Claude Code** (inside a session):
-
-```text
-/plugin marketplace add anhnguyensgu/agentic-dsa
-/plugin install algorithm-learning@agentic-dsa
-```
-
-**Codex**:
+From the repository root of your clone (keep the clone; agents use it in place):
 
 ```sh
-codex plugin marketplace add anhnguyensgu/agentic-dsa
+cd ..   # back to agentic-dsa/ after step 1
+
+# Claude Code
+claude plugin marketplace add ./algo/plugins
+claude plugin install algorithm-learning@agentic-dsa
+
+# Codex
+codex plugin marketplace add ./algo/plugins
 codex plugin add algorithm-learning@agentic-dsa
-```
 
-**Pi** (from your clone):
-
-```sh
+# Pi
 pi install ./algo/plugins/algorithm-learning
 ```
 

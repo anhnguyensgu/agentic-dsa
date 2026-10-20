@@ -5,21 +5,25 @@ It holds the only copy of the teaching skill, and each agent reads its own
 manifest from the same folder:
 
 ```text
-plugins/algorithm-learning/
-├── skills/algorithm-learning/      the teaching skill (edit here)
-├── scripts/launch_algolearn_mcp    starts `algo learn serve` (edit here)
-├── .claude-plugin/plugin.json      Claude Code: skill + MCP server (inline)
-├── .codex-plugin/plugin.json       Codex: skill + MCP server (.mcp.json)
-├── .mcp.json                       Codex's MCP config
-└── package.json                    Pi: skill
+plugins/
+├── .claude-plugin/marketplace.json   Claude Code marketplace (lists the plugin below)
+├── .agents/plugins/marketplace.json  Codex marketplace (lists the plugin below)
+└── algorithm-learning/               the plugin
+    ├── skills/algorithm-learning/    the teaching skill (edit here)
+    ├── scripts/launch_algolearn_mcp  starts `algo learn serve` (edit here)
+    ├── .claude-plugin/plugin.json    Claude Code: skill + MCP server (inline)
+    ├── .codex-plugin/plugin.json     Codex: skill + MCP server (.mcp.json)
+    ├── .mcp.json                     Codex's MCP config
+    └── package.json                  Pi: skill
 ```
 
 Every agent reaches the same `algo learn` operation registry and workspace event
 stream, so a session started in one agent can be resumed in another.
 
-The two marketplace files live at the repository root, `.claude-plugin/` for
-Claude Code and `.agents/plugins/` for Codex, because both agents look for them
-there when installing from `owner/repo`. Each lists this folder.
+Everything agent-specific lives here. Install from a clone of this repository:
+Claude Code and Codex only read a marketplace at a GitHub repository's root, so
+`marketplace add owner/repo` does not find one in `algo/plugins/`. A local
+marketplace is used in place, so keep the clone where it is.
 
 The plugin ships no binary. Build and install `algo` first; every agent needs it:
 
@@ -36,17 +40,16 @@ the directory the agent started the server in.
 
 ## Claude Code
 
-The repository root is a Claude Code marketplace
-(`.claude-plugin/marketplace.json`):
+From the repository root:
 
-```text
-/plugin marketplace add anhnguyensgu/agentic-dsa
-/plugin install algorithm-learning@agentic-dsa
+```sh
+claude plugin marketplace add ./algo/plugins
+claude plugin install algorithm-learning@agentic-dsa
 ```
 
-For a local checkout, add the marketplace by path instead
-(`/plugin marketplace add /path/to/agentic-dsa`), or load the plugin for one
-session with `claude --plugin-dir algo/plugins/algorithm-learning`.
+Inside a session, use `/plugin marketplace add /path/to/agentic-dsa/algo/plugins`.
+To try the plugin for one session without installing it, run
+`claude --plugin-dir algo/plugins/algorithm-learning`.
 
 The plugin adds the `algorithm-learning` skill and an `algorithm-learning` MCP
 server with one tool per engine operation; `claude mcp list` shows it as
@@ -59,11 +62,10 @@ after installing the plugin so the skill is not loaded twice.
 
 ## Codex
 
-The repository root is also a Codex marketplace
-(`.agents/plugins/marketplace.json`):
+From the repository root:
 
 ```sh
-codex plugin marketplace add anhnguyensgu/agentic-dsa   # or a local checkout path
+codex plugin marketplace add ./algo/plugins
 codex plugin add algorithm-learning@agentic-dsa
 ```
 
