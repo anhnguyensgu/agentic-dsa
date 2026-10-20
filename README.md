@@ -45,9 +45,6 @@ codex plugin marketplace add anhnguyensgu/agentic-dsa
 codex plugin add algorithm-learning@agentic-dsa
 ```
 
-The Codex plugin bundles a macOS arm64 build of `algo`; on other platforms set
-`ALGOLEARN_BIN` to the one you built.
-
 **Pi** (from your clone):
 
 ```sh

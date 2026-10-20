@@ -70,10 +70,11 @@ def check_pi() -> None:
     assert package["pi"] == {"skills": ["./skills"]}
 
 
-def check_binary() -> None:
-    binary = PLUGIN / "bin" / "algo"
-    assert binary.is_file() and not binary.is_symlink() and os.access(binary, os.X_OK)
-    version = subprocess.run([str(binary), "learn", "version"], text=True, capture_output=True, check=True)
+def check_no_binary() -> None:
+    # The plugin ships no binary: algo comes from `make install` or ALGOLEARN_BIN.
+    assert not (PLUGIN / "bin").exists()
+    # The manifests' version follows the engine's.
+    version = subprocess.run([str(ROOT / "bin" / "algo"), "learn", "version"], text=True, capture_output=True, check=True)
     assert f"algolearn {VERSION}" in version.stdout
 
 
@@ -90,30 +91,31 @@ def check_handshake(process: subprocess.CompletedProcess[str]) -> None:
 
 def check_launcher() -> None:
     assert os.access(LAUNCHER, os.X_OK)
+    algo = ROOT / "bin" / "algo"
     with tempfile.TemporaryDirectory(prefix="algolearn-plugin-") as tmp:
         temp = Path(tmp)
         workspace = temp / "practice"
         workspace.mkdir()
-        base = dict(os.environ, ALGOLEARN_WORKSPACE=str(workspace), PATH="/usr/bin:/bin")
+        home = temp / "home"
+        home.mkdir()
+        # An isolated HOME, so a real ~/.local/bin/algo cannot satisfy a check.
+        base = dict(os.environ, ALGOLEARN_WORKSPACE=str(workspace), HOME=str(home), PATH="/usr/bin:/bin")
         base.pop("ALGOLEARN_BIN", None)
-        check_handshake(serve(LAUNCHER, base))
 
-        # A plugin copy whose bundled binary cannot run here (another
-        # platform's build) falls back to ALGOLEARN_BIN, then algo on PATH.
-        copy = temp / "plugin"
-        (copy / "scripts").mkdir(parents=True)
-        (copy / "bin").mkdir()
-        launcher = copy / "scripts" / LAUNCHER.name
-        shutil.copy2(LAUNCHER, launcher)
-        (copy / "bin" / "algo").write_text("#!/bin/sh\nexit 126\n")
-        (copy / "bin" / "algo").chmod(0o755)
+        missing = serve(LAUNCHER, base)
+        assert missing.returncode == 127 and "make install" in missing.stderr
+
+        check_handshake(serve(LAUNCHER, dict(base, ALGOLEARN_BIN=str(algo))))
+
         path_dir = temp / "path"
         path_dir.mkdir()
-        (path_dir / "algo").symlink_to(ROOT / "bin" / "algo")
-        check_handshake(serve(launcher, dict(base, PATH=f"{path_dir}:/usr/bin:/bin")))
-        check_handshake(serve(launcher, dict(base, ALGOLEARN_BIN=str(ROOT / "bin" / "algo"))))
-        missing = serve(launcher, base)
-        assert missing.returncode == 127 and "make install" in missing.stderr
+        (path_dir / "algo").symlink_to(algo)
+        check_handshake(serve(LAUNCHER, dict(base, PATH=f"{path_dir}:/usr/bin:/bin")))
+
+        # Agent apps started outside a shell may lack ~/.local/bin on PATH.
+        (home / ".local" / "bin").mkdir(parents=True)
+        (home / ".local" / "bin" / "algo").symlink_to(algo)
+        check_handshake(serve(LAUNCHER, base))
 
 
 def check_install() -> None:
@@ -148,10 +150,10 @@ def main() -> None:
     check_claude()
     check_codex()
     check_pi()
-    check_binary()
+    check_no_binary()
     check_launcher()
     check_install()
-    print("PASS: one plugin for Claude Code, Codex, and Pi: single skill, manifests, launcher, and install")
+    print("PASS: one plugin for Claude Code, Codex, and Pi: single skill, no bundled binary, manifests, launcher, and install")
 
 
 if __name__ == "__main__":

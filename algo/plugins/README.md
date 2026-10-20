@@ -8,7 +8,6 @@ manifest from the same folder:
 plugins/algorithm-learning/
 ├── skills/algorithm-learning/      the teaching skill (edit here)
 ├── scripts/launch_algolearn_mcp    starts `algo learn serve` (edit here)
-├── bin/algo                        bundled macOS arm64 build (generated)
 ├── .claude-plugin/plugin.json      Claude Code: skill + MCP server (inline)
 ├── .codex-plugin/plugin.json       Codex: skill + MCP server (.mcp.json)
 ├── .mcp.json                       Codex's MCP config
@@ -22,20 +21,18 @@ The two marketplace files live at the repository root, `.claude-plugin/` for
 Claude Code and `.agents/plugins/` for Codex, because both agents look for them
 there when installing from `owner/repo`. Each lists this folder.
 
+The plugin ships no binary. Build and install `algo` first; every agent needs it:
+
 ```sh
-make package-plugin   # rebuild bin/algo and copy it into the plugin
+make install          # ~/.local/bin/algo
+algo learn doctor --workspace /path/to/practice --json
 make test-packaging   # validate the plugin, including Claude's own validator when installed
 ```
 
-The MCP launcher uses `ALGOLEARN_BIN` when set, then the bundled `bin/algo` when
-it runs on this machine, then `algo` on `PATH`. Its workspace is
-`ALGOLEARN_WORKSPACE` when set, otherwise the directory the agent started the
-server in. Off macOS arm64, and for Pi, install `algo` on `PATH`:
-
-```sh
-make install PREFIX="$HOME/.local"
-algo learn doctor --workspace /path/to/practice --json
-```
+The MCP launcher runs `ALGOLEARN_BIN` when set, else `algo` on `PATH`, else
+`~/.local/bin/algo` (agent apps started outside a shell may not have that
+directory on `PATH`). Its workspace is `ALGOLEARN_WORKSPACE` when set, otherwise
+the directory the agent started the server in.
 
 ## Claude Code
 
@@ -70,9 +67,8 @@ codex plugin marketplace add anhnguyensgu/agentic-dsa   # or a local checkout pa
 codex plugin add algorithm-learning@agentic-dsa
 ```
 
-`.codex-plugin/plugin.json` names the skill and `.mcp.json`. The launcher runs
-the bundled macOS arm64 `bin/algo`; elsewhere it falls back to `algo` on `PATH`
-or `ALGOLEARN_BIN`. Packaging never changes personal Codex settings.
+`.codex-plugin/plugin.json` names the skill and `.mcp.json`, which starts the
+same launcher. Installing the plugin never changes other Codex settings.
 
 ## Pi
 

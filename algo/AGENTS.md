@@ -28,7 +28,7 @@ algo/
 ├── schemas/             JSON schemas: envelope, event, export (v1)
 ├── plugins/             README.md is the per-agent setup guide
 │   └── algorithm-learning/  one plugin for Claude Code, Codex, and Pi: the tutoring
-│                            skill, MCP launcher, bundled bin/algo, one manifest per
+│                            skill, MCP launcher, and one manifest per
 │                            agent (marketplaces: ../.claude-plugin/, ../.agents/plugins/)
 ├── tests/               Python integration, MCP, packaging, teaching suites
 ├── README.md            CLI reference      AGENTIC_LEARNING.md  engine design spec
@@ -89,5 +89,5 @@ covers the change (`make test` for anything cross-package).
   for `algo learn`).
 - The tutoring skill exists once, in `plugins/algorithm-learning/skills/`;
   never copy it. Keep the version in all three manifests equal to the engine
-  version. Never edit `plugins/algorithm-learning/bin/algo`;
-  `make package-plugin` regenerates it.
+  version. Never commit a binary into the plugin; agents find `algo` through
+  `make install`.

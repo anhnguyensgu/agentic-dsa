@@ -1,21 +1,19 @@
 #!/bin/sh
 # Starts the algo learning MCP server for Claude Code and Codex. The binary is
-# ALGOLEARN_BIN, else the bundled bin/algo when it runs on this machine, else
-# `algo` on PATH. The workspace is ALGOLEARN_WORKSPACE, else the directory the
-# agent started the server in.
+# ALGOLEARN_BIN, else `algo` on PATH, else `make install`'s default location
+# ~/.local/bin/algo, which an agent app started outside a shell may not have on
+# PATH. The workspace is ALGOLEARN_WORKSPACE, else the directory the agent
+# started the server in.
 set -eu
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-bundled="$script_dir/../bin/algo"
 binary=${ALGOLEARN_BIN:-}
 if [ -z "$binary" ]; then
-	# The bundled build targets one platform; elsewhere it fails to start.
-	if [ -x "$bundled" ] && "$bundled" version >/dev/null 2>&1; then
-		binary=$bundled
-	elif command -v algo >/dev/null 2>&1; then
+	if command -v algo >/dev/null 2>&1; then
 		binary=$(command -v algo)
+	elif [ -x "${HOME:-}/.local/bin/algo" ]; then
+		binary="$HOME/.local/bin/algo"
 	else
-		echo "algorithm-learning: algo not found; run 'make install' in algo/ or set ALGOLEARN_BIN" >&2
+		echo "algorithm-learning: algo not found; build it with 'make install' in algo/, or set ALGOLEARN_BIN" >&2
 		exit 127
 	fi
 fi
