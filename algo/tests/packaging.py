@@ -125,13 +125,20 @@ def check_install() -> None:
         prefix = temp / "prefix"
         workspace = temp / "practice"
         workspace.mkdir()
+        bin_dir = prefix / "bin"
+        bin_dir.mkdir(parents=True)
+        # Alias symlinks an older install left behind are removed; an unrelated
+        # file with one of those names is kept.
+        for name in ("leetcode", "kattis"):
+            (bin_dir / name).symlink_to("algo")
+        (bin_dir / "algolearn").write_text("unrelated\n")
         subprocess.run(["make", "install", f"PREFIX={prefix}"], cwd=ROOT, check=True, capture_output=True, text=True)
-        installed = prefix / "bin" / "algolearn"
-        assert (prefix / "bin" / "algo").is_file()
-        for name in ("leetcode", "kattis", "algolearn"):
-            assert os.readlink(prefix / "bin" / name) == "algo"
+        algo = bin_dir / "algo"
+        assert algo.is_file()
+        assert not (bin_dir / "leetcode").is_symlink() and not (bin_dir / "kattis").is_symlink()
+        assert (bin_dir / "algolearn").read_text() == "unrelated\n"
         initialized = subprocess.run([
-            str(installed), "call", "workspace_init", "--workspace", str(workspace), "--input", "-", "--json",
+            str(algo), "learn", "call", "workspace_init", "--workspace", str(workspace), "--input", "-", "--json",
         ], input=json.dumps({
             "request_id": "install-init", "expected_revision": 0,
             "goal": "foundations", "language": "odin", "timezone": "UTC",
@@ -143,7 +150,7 @@ def check_install() -> None:
         subprocess.run(["make", "install", f"PREFIX={prefix}"], cwd=ROOT, check=True, capture_output=True, text=True)
         assert events.read_bytes() == before
         subprocess.run(["make", "uninstall", f"PREFIX={prefix}"], cwd=ROOT, check=True, capture_output=True, text=True)
-        assert not installed.exists() and not (prefix / "bin" / "algo").exists() and events.read_bytes() == before
+        assert not algo.exists() and (bin_dir / "algolearn").exists() and events.read_bytes() == before
 
 
 def main() -> None:

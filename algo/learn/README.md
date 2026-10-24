@@ -16,9 +16,7 @@ make test
 make install PREFIX="$HOME/.local"
 ```
 
-The build produces `bin/algo`, plus the legacy names `bin/algolearn`,
-`bin/leetcode`, and `bin/kattis` as symlinks that act as `algo learn`,
-`algo judge leetcode`, and `algo judge kattis`. The agent plugin in
+The build produces `bin/algo`; the engine runs as `algo learn`. The agent plugin in
 `plugins/algorithm-learning/` (Claude Code, Codex, and Pi) ships no binary and
 runs the installed `algo`.
 
