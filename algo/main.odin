@@ -64,11 +64,3 @@ VERSION_FLAG :: Command_Name("--version")
 HELP :: Command_Name("help")
 HELP_FLAG :: Command_Name("--help")
 HELP_SHORT :: Command_Name("-h")
-
-
-//parse first args[0]
-//if args[0] == Command
-// judge_run
-// learn_run
-// help_run
-// version_run

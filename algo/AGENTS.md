@@ -12,7 +12,7 @@ algo/
 ├── main.odin            top-level dispatch and provider list
 ├── judge/               shared provider core (library)
 │   ├── provider.odin      Provider / Command_Spec contract, run_provider
-│   ├── command.odin       `algo judge` Command union: parse, run
+│   ├── command.odin       `algo judge`: list, help, or run a provider
 │   ├── cli.odin           argument parsing      errors.odin  errors, exit codes
 │   ├── http.odin          curl transport        html.odin    HTML helpers
 │   ├── runner.odin        stdin/stdout sample runner

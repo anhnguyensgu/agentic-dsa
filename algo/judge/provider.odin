@@ -1,5 +1,5 @@
 // Package judge is the shared core of `algo judge`: the provider contract,
-// the `algo judge` Command (command.odin), the provider command-line parser
+// the `algo judge` command (command.odin), the provider command-line parser
 // (cli.odin), errors and exit codes (errors.odin), the curl transport
 // (http.odin), HTML helpers (html.odin), and the local stdin/stdout runner
 // (runner.odin).
