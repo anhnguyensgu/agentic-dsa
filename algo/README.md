@@ -29,16 +29,16 @@ Requires Odin and `curl` on `PATH`. Developed and tested on macOS with
 `dev-2026-07:819fdc7a8` (Homebrew 2026-07a). Uses the current `core:os` API.
 
 ```sh
-make build                   # bin/algo plus bin/{leetcode,kattis,algolearn}
+make build                   # bin/algo
 ./bin/algo help
-make install                 # ~/.local/bin/algo and the same three names
+make install                 # ~/.local/bin/algo
 # Or: make install PREFIX=/your/prefix
 ```
 
 Add `~/.local/bin` to your shell's `PATH` if necessary. `algo` is one native
-executable. The legacy names `leetcode`, `kattis`, and `algolearn` are symlinks
-to it that behave as `algo judge leetcode`, `algo judge kattis`, and
-`algo learn`, so existing scripts keep working. Python is needed only for the
+executable, and every command goes through it: `algo judge ...` and
+`algo learn ...`. Older versions also installed `leetcode`, `kattis`, and
+`algolearn` as symlinks to it; `make install` removes them. Python is needed only for the
 integration tests. `make check` type-checks every package with
 `-vet -strict-style`; `make test` runs it along with the unit and integration
 suites.
@@ -50,7 +50,7 @@ Each directory is one Odin package, imported by relative path, so plain
 
 | Package | Kind | Contents |
 | --- | --- | --- |
-| `main.odin` | executable | Top-level dispatch (`judge`, `learn`, `version`, `help`), the provider registry, and the legacy-name shims |
+| `main.odin` | executable | Top-level dispatch (`judge`, `learn`, `version`, `help`) and the provider registry |
 | `judge/` | library | Shared provider core: the provider contract, command-line parsing, errors and exit codes, curl transport, HTML helpers, and the stdin/stdout sample runner |
 | `judge/leetcode/` | library | LeetCode provider: GraphQL queries, problem cache, Odin scaffold and runner generation (`local_runner.txt`), remote run/submit, account history, browser and cookie login |
 | `judge/kattis/` | library | Kattis provider: page parsers, sample scaffolds, e-mail login, submission and verdict polling |

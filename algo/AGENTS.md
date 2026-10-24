@@ -9,9 +9,10 @@ holds the learner's data (`../problems/`, `../.algo/`).
 
 ```text
 algo/
-├── main.odin            top-level dispatch, provider list, legacy-name shims
+├── main.odin            top-level dispatch and provider list
 ├── judge/               shared provider core (library)
 │   ├── provider.odin      Provider / Command_Spec contract, run_provider
+│   ├── command.odin       `algo judge` Command union: parse, run
 │   ├── cli.odin           argument parsing      errors.odin  errors, exit codes
 │   ├── http.odin          curl transport        html.odin    HTML helpers
 │   ├── runner.odin        stdin/stdout sample runner
@@ -51,7 +52,7 @@ Run from `algo/`. Requires Odin (`dev-2026-07` or later) and `curl`; Python 3
 only for the integration suites.
 
 ```sh
-make build        # bin/algo plus leetcode, kattis, algolearn symlinks
+make build        # bin/algo
 make check        # odin check every package with -vet -strict-style
 make test-unit    # Odin unit tests (judge, judge/leetcode, learn)
 make test         # check + unit + integration + learning + MCP + packaging
@@ -92,3 +93,6 @@ covers the change (`make test` for anything cross-package).
   never copy it. Keep the version in all three manifests equal to the engine
   version. Never commit a binary into the plugin; agents find `algo` through
   `make install`.
+- Don't refactor code outside the task: no unrequested renames, extracted
+  functions, or moved code. Prefer adding new code; if a refactor seems
+  needed, say why and ask before doing it.
