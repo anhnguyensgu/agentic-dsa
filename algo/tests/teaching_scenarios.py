@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARY = ROOT / "bin" / "algolearn"
+ALGO = ROOT / "bin" / "algo"
 SKILL = ROOT / "plugins" / "algorithm-learning" / "skills" / "algorithm-learning"
 
 
@@ -20,7 +20,7 @@ def registered_operations() -> set[str]:
     ]
     with tempfile.TemporaryDirectory(prefix="algolearn-scenarios-") as workspace:
         result = subprocess.run(
-            [str(BINARY), "serve", "--workspace", workspace],
+            [str(ALGO), "learn", "serve", "--workspace", workspace],
             input="".join(json.dumps(m) + "\n" for m in messages),
             text=True, capture_output=True, timeout=30, check=True,
         )

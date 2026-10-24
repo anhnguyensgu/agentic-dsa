@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARY = ROOT / "bin" / "algolearn"
+ALGO = ROOT / "bin" / "algo"
 
 
 def main() -> None:
@@ -33,7 +33,7 @@ def main() -> None:
         def call(operation: str, payload: dict, expected: int = 0, ws: Path = workspace) -> dict:
             nonlocal checks
             result = subprocess.run(
-                [str(BINARY), "call", operation, "--workspace", str(ws), "--input", "-", "--json"],
+                [str(ALGO), "learn", "call", operation, "--workspace", str(ws), "--input", "-", "--json"],
                 input=json.dumps(payload), text=True, capture_output=True, timeout=30,
             )
             checks += 1

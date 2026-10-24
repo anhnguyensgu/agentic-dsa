@@ -11,12 +11,12 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARY = ROOT / "bin" / "algolearn"
+ALGO = ROOT / "bin" / "algo"
 
 
 def cli(workspace: Path, operation: str, payload: dict, expected: int = 0) -> dict:
     result = subprocess.run(
-        [str(BINARY), "call", operation, "--workspace", str(workspace), "--input", "-", "--json"],
+        [str(ALGO), "learn", "call", operation, "--workspace", str(workspace), "--input", "-", "--json"],
         input=json.dumps(payload), text=True, capture_output=True, timeout=30,
     )
     assert result.returncode == expected, (operation, result.returncode, result.stdout, result.stderr)
@@ -51,7 +51,7 @@ def main() -> None:
         })
 
         process = subprocess.Popen(
-            [str(BINARY), "serve", "--workspace", str(workspace)],
+            [str(ALGO), "learn", "serve", "--workspace", str(workspace)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, bufsize=1,
         )

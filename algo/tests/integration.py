@@ -136,18 +136,16 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="leetcode-integration-") as temp:
             temp = Path(temp)
-            # One algo build; the legacy name is a symlink that selects `algo judge leetcode`.
-            algo, binary = temp / "algo", temp / "leetcode"
+            algo = temp / "algo"
             subprocess.run(["odin", "build", str(ROOT), f"-out:{algo}",
                             f"-define:LEETCODE_BASE_URL=http://127.0.0.1:{server.server_port}"], check=True)
-            binary.symlink_to(algo.name)
             config, workspace = temp / "auth" / "config.json", temp / "workspace"
             env = dict(os.environ, LEETCODE_ODIN_CONFIG=str(config),
                        LEETCODE_ODIN_WORKSPACE=str(workspace), LEETCODE_ODIN_NO_BROWSER="1")
 
             def cli(*args, expected=0, stdin=None):
                 nonlocal checks
-                result = subprocess.run([str(binary), *map(str, args)], env=env, text=True,
+                result = subprocess.run([str(algo), "judge", "leetcode", *map(str, args)], env=env, text=True,
                                         input=stdin, capture_output=True, timeout=30)
                 checks += 1
                 assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
@@ -156,9 +154,7 @@ def main():
                 return result
 
             cli("help")
-            version = cli("version").stdout
-            routed = subprocess.run([str(algo), "judge", "leetcode", "version"], text=True, capture_output=True, timeout=30)
-            assert routed.returncode == 0 and routed.stdout == version
+            cli("version")
             cli("show", expected=2)
             cli("list", "--wat", expected=2)
             cli("status", expected=1)

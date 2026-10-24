@@ -17,14 +17,14 @@ def main():
     parser.add_argument("--account", action="store_true")
     parser.add_argument("--run", action="store_true")
     opts = parser.parse_args()
-    binary = ROOT / "bin" / "leetcode"
+    algo = ROOT / "bin" / "algo"
     with tempfile.TemporaryDirectory(prefix="leetcode-live-") as temp:
         env = dict(os.environ, LEETCODE_ODIN_WORKSPACE=temp, LEETCODE_ODIN_NO_BROWSER="1")
         if not (opts.account or opts.run):
             env["LEETCODE_ODIN_CONFIG"] = str(Path(temp) / "no-credentials.json")
 
         def read(*args):
-            result = subprocess.run([str(binary), *args, "--json"], env=env,
+            result = subprocess.run([str(algo), "judge", "leetcode", *args, "--json"], env=env,
                                     text=True, capture_output=True, timeout=90)
             if result.returncode:
                 raise RuntimeError(f"{args[0]} failed: {result.stderr}")

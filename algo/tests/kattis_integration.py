@@ -62,20 +62,18 @@ def main() -> None:
     try:
         with tempfile.TemporaryDirectory(prefix="kattis-integration-") as tmp:
             tmp_path = Path(tmp)
-            # One algo build; the legacy name is a symlink that selects `algo judge kattis`.
-            algo, binary = tmp_path / "algo", tmp_path / "kattis"
+            algo = tmp_path / "algo"
             subprocess.run([
                 "odin", "build", str(ROOT), f"-out:{algo}",
                 f"-define:KATTIS_BASE_URL=http://127.0.0.1:{server.server_port}",
             ], check=True)
-            binary.symlink_to(algo.name)
 
             def cli(*args, expected=0, timeout=30, extra_env=None):
                 nonlocal checks
                 env = dict(os.environ)
                 if extra_env:
                     env.update(extra_env)
-                result = subprocess.run([str(binary), *map(str, args)], cwd=tmp_path, text=True, capture_output=True, timeout=timeout, env=env)
+                result = subprocess.run([str(algo), "judge", "kattis", *map(str, args)], cwd=tmp_path, text=True, capture_output=True, timeout=timeout, env=env)
                 checks += 1
                 assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
                 return result
@@ -88,8 +86,6 @@ def main() -> None:
             cli("show", "twostones", "--page", "1", expected=2)
             cli("test", "x", "--timeout", "0", expected=2)
             assert cli("version").stdout.strip() == "kattis-odin 0.3.0"
-            routed = subprocess.run([str(algo), "judge", "kattis", "version"], text=True, capture_output=True, timeout=30)
-            assert routed.returncode == 0 and routed.stdout.strip() == "kattis-odin 0.3.0"
             assert json.loads(cli("capabilities", "--json").stdout)["local_test"]["json_report"] is True
             listed = json.loads(cli("list", "--page", "0", "--json").stdout)
             assert listed["count"] == 1 and listed["problems"][0]["id"] == "twostones"
