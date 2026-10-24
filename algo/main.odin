@@ -3,20 +3,17 @@
 //     algo judge [<provider> <command> ...]   online judges (judge/<provider>/)
 //     algo learn <command> ...                the Algorithm Learning engine (learn/)
 //
-// Installed under the names `leetcode`, `kattis`, or `algolearn` (symlinks),
-// it behaves as `algo judge leetcode`, `algo judge kattis`, or `algo learn`.
 // Every package below owns its command's allocations; main only dispatches.
 package main
 
 import "core:fmt"
 import "core:os"
-import "core:path/filepath"
 import "judge"
 import "judge/kattis"
 import "judge/leetcode"
 import "learn"
 
-VERSION :: "algo 0.1.0"
+ALGO_VERSION :: "algo 0.1.0"
 
 USAGE :: `usage: algo <command> [arguments]
 
@@ -25,10 +22,7 @@ USAGE :: `usage: algo <command> [arguments]
   learn <command> ...              Algorithm Learning engine (init, doctor,
                                    resume, serve, call, version)
   version                          this program's version
-  help                             this text
-
-Installed as leetcode, kattis, or algolearn, it acts as algo judge leetcode,
-algo judge kattis, or algo learn.`
+  help                             this text`
 
 main :: proc() {
 	// Commands return before exit so their deferred cleanup always runs.
@@ -39,23 +33,21 @@ main :: proc() {
 
 run :: proc(argv: []string) -> int {
 	args := argv[1:] if len(argv) > 0 else nil
-	if len(argv) > 0 {
-		args = shim(filepath.base(argv[0]), args)
-	}
 	if len(args) == 0 {
 		fmt.println(USAGE)
 		return 2
 	}
-	switch args[0] {
-	case "judge":
+	switch Command_Name(args[0]) {
+	case JUDGE:
+		// The provider list, in the order `algo judge` lists them.
 		providers := [?]judge.Provider{leetcode.provider(), kattis.provider()}
 		return judge.run(args[1:], providers[:])
-	case "learn":
+	case LEARN:
 		return learn.run(args[1:])
-	case "version", "--version":
-		fmt.println(VERSION)
+	case VERSION, VERSION_FLAG:
+		fmt.println(ALGO_VERSION)
 		return 0
-	case "help", "--help", "-h":
+	case HELP, HELP_FLAG, HELP_SHORT:
 		fmt.println(USAGE)
 		return 0
 	}
@@ -64,27 +56,19 @@ run :: proc(argv: []string) -> int {
 	return 2
 }
 
-// shim maps a legacy executable name onto its command group. A top-level
-// command group named explicitly always wins, so `algolearn judge kattis ...`
-// (how the engine re-executes itself) and `algolearn learn serve` both work.
-shim :: proc(name: string, args: []string) -> []string {
-	if len(args) > 0 && (args[0] == "judge" || args[0] == "learn") {
-		return args
-	}
-	group: string
-	switch name {
-	case "leetcode", "kattis":
-		group = "judge"
-	case "algolearn":
-		group = "learn"
-	case:
-		return args
-	}
-	shimmed := make([dynamic]string, 0, len(args) + 2)
-	append(&shimmed, group)
-	if group == "judge" {
-		append(&shimmed, name)
-	}
-	append(&shimmed, ..args)
-	return shimmed[:]
-}
+Command_Name :: distinct string
+JUDGE :: Command_Name("judge")
+LEARN :: Command_Name("learn")
+VERSION :: Command_Name("version")
+VERSION_FLAG :: Command_Name("--version")
+HELP :: Command_Name("help")
+HELP_FLAG :: Command_Name("--help")
+HELP_SHORT :: Command_Name("-h")
+
+
+//parse first args[0]
+//if args[0] == Command
+// judge_run
+// learn_run
+// help_run
+// version_run

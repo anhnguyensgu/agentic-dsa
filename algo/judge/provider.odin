@@ -1,7 +1,8 @@
 // Package judge is the shared core of `algo judge`: the provider contract,
-// the command-line parser (cli.odin), errors and exit codes (errors.odin), the
-// curl transport (http.odin), HTML helpers (html.odin), and the local
-// stdin/stdout runner (runner.odin).
+// the `algo judge` Command (command.odin), the provider command-line parser
+// (cli.odin), errors and exit codes (errors.odin), the curl transport
+// (http.odin), HTML helpers (html.odin), and the local stdin/stdout runner
+// (runner.odin).
 //
 // Each online judge is a provider package under this directory. A provider
 // declares data (its commands, flags, defaults, and wording) and implements
@@ -49,29 +50,6 @@ Without a provider, lists the registered providers and their versions.
 Run ` +
 	"`algo judge <provider> help`" +
 	` for a provider's commands.`
-
-// run lists the providers, or hands the remaining arguments to one of them.
-run :: proc(args: []string, providers: []Provider) -> int {
-	if len(args) == 0 {
-		for p in providers {
-			fmt.printf("%-10s %s\n", p.name, p.version)
-		}
-		return 0
-	}
-	switch args[0] {
-	case "help", "--help", "-h":
-		fmt.println(USAGE)
-		return 0
-	}
-	for p in providers {
-		if p.name == args[0] {
-			return run_provider(p, args[1:])
-		}
-	}
-	fmt.eprintln("unknown provider:", args[0])
-	fmt.eprintln(USAGE)
-	return 2
-}
 
 // run_provider runs one provider command. All of its allocations live in
 // this arena; nothing is freed individually, and returned strings must not

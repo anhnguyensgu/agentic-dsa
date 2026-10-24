@@ -3,13 +3,18 @@
 PREFIX ?= $(HOME)/.local
 ODIN_FLAGS := -vet -strict-style
 
-# One executable; the legacy names are symlinks that select a command group.
-LEGACY_NAMES := leetcode kattis algolearn
+# Older versions installed these names as symlinks to algo. build, install,
+# and uninstall remove them; a file of the same name that is not such a
+# symlink is left alone.
+OLD_ALIASES := leetcode kattis algolearn
+remove_old_aliases = for name in $(OLD_ALIASES); do \
+	if [ "$$(readlink "$(1)/$$name")" = algo ]; then rm -f "$(1)/$$name"; fi; \
+done
 
 build:
 	mkdir -p bin
 	odin build . -out:bin/algo -o:speed $(ODIN_FLAGS)
-	for name in $(LEGACY_NAMES); do ln -sf algo bin/$$name; done
+	$(call remove_old_aliases,bin)
 
 # Type-check every package, including the libraries that have no entry point.
 check:
@@ -46,11 +51,11 @@ test: check test-unit test-integration test-learning test-mcp test-packaging
 install: build
 	install -d "$(PREFIX)/bin"
 	install -m 755 bin/algo "$(PREFIX)/bin/algo"
-	for name in $(LEGACY_NAMES); do ln -sf algo "$(PREFIX)/bin/$$name"; done
+	$(call remove_old_aliases,$(PREFIX)/bin)
 
 uninstall:
 	rm -f "$(PREFIX)/bin/algo"
-	for name in $(LEGACY_NAMES); do rm -f "$(PREFIX)/bin/$$name"; done
+	$(call remove_old_aliases,$(PREFIX)/bin)
 
 clean:
 	rm -rf bin
