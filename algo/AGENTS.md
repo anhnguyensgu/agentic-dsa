@@ -2,8 +2,10 @@
 
 `algo` is one Odin executable for algorithm practice: online judge providers
 (`algo judge <provider> ...`) and an evidence-backed tutoring engine
-(`algo learn ...`). Paths below are relative to `algo/`; the repository root
-holds the learner's data (`../problems/`, `../.algo/`).
+(`algo learn ...`). Paths below are relative to `algo/`. The learner's data
+lives in the global algo workspace (`$ALGO_WORKSPACE`, else `~/algo`) as
+`problems/` and `.algo/`; the repository root's `../problems/` and `../.algo/`
+hold earlier practice.
 
 ## Layout
 
@@ -17,7 +19,8 @@ algo/
 │   ├── http.odin          curl transport        html.odin    HTML helpers
 │   ├── runner.odin        stdin/stdout sample runner
 │   ├── leetcode/          LeetCode provider (GraphQL, cache, Odin scaffold + runner)
-│   └── kattis/            Kattis provider (page parsing, login, submit, verdicts)
+│   ├── kattis/            Kattis provider (page parsing, login, submit, verdicts)
+│   └── exercism/          Exercism provider (pass-through to the exercism CLI)
 ├── learn/               learning engine (library)
 │   ├── operations.odin    OPERATIONS registry shared by CLI and MCP
 │   ├── store.odin, events.odin, projection.odin   event store -> State

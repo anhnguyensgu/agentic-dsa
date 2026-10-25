@@ -103,7 +103,8 @@ parse_options :: proc(p: Provider, args: []string) -> (o: Options, err: Error) {
 		o.workspace = os.get_env(p.workspace_env, context.allocator)
 	}
 	if o.workspace == "" {
-		o.workspace = "problems"
+		root := workspace_root()
+		o.workspace = join(root, "problems") if root != "" else "problems"
 	}
 	if len(args) == 0 {
 		return o, .Usage

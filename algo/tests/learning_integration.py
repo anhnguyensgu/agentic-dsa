@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -232,6 +233,15 @@ main :: proc() {
         assert imported_state["data"]["profile"]["goal"] == "foundations"
         imported_source = imported_workspace / attempt["data"]["source_path"]
         assert imported_source.read_text() == solution
+
+        # Without --workspace the engine uses the global algo workspace.
+        defaulted = subprocess.run(
+            [str(ALGO), "learn", "doctor", "--json"],
+            env=dict(os.environ, ALGO_WORKSPACE=str(workspace)), text=True, capture_output=True, timeout=30,
+        )
+        checks += 1
+        assert defaulted.returncode == 0, (defaulted.stdout, defaulted.stderr)
+        assert json.loads(defaulted.stdout)["data"]["workspace_initialized"] is True
 
         print(f"PASS: {checks} Algorithm Learning end-to-end checks (no remote submissions)")
 

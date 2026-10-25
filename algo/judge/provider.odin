@@ -16,6 +16,9 @@
 //      submit, and check through curl, html, runner, and json here.
 //   2. Register it in main.odin's provider list.
 //   3. Add a fixture-server integration test like tests/kattis_integration.py.
+//
+// A provider that mirrors another command-line tool sets passthrough instead
+// of commands (see exercism/).
 package judge
 
 import "core:fmt"
@@ -27,10 +30,13 @@ Provider :: struct {
 	capabilities:  string, // JSON contract printed by `capabilities`
 	usage:         string,
 	commands:      []Command_Spec, // Options.command indexes this table
-	workspace_env: string, // environment variable overriding the ./problems workspace
+	workspace_env: string, // environment variable overriding the <root>/problems workspace
 	defaults:      Options, // initial option values, e.g. limit and timeout
 	validate:      proc(o: Options) -> Error, // provider-specific value checks; may be nil
 	messages:      [Error]string, // provider wording that replaces DEFAULT_MESSAGES
+	// When set, receives every argument after the provider name in place of
+	// the shared parser and returns the exit code.
+	passthrough:   proc(args: []string) -> int,
 }
 
 Handler :: proc(o: Options) -> Error
@@ -67,6 +73,9 @@ run_provider :: proc(p: Provider, args: []string) -> int {
 	if len(args) == 0 {
 		fmt.println(p.usage)
 		return exit_code(.Usage)
+	}
+	if p.passthrough != nil {
+		return p.passthrough(args)
 	}
 	o, err := parse_options(p, args)
 	if err == nil {

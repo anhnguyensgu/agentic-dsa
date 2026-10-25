@@ -15,8 +15,9 @@ make test
   19 LeetCode unit tests passed
   18 Algorithm Learning unit tests passed (memory tracking enabled)
   68 LeetCode fixture checks passed
-  38 Kattis fixture/bounded-runner checks passed
-  29 end-to-end learning checks passed
+  39 Kattis fixture/bounded-runner checks passed
+  21 Exercism pass-through checks passed (stub exercism CLI)
+  30 end-to-end learning checks passed
   10 reviewed teaching/recovery scenario contracts passed
   8 native MCP protocol checks passed
   18 concept groups validated in prerequisite order with provider topic tags

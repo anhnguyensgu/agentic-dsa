@@ -36,7 +36,7 @@ make test-packaging   # validate the plugin, including Claude's own validator wh
 The MCP launcher runs `ALGOLEARN_BIN` when set, else `algo` on `PATH`, else
 `~/.local/bin/algo` (agent apps started outside a shell may not have that
 directory on `PATH`). Its workspace is `ALGOLEARN_WORKSPACE` when set, otherwise
-the directory the agent started the server in.
+the global algo workspace (`ALGO_WORKSPACE`, else `~/algo`).
 
 ## Claude Code
 
@@ -53,8 +53,8 @@ To try the plugin for one session without installing it, run
 
 The plugin adds the `algorithm-learning` skill and an `algorithm-learning` MCP
 server with one tool per engine operation; `claude mcp list` shows it as
-`plugin:algorithm-learning:algorithm-learning`. Start Claude Code in the
-practice workspace, or set `ALGOLEARN_WORKSPACE`. The plugin adds about 100
+`plugin:algorithm-learning:algorithm-learning`. It uses the global algo
+workspace; set `ALGOLEARN_WORKSPACE` to use another one. The plugin adds about 100
 tokens to every session (`claude plugin details algorithm-learning`).
 
 If `~/.claude/skills/algorithm-learning` links to this skill, remove that link

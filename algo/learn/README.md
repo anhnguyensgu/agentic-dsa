@@ -29,6 +29,9 @@ algo learn call plan_next --workspace ~/practice --input plan.json --json
 algo learn resume --workspace ~/practice --json
 ```
 
+Without `--workspace`, every command uses the global algo workspace:
+`$ALGO_WORKSPACE`, else `~/algo`.
+
 Example `profile.json`:
 
 ```json

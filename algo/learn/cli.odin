@@ -4,6 +4,7 @@
 // never behave differently.
 package learn
 
+import "../judge"
 import "core:fmt"
 import "core:mem/virtual"
 import "core:os"
@@ -12,12 +13,15 @@ import "core:strings"
 USAGE :: `algo learn - Algorithm Learning engine
 
 usage:
-  algo learn init --workspace DIR [--input FILE|-] [--json]
-  algo learn doctor --workspace DIR [--json]
-  algo learn resume --workspace DIR [--json]
-  algo learn serve --workspace DIR
-  algo learn call OP --workspace DIR [--input FILE|-] [--json]
+  algo learn init [--workspace DIR] [--input FILE|-] [--json]
+  algo learn doctor [--workspace DIR] [--json]
+  algo learn resume [--workspace DIR] [--json]
+  algo learn serve [--workspace DIR]
+  algo learn call OP [--workspace DIR] [--input FILE|-] [--json]
   algo learn version
+
+The workspace defaults to the global algo workspace: $ALGO_WORKSPACE, else
+~/algo.
 
 Examples:
   algo learn call session_start --workspace . --input request.json --json
@@ -133,7 +137,11 @@ parse_args :: proc(args: []string) -> (opts: Options, usage_error: string) {
 	case .Help, .Version:
 	case .Init, .Doctor, .Resume, .Serve, .Call:
 		if opts.workspace == "" {
-			return {}, "--workspace is required"
+			opts.workspace = judge.workspace_root()
+		}
+		if opts.workspace == "" {
+			return {},
+				"--workspace is required when neither ALGO_WORKSPACE nor the home directory is set"
 		}
 	}
 	if opts.command == .Call && opts.operation == "" {

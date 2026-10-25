@@ -17,7 +17,7 @@ USAGE :: `usage: algo judge kattis <command> [arguments] [options]
   check <submission-id>            wait for an existing judge result
 
   --json                           machine-readable output (data commands)
-  --workspace <path>               workspace root (default: ./problems)
+  --workspace <path>               workspace root (default: ~/algo/problems)
   --lang <name>                    starter/submission language
   --dir <path>                     destination directory for get
   --page <n>                       problem table page (default: 0)
@@ -25,7 +25,7 @@ USAGE :: `usage: algo judge kattis <command> [arguments] [options]
                                    judge; 30 to build, 10 per sample)
 
 Aliases: search = list, fetch = show, pick = get, watch = check.
-Environment: KATTIS_ODIN_SESSION, KATTIS_ODIN_WORKSPACE
+Environment: ALGO_WORKSPACE, KATTIS_ODIN_SESSION, KATTIS_ODIN_WORKSPACE
 Exit codes: 0 success, 1 operational error, 2 usage, 3 failed solution,
             4 samples without expected output.
 submit <dir> takes the problem id from the directory name; the submission
