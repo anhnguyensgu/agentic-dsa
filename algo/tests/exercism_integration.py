@@ -64,7 +64,7 @@ def main() -> None:
             return Path(cwd).resolve(), args
 
         listed = run([str(ALGO), "judge"], 0, base)
-        assert any(line.split() == ["exercism", "exercism-odin", "0.1.0"] for line in listed.stdout.splitlines())
+        assert any(line.split() == ["exercism", "exercism-odin", "0.2.0"] for line in listed.stdout.splitlines())
         assert "setup" in cli(expected=2).stdout
         capabilities = json.loads(cli("capabilities").stdout)
         assert capabilities["provider"] == "exercism" and capabilities["structured"] is False

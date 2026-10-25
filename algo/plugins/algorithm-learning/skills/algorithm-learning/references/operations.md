@@ -34,17 +34,18 @@ printf '%s\n' \
 
 Do not read the executable as text or write a discovery program on every turn. The schemas list fields and required inputs; string enums may need the quick reference below or the matching handler source. After `invalid_input`, inspect the schema and error before one corrected retry. If it still fails, report the specific tooling obstacle and continue any tutoring that does not depend on it. Do not try a series of guessed payloads.
 
-Quick reference for engine 0.3.0; live schemas and validation take precedence:
+Quick reference for engine 0.4.0; live schemas and validation take precedence:
 
 | Operation | Inputs that commonly cause mistakes |
 | --- | --- |
 | `workspace_init` | Required: `goal`, `language`, `timezone`, `experience`, `time_budget_minutes` (integer 5–480). Optional: `explanation_language`. Collect missing preferences together before calling. |
-| `plan_next` | Optional: `topic` (a concept ID), `mode`, `language`, `time_budget_minutes`. Returns at most one due review and one concept with `leetcode_tags`; when `hide_tags_from_learner` is true, do not show those tags. |
+| `plan_next` | Optional: `topic` (a concept ID), `mode`, `language`, `time_budget_minutes`, `provider`. Returns at most one due review and one concept with `leetcode_tags`; when `hide_tags_from_learner` is true, do not show those tags. With `provider: exercism` it returns up to three `kind: problem` candidates instead: unpassed Exercism exercises the curriculum maps to the next concept, in-progress ones first, then easiest; when `hide_concept_from_learner` is true, do not show their concept. A warning that the catalogue is not cached means some may not exist on the learner's track; run `algo judge exercism list --track <language>` once. |
 | `session_start` | Required: `objective`, `mode`. Modes: `guided`, `independent`, `assessment`, `review`, `worked_example`. Accepts `problem_key` and `concept_ids`. |
 | Concept IDs | Use the specific pattern the learner actually exercised, written `<group>/<pattern>` under one of the 18 curriculum groups (`arrays-hashing`, `two-pointers`, `stack`, `binary-search`, `sliding-window`, `linked-list`, `trees`, `tries`, `heap`, `backtracking`, `intervals`, `greedy`, `graphs`, `advanced-graphs`, `dp-1d`, `dp-2d`, `bit-manipulation`, `math-geometry`), such as `graphs/topological-sort` or `dp-2d/knapsack`. Reuse an existing sub-pattern ID from `progress_get` instead of inventing a synonym. Use the bare group only when no narrower pattern applies. Apply the same IDs to `session_start`, `hint_record`, and `assessment_record`. |
 | `session_checkpoint` | Required: `session_id`, `activity`, `summary`, `next_action`. Activities: `understanding`, `planning`, `implementing`, `testing`, `reflecting`, `reviewing`. |
 | `hint_record` | Required: `session_id`, integer `level` (0–4). Optional: `attempt_id`, `content`, `concept_ids`. |
-| `attempt_start` | Required: `session_id`, `problem_key`, `language`. `problem_key` is `<provider>:<slug>` for any problem on `leetcode` or `kattis`, using the LeetCode title slug or Kattis problem ID (lowercase), such as `leetcode:two-sum`. `action`: `fresh` or `register_existing`. `runner_kind`: `stdin_stdout`, `odin_test_package`, or `provider_workspace`. `register_existing` needs an existing workspace-relative `source_path`. |
+| `attempt_start` | Required: `session_id`, `problem_key`, `language`. `problem_key` is `<provider>:<slug>` for any problem on `leetcode`, `kattis`, or `exercism`, using the LeetCode title slug, Kattis problem ID, or Exercism exercise slug (lowercase), such as `leetcode:two-sum` or `exercism:leap`. `action`: `fresh` or `register_existing`. `runner_kind`: `stdin_stdout`, `odin_test_package`, or `provider_workspace`; Exercism attempts default to `odin_test_package`. `register_existing` needs an existing workspace-relative `source_path`. For Exercism, `language` is the track (`odin`) and `fresh` downloads the exercise; it fails with `destination_exists` once downloaded, so later attempts use `register_existing` with the solution file under `problems/exercism/<track>/<slug>/`. |
+| `test_run` | Required: `attempt_id`. For `odin_test_package` it runs `odin test` on the attempt's package: each `@(test)` procedure is one verified case. If the `*_test.odin` files changed after the attempt began, `tests_modified` is true and the run is unverified until they are restored. |
 
 Every mutation also includes a stable `request_id` and the `expected_revision` returned by the last envelope. Repeating the same request and payload is safe; reusing an ID for different content fails. Read operations accept `{}` unless their schema requires a selector. Write learner text and JSON through a structured tool argument, a file, or safely supplied stdin rather than interpolating it into shell code.
 
@@ -75,6 +76,8 @@ Remote flow:
 1. `submission_prepare`
 2. `submission_send` once with an authorization reference
 3. `job_check` on the returned local job ID until terminal
+
+Exercism has no verdict to wait for: `submission_send` uploads the exercise's solution file through the exercism CLI and returns `state: uploaded`, and `job_check` does not apply. Its tests run on exercism.org, so assess from the local `test_run` evidence. The exercism CLI must be set up once with `exercism configure --token=<token>` and `algo judge exercism setup`; the engine reports a missing token as `auth_required`.
 
 Data flow:
 

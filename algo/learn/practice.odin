@@ -3,8 +3,13 @@ package learn
 // Attempt preparation and versioned local cases. Provider identity is stored
 // explicitly and never inferred from a directory name (sections 10-12).
 
+import "../safeio"
+import "core:fmt"
 import "core:os"
 import "core:strings"
+import "core:time"
+
+PROVIDER_DOWNLOAD_TIMEOUT :: 60 * time.Second
 
 KATTIS_TEMPLATE :: `package main
 
@@ -89,7 +94,13 @@ op_attempt_start :: proc(
 	if action != "fresh" && action != "register_existing" {
 		return {}, invalid("action must be fresh or register_existing")
 	}
-	runner_kind := first_nonempty(p.runner_kind, "stdin_stdout")
+	problem := parse_problem_key(p.problem_key) or_return
+	traits, _ := provider_traits(problem.provider)
+	// A downloaded exercise ships with its own Odin test package.
+	runner_kind := first_nonempty(
+		p.runner_kind,
+		"odin_test_package" if traits.downloads else "stdin_stdout",
+	)
 	switch runner_kind {
 	case "stdin_stdout", "odin_test_package", "provider_workspace":
 	case:
@@ -98,7 +109,9 @@ op_attempt_start :: proc(
 	if p.language != "odin" && runner_kind != "provider_workspace" {
 		return {}, fail(.Unsupported_Capability, "the guaranteed local runner is Odin; use provider_workspace for another language")
 	}
-	problem := parse_problem_key(p.problem_key) or_return
+	if traits.downloads && !valid_track(p.language) {
+		return {}, invalid("language must be the provider's track name: lowercase letters, digits, and '-'")
+	}
 	st := fold(store)
 	session := find_session(&st, p.session_id)
 	if session == nil {
@@ -116,7 +129,15 @@ op_attempt_start :: proc(
 	defer if err != nil && created_dir != "" {
 		os.remove_all(created_dir)
 	}
-	if fresh {
+	if fresh && traits.downloads {
+		source_path, created_dir = download_exercise(
+			ctx,
+			store,
+			req,
+			problem,
+			p.language,
+		) or_return
+	} else if fresh {
 		source_path = create_fresh_attempt(ctx.workspace, problem, attempt_id) or_return
 		created_dir = join(ctx.workspace, os.dir(source_path))
 	} else {
@@ -135,6 +156,11 @@ op_attempt_start :: proc(
 	if hash_err != nil {
 		return {}, fail(hash_err, "could not hash the attempt source")
 	}
+	// Test runs count as evidence only while the tests stay as they were.
+	tests_hash := ""
+	if runner_kind == "odin_test_package" {
+		tests_hash = package_tests_hash(os.dir(join(ctx.workspace, source_path)))
+	}
 
 	payload := Attempt_Started {
 		p.problem_key,
@@ -144,6 +170,7 @@ op_attempt_start :: proc(
 		runner_kind,
 		p.previous_attempt_id,
 		fresh,
+		tests_hash,
 	}
 	ev, replayed := commit(
 		ctx,
@@ -246,14 +273,135 @@ create_fresh_attempt :: proc(
 		)
 	}
 	source_path = join(dir, "solution.odin")
-	template := KATTIS_TEMPLATE if problem.provider == "kattis" else LOCAL_TEMPLATE
-	if write_private_file(join(workspace, source_path), template) != nil {
+	traits, _ := provider_traits(problem.provider)
+	if write_private_file(join(workspace, source_path), traits.template) != nil {
 		return "", fail(.Storage_Error, "could not write the fresh source file")
 	}
 	if write_private_file(join(dir_abs, "cases.json"), "[]\n") != nil {
 		return "", fail(.Storage_Error, "could not initialize the local case file")
 	}
 	return source_path, nil
+}
+
+// download_exercise fetches a provider exercise into
+// problems/<provider>/<track>/<slug>/ through the provider adapter and returns
+// its solution file. An exercise that is already there is never downloaded
+// again: a later attempt registers it with register_existing. downloaded is
+// the new directory, which the caller removes if the attempt is not recorded.
+@(private = "file")
+download_exercise :: proc(
+	ctx: ^Context,
+	store: ^Store,
+	req: Request,
+	problem: Problem,
+	track: string,
+) -> (
+	source_path, downloaded: string,
+	err: Op_Error,
+) {
+	// A replayed request downloaded its exercise already; commit returns it.
+	if req.request_id != "" {
+		for ev in store.events {
+			if ev.request_id == req.request_id && ev.type == EVENT_TYPE_NAMES[.Attempt_Started] {
+				original: Attempt_Started
+				decode(string(ev.payload), &original)
+				return original.source_path, "", nil
+			}
+		}
+	}
+	dir := join("problems", problem.provider, track, problem.slug)
+	dir_abs := join(ctx.workspace, dir)
+	if os.exists(dir_abs) {
+		return "", "", Failure {
+			code = .Destination_Exists,
+			message = "this exercise is already downloaded; a later attempt registers its solution file",
+			next_action = fmt.aprintf(
+				"call attempt_start with action register_existing and the solution file in %s as source_path",
+				dir,
+			),
+		}
+	}
+	command := provider_command(problem.provider) or_return
+	append(
+		&command,
+		"download",
+		strings.concatenate({"--track=", track}),
+		strings.concatenate({"--exercise=", problem.slug}),
+	)
+	run := safeio.run(command[:], timeout = PROVIDER_DOWNLOAD_TIMEOUT, keep_credentials = true)
+	switch {
+	case run.start_failed:
+		return "", "", fail(.Unsupported_Capability, "could not launch the provider adapter")
+	case !safeio.ok(run):
+		if os.exists(dir_abs) {
+			os.remove_all(dir_abs)
+		}
+		reason := strings.trim_space(run.stderr)
+		reason = reason[:min(len(reason), 400)]
+		code :=
+			Engine_Error.Auth_Required if strings.contains(reason, "token") else .Unsupported_Capability
+		return "", "", fail(
+			code,
+			fmt.aprintf("the %s download failed: %s", problem.provider, reason),
+		)
+	case !os.exists(dir_abs):
+		return "", "", fail(
+			.Unsupported_Capability,
+			fmt.aprintf(
+				"the exercise was downloaded outside this workspace; use the global algo workspace, or set ALGO_WORKSPACE to %s and run `algo judge %s setup`",
+				ctx.workspace,
+				problem.provider,
+			),
+		)
+	case !path_is_within_workspace(ctx.workspace, dir_abs):
+		os.remove_all(dir_abs)
+		return "", "", invalid(
+			"the downloaded exercise resolves outside the workspace through a symlink",
+		)
+	}
+	name, named := exercise_solution_file(dir_abs)
+	if !named {
+		os.remove_all(dir_abs)
+		return "", "", fail(
+			.Provider_Contract_Changed,
+			"the downloaded exercise does not name a solution file in .exercism/config.json",
+		)
+	}
+	return join(dir, name), dir_abs, nil
+}
+
+// exercise_solution_file is the first solution file an Exercism download
+// names in .exercism/config.json, relative to its directory.
+exercise_solution_file :: proc(dir: string) -> (name: string, ok: bool) {
+	data, read_err := os.read_entire_file(join(dir, ".exercism", "config.json"), context.allocator)
+	if read_err != nil {
+		return "", false
+	}
+	config: struct {
+		files: struct {
+			solution: []string,
+		},
+	}
+	if !decode(string(data), &config) || len(config.files.solution) == 0 {
+		return "", false
+	}
+	name = config.files.solution[0]
+	return name, safe_relative_path(name) && os.is_file(join(dir, name))
+}
+
+// valid_track accepts a provider track name, which becomes a path component.
+valid_track :: proc(track: string) -> bool {
+	if track == "" || len(track) > MAX_SLUG_LENGTH {
+		return false
+	}
+	for c in track {
+		switch c {
+		case 'a' ..= 'z', '0' ..= '9', '-':
+		case:
+			return false
+		}
+	}
+	return true
 }
 
 // -- case_add ------------------------------------------------------------------

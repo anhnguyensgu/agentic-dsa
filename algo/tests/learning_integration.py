@@ -56,7 +56,7 @@ def main() -> None:
         assert doctor["data"]["ready_for_local_practice"] is True
         assert doctor["data"]["concept_count"] >= 18
         assert doctor["data"]["curriculum_version"]
-        assert {provider["provider"] for provider in doctor["data"]["providers"]} == {"leetcode", "kattis"}
+        assert {provider["provider"] for provider in doctor["data"]["providers"]} == {"leetcode", "kattis", "exercism"}
 
         plan = call("plan_next", {"topic": "math-geometry", "time_budget_minutes": 30, "language": "odin"})
         practice = plan["data"]["candidates"][-1]

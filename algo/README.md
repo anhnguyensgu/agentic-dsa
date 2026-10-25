@@ -55,7 +55,7 @@ Each directory is one Odin package, imported by relative path, so plain
 | `judge/` | library | Shared provider core: the provider contract, command-line parsing, errors and exit codes, curl transport, HTML helpers, and the stdin/stdout sample runner |
 | `judge/leetcode/` | library | LeetCode provider: GraphQL queries, problem cache, Odin scaffold and runner generation (`local_runner.txt`), remote run/submit, account history, browser and cookie login |
 | `judge/kattis/` | library | Kattis provider: page parsers, sample scaffolds, e-mail login, submission and verdict polling |
-| `judge/exercism/` | library | Exercism provider: passes commands to the official exercism CLI and keeps its workspace in the algo workspace |
+| `judge/exercism/` | library | Exercism provider: passes commands to the official exercism CLI, keeps its workspace in the algo workspace, and lists and caches track catalogues |
 | `learn/` | library | The learning engine: event store, projection, operation registry, one file per operation group, plus its CLI (`cli.odin`) and MCP stdio server (`mcp.odin`) |
 | `safeio/` | library | Shared OS safety code: owner-only atomic file writes and bounded child processes with a credential-free environment |
 
@@ -329,13 +329,14 @@ Differences from LeetCode:
 
 `algo judge exercism` mirrors the official
 [exercism CLI](https://exercism.org/docs/using/solving-exercises/working-locally)
-instead of sharing the command surface above. Every command except `setup` and
-`capabilities` runs `exercism` with the same arguments, in the current
-directory, and shows its output unchanged.
+instead of sharing the command surface above. Every command except `setup`,
+`list`, and `capabilities` runs `exercism` with the same arguments, in the
+current directory, and shows its output unchanged.
 
 ```sh
 exercism configure --token=<token>     # once, with the exercism CLI itself
 algo judge exercism setup              # once: exercises go to ~/algo/problems/exercism
+algo judge exercism list               # the Odin track's exercises, easiest first
 algo judge exercism download --track=odin --exercise=hello-world
 cd ~/algo/problems/exercism/odin/hello-world
 odin test .                            # the Odin track's tests
@@ -354,12 +355,20 @@ algo judge exercism submit
   `workspace` field is read.
 - Exit codes: `0` success, `1` an exercism or operational error, `2` usage,
   `3` a failing `exercism test`.
-- There is no `--json`, `list`, or `show`, and no remote verdict: `submit`
-  uploads an iteration, and its test results appear only on exercism.org.
-  `algo learn` does not use this provider yet.
+- `list [--track <name>] [--json] [--offline]` reads the track's public
+  `config.json` from GitHub, since the exercism CLI cannot list exercises. It
+  shows the practice exercises that can be started, with their difficulty and
+  whether they are downloaded, and caches the catalogue in
+  `problems/exercism/.cache/<track>.json` for `algo learn`. `--offline` reads
+  only the cache.
+- Passed-through commands have no `--json`, and there is no remote verdict:
+  `submit` uploads an iteration, and its test results appear only on
+  exercism.org.
+- `algo learn` can suggest, download, test, and upload Exercism exercises; see
+  [its guide](learn/README.md#exercism).
 - The exercism CLI (3.5.8) cannot run the Odin track's tests: `exercism test`
   reports the track as unsupported, which exits with `3`. Run `odin test .` in
-  the exercise directory instead.
+  the exercise directory, or `test_run` through `algo learn`, instead.
 
 ## Adding a provider
 
@@ -373,8 +382,10 @@ page or API parsing, login, submission, and verdict mapping.
 2. Register it in the provider list in `main.odin`.
 3. Add a fixture-server integration test under `tests/` that covers the shared
    command surface.
-4. Add the name to `PROVIDERS` in `learn/providers.odin` so `algo learn` accepts
-   `<name>:<slug>` problem keys and can run its jobs.
+4. Add a row to `PROVIDERS` in `learn/providers.odin`, describing how it
+   submits, reports verdicts, and starts attempts, so `algo learn` accepts
+   `<name>:<slug>` problem keys and can run its jobs. The engine reads these
+   traits and never branches on a provider's name.
 
 A provider that wraps another command-line tool sets `passthrough` in its
 `judge.Provider` instead of a command table and receives the raw arguments

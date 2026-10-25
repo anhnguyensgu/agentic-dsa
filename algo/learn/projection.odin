@@ -187,6 +187,7 @@ Attempt_State :: struct {
 	runner_kind:         string,
 	previous_attempt_id: string,
 	fresh:               bool,
+	tests_hash:          string,
 	hint_count:          int,
 	max_hint_level:      int,
 	solution_exposed:    bool,
@@ -321,6 +322,7 @@ apply_event :: proc(st: ^State, ev: Event, kind: Event_Type) {
 				runner_kind = p.runner_kind,
 				previous_attempt_id = p.previous_attempt_id,
 				fresh = p.fresh,
+				tests_hash = p.tests_hash,
 			},
 		)
 		if session != nil {

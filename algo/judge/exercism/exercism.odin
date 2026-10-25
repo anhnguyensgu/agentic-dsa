@@ -1,8 +1,13 @@
 // Package exercism is the Exercism provider for `algo judge exercism`. It
 // mirrors the official exercism CLI instead of reimplementing it: apart from
-// setup and capabilities, every command runs `exercism` with the same
+// setup, list, and capabilities, every command runs `exercism` with the same
 // arguments in the current directory, on this process's terminal, and its
 // output is never parsed. The exercism CLI owns the API token.
+//
+// The exercism CLI cannot list a track's exercises, so `list` reads the
+// track's public config.json from GitHub and caches it in
+// <root>/problems/exercism/.cache/<track>.json, where the learning engine's
+// plan_next finds it.
 //
 // Exercises belong in the global algo workspace, at <root>/problems/exercism.
 // `setup` points the exercism CLI there once; the commands that work on
@@ -13,20 +18,27 @@ import judge ".."
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
+import "core:slice"
+import "core:strconv"
 import "core:strings"
 
-VERSION :: "exercism-odin 0.1.0"
+VERSION :: "exercism-odin 0.2.0"
+
+// Override only at build time for the integration fixture service.
+TRACKS_URL :: #config(EXERCISM_TRACKS_URL, "https://raw.githubusercontent.com/exercism")
 
 CAPABILITIES ::
 	`{"schema_version":1,"provider":"exercism","version":"` +
 	VERSION +
-	`","structured":false,"wraps":"exercism","submission":{"verdict":false,"reason":"exercism submit uploads an iteration; its test results appear only on exercism.org"}}`
+	`","structured":false,"wraps":"exercism","problem_search":{"implemented":true,"cache":"problems/exercism/.cache/<track>.json"},"submission":{"verdict":false,"reason":"exercism submit uploads an iteration; its test results appear only on exercism.org"}}`
 
 USAGE :: `usage: algo judge exercism <command> [arguments]
 
   setup                            point the exercism CLI at the algo workspace
                                    (<root>/problems/exercism); run once, after
                                    exercism configure --token=<token>
+  list [--track odin] [--json]     a track's exercises by difficulty, marking the
+       [--offline]                 downloaded ones; caches the track's catalogue
   capabilities                     machine-readable provider capabilities
   <exercism command> ...           run exercism with the same arguments, e.g.
                                    download --track=odin --exercise=hello-world
@@ -64,6 +76,11 @@ run :: proc(args: []string) -> int {
 		}
 		exit, err := setup()
 		return exit_code("configure", exit, err)
+	case "list":
+		if err := list(args[1:]); err != nil {
+			return judge.exit_code(err)
+		}
+		return 0
 	case "capabilities":
 		if len(args) > 2 || (len(args) == 2 && args[1] != "--json") {
 			fmt.eprintln("capabilities takes no arguments other than --json")
@@ -111,6 +128,178 @@ command_name :: proc(args: []string) -> string {
 		}
 	}
 	return ""
+}
+
+// Catalogue is the cached form of a track's exercises; the learning engine
+// reads the same shape.
+Catalogue :: struct {
+	schema_version: int,
+	track:          string,
+	exercises:      []Catalogue_Entry,
+}
+
+Catalogue_Entry :: struct {
+	slug:       string,
+	name:       string,
+	difficulty: int,
+}
+
+List_Entry :: struct {
+	slug:       string,
+	name:       string,
+	difficulty: int,
+	downloaded: bool,
+}
+
+List_Report :: struct {
+	schema_version: int,
+	track:          string,
+	exercises:      []List_Entry,
+}
+
+// list prints a track's practice exercises, easiest first. It fetches the
+// catalogue and refreshes the cache, or with --offline reads only the cache.
+list :: proc(args: []string) -> Error {
+	track, as_json, offline := "odin", false, false
+	for i := 0; i < len(args); i += 1 {
+		switch args[i] {
+		case "--json":
+			as_json = true
+		case "--offline":
+			offline = true
+		case "--track":
+			if i += 1; i < len(args) {
+				track = args[i]
+				continue
+			}
+			fmt.eprintln("missing value for --track")
+			return .Usage
+		case:
+			fmt.eprintln("unknown argument for list:", args[i])
+			return .Usage
+		}
+	}
+	if !valid_track(track) {
+		fmt.eprintln("a track name has lowercase letters, digits, and '-' only")
+		return .Usage
+	}
+	exercises := judge.join(root() or_return, "problems", "exercism")
+	cache := judge.join(exercises, ".cache", strings.concatenate({track, ".json"}))
+
+	catalogue: Catalogue
+	if offline {
+		data, read_err := os.read_entire_file(cache, context.allocator)
+		if read_err != nil ||
+		   !json.is_valid(data, .JSON) ||
+		   json.unmarshal(data, &catalogue, .JSON) != nil {
+			fmt.eprintf(
+				"no cached catalogue for %s; run `algo judge exercism list --track %s` online once\n",
+				track,
+				track,
+			)
+			return .Offline
+		}
+	} else {
+		catalogue = fetch_catalogue(track) or_return
+		if mkdir_err := os.make_directory_all(os.dir(cache), os.perm(0o755));
+		   mkdir_err != nil && mkdir_err != .Exist {
+			fmt.eprintln("cannot create", os.dir(cache), os.error_string(mkdir_err))
+			return .File
+		}
+		judge.write_file(cache, judge.encode_json(catalogue), judge.PUBLIC_FILE) or_return
+	}
+
+	report := List_Report{1, track, make([]List_Entry, len(catalogue.exercises))}
+	for e, i in catalogue.exercises {
+		report.exercises[i] = {
+			e.slug,
+			e.name,
+			e.difficulty,
+			os.exists(judge.join(exercises, track, e.slug)),
+		}
+	}
+	if as_json {
+		judge.print_json(report)
+		return nil
+	}
+	fmt.printf("%-5s %-28s %-32s %s\n", "DIFF", "SLUG", "NAME", "")
+	for e in report.exercises {
+		fmt.printf(
+			"%-5d %-28s %-32s %s\n",
+			e.difficulty,
+			e.slug,
+			e.name,
+			"downloaded" if e.downloaded else "",
+		)
+	}
+	fmt.eprintf("%d %s exercises\n", len(report.exercises), track)
+	return nil
+}
+
+// fetch_catalogue reads a track's config.json from its GitHub repository and
+// keeps the practice exercises students can start, sorted by difficulty.
+fetch_catalogue :: proc(track: string) -> (catalogue: Catalogue, err: Error) {
+	url := fmt.tprintf("%s/%s/main/config.json", TRACKS_URL, track)
+	output := judge.curl(
+		"-L",
+		"--max-time",
+		"30",
+		"--url",
+		url,
+		"--write-out",
+		`\n%{http_code}`,
+	) or_return
+	body, trailer, _ := judge.split_trailer(output)
+	switch status := strconv.parse_int(strings.trim_space(trailer)) or_else 0; status {
+	case 200:
+	case 404:
+		fmt.eprintf("Exercism has no track named %q\n", track)
+		return {}, .Not_Found
+	case:
+		fmt.eprintf("could not fetch the %s catalogue (HTTP %d)\n", track, status)
+		return {}, .Network
+	}
+	config: struct {
+		exercises: struct {
+			practice: []struct {
+				slug:       string,
+				name:       string,
+				difficulty: int,
+				status:     string,
+			},
+		},
+	}
+	if !json.is_valid(transmute([]byte)body, .JSON) ||
+	   json.unmarshal_string(body, &config, .JSON) != nil {
+		fmt.eprintln("could not parse the track's config.json")
+		return {}, .API
+	}
+	entries := make([dynamic]Catalogue_Entry)
+	for e in config.exercises.practice {
+		// wip and deprecated exercises cannot be started.
+		if e.status == "" || e.status == "active" || e.status == "beta" {
+			append(&entries, Catalogue_Entry{e.slug, e.name, e.difficulty})
+		}
+	}
+	slice.stable_sort_by(entries[:], proc(a, b: Catalogue_Entry) -> bool {
+		return a.difficulty < b.difficulty
+	})
+	return {1, track, entries[:]}, nil
+}
+
+// valid_track accepts a track name, which becomes a URL and path component.
+valid_track :: proc(track: string) -> bool {
+	if track == "" || len(track) > 64 {
+		return false
+	}
+	for c in track {
+		switch c {
+		case 'a' ..= 'z', '0' ..= '9', '-':
+		case:
+			return false
+		}
+	}
+	return true
 }
 
 // setup creates the exercise directory and points the exercism CLI at it.

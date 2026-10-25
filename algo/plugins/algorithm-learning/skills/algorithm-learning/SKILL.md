@@ -5,11 +5,11 @@ description: Run evidence-backed algorithm tutoring sessions with the local algo
 
 # Algorithm Learning
 
-Use the `algorithm-learning` MCP server's tools when available (the Claude Code and Codex plugins provide it); otherwise invoke the JSON CLI, `algo learn`. Online judges are reached through `algo judge <provider> <command>` (providers today: `leetcode`, `kattis`; `exercism` passes its arguments to the official exercism CLI and is not yet usable through the engine). Treat the engine's workspace state as authoritative across conversations and hosts.
+Use the `algorithm-learning` MCP server's tools when available (the Claude Code and Codex plugins provide it); otherwise invoke the JSON CLI, `algo learn`. Online judges are reached through `algo judge <provider> <command>` (providers today: `leetcode`, `kattis`, `exercism`). Treat the engine's workspace state as authoritative across conversations and hosts.
 
 Resume once when entering an existing learning workspace or after context loss or a host switch. Use `doctor` for first setup or a tooling failure. Reuse the returned profile, session, attempt, problem metadata, and workspace revision during the conversation. Ordinary explanations and follow-up questions should usually require no engine calls.
 
-For a new workspace, collect missing profile fields together and initialize once with a complete request. Use known learner preferences; ask for missing choices instead of guessing them. A direct request such as fetching today's problem can proceed before profile setup. Use `plan_next` when the learner needs a recommendation; accept an explicit problem choice directly.
+For a new workspace, collect missing profile fields together and initialize once with a complete request. Use known learner preferences; ask for missing choices instead of guessing them. A direct request such as fetching today's problem can proceed before profile setup. Use `plan_next` when the learner needs a recommendation, with `provider: exercism` when they practise on Exercism so it names concrete exercises; accept an explicit problem choice directly.
 
 Read [references/operations.md](references/operations.md) before the first CLI mutation or when an operation's schema is unclear. Discover unknown schemas once and reuse them. Do not probe fields or enum values through repeated failing calls.
 

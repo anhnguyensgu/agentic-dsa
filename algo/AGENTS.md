@@ -20,7 +20,7 @@ algo/
 │   ├── runner.odin        stdin/stdout sample runner
 │   ├── leetcode/          LeetCode provider (GraphQL, cache, Odin scaffold + runner)
 │   ├── kattis/            Kattis provider (page parsing, login, submit, verdicts)
-│   └── exercism/          Exercism provider (pass-through to the exercism CLI)
+│   └── exercism/          Exercism provider (exercism CLI pass-through, track catalogue)
 ├── learn/               learning engine (library)
 │   ├── operations.odin    OPERATIONS registry shared by CLI and MCP
 │   ├── store.odin, events.odin, projection.odin   event store -> State

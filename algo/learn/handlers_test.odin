@@ -468,7 +468,7 @@ problem_keys_name_any_provider_problem_as_one_path_component :: proc(t: ^testing
 	context.allocator = context.temp_allocator
 	defer free_all(context.temp_allocator)
 
-	for key in ([?]string{"leetcode:trapping-rain-water", "kattis:hello", "kattis:3dprinter"}) {
+	for key in ([?]string{"leetcode:trapping-rain-water", "kattis:hello", "kattis:3dprinter", "exercism:two-fer"}) {
 		problem, err := parse_problem_key(key)
 		testing.expectf(t, err == nil, "%s should be accepted", key)
 		testing.expect_value(t, problem.key, key)
@@ -550,11 +550,40 @@ provider_names_from_the_log_never_become_paths :: proc(t: ^testing.T) {
 		_, err := provider_command(name)
 		testing.expectf(t, err != nil, "resolved provider %q", name)
 	}
-	for name in PROVIDERS {
-		command, err := provider_command(name)
-		testing.expectf(t, err == nil, "known provider %q did not resolve", name)
+	for provider in PROVIDERS {
+		command, err := provider_command(provider.name)
+		testing.expectf(t, err == nil, "known provider %q did not resolve", provider.name)
 		testing.expect_value(t, len(command), 3)
 		testing.expect_value(t, command[1], "judge")
-		testing.expect_value(t, command[2], name)
+		testing.expect_value(t, command[2], provider.name)
 	}
+}
+
+@(test)
+provider_traits_describe_every_provider :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+
+	for provider, id in PROVIDERS {
+		testing.expectf(
+			t,
+			provider.name != "" && provider.title != "",
+			"provider %v is unnamed",
+			id,
+		)
+		found, ok := provider_traits(provider.name)
+		testing.expect(t, ok && found.name == provider.name)
+		// A provider without verdicts can only upload, and a scaffolded
+		// attempt needs a starter source.
+		testing.expect_value(t, provider.check == .None, provider.submit == .Upload)
+		testing.expectf(
+			t,
+			provider.downloads || provider.template != "",
+			"%s has no template",
+			provider.name,
+		)
+	}
+	_, ok := provider_traits("codeforces")
+	testing.expect(t, !ok)
+	testing.expect_value(t, len(provider_names()), len(PROVIDERS))
 }
