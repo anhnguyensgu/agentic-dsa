@@ -1,4 +1,5 @@
 /algo/bin/
+/langlings/langlings
 *.dSYM/
 .DS_Store
 .algo/
