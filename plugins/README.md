@@ -1,20 +1,26 @@
-# Agent plugin
+# Agent plugins
 
-One plugin, `plugins/algorithm-learning/`, serves Claude Code, Codex, and Pi.
-It holds the only copy of the teaching skill, and each agent reads its own
-manifest from the same folder:
+Two plugins serve Claude Code, Codex, and Pi: `algorithm-learning/` for DSA
+tutoring with `algo`, and `langlings/` for coaching fix-the-code language
+exercises (see [langlings](#langlings)). Each holds the only copy of its skill,
+and each agent reads its own manifest from the same folder:
 
 ```text
 plugins/
-├── .claude-plugin/marketplace.json   Claude Code marketplace (lists the plugin below)
-├── .agents/plugins/marketplace.json  Codex marketplace (lists the plugin below)
-└── algorithm-learning/               the plugin
-    ├── skills/algorithm-learning/    the teaching skill (edit here)
-    ├── scripts/launch_algolearn_mcp  starts `algo learn serve` (edit here)
-    ├── .claude-plugin/plugin.json    Claude Code: skill + MCP server (inline)
-    ├── .codex-plugin/plugin.json     Codex: skill + MCP server (.mcp.json)
-    ├── .mcp.json                     Codex's MCP config
-    └── package.json                  Pi: skill
+├── .claude-plugin/marketplace.json   Claude Code marketplace (lists both plugins)
+├── .agents/plugins/marketplace.json  Codex marketplace (lists both plugins)
+├── algorithm-learning/               the algo plugin
+│   ├── skills/algorithm-learning/    the teaching skill (edit here)
+│   ├── scripts/launch_algolearn_mcp  starts `algo learn serve` (edit here)
+│   ├── .claude-plugin/plugin.json    Claude Code: skill + MCP server (inline)
+│   ├── .codex-plugin/plugin.json     Codex: skill + MCP server (.mcp.json)
+│   ├── .mcp.json                     Codex's MCP config
+│   └── package.json                  Pi: skill
+└── langlings/                        the langlings plugin: skill only
+    ├── skills/langlings/             the coaching skill (edit here)
+    ├── .claude-plugin/plugin.json    Claude Code
+    ├── .codex-plugin/plugin.json     Codex
+    └── package.json                  Pi
 ```
 
 Every agent reaches the same `algo learn` operation registry and workspace event
@@ -121,6 +127,27 @@ for every engine operation, returns the envelope in `structuredContent` and an
 equivalent text block, and keeps diagnostics off stdout. Do not copy
 configuration keys from one agent to another; if an agent does not document
 local stdio MCP, use the JSON CLI.
+
+## langlings
+
+The `langlings` plugin is a skill only: langlings has no MCP server, so the
+skill drives the `langlings` CLI (`list`, `run`, `hint`, `verify`, `reset`,
+`add`) through the agent's shell tool and never starts the interactive watch
+mode. It needs `langlings` on `PATH` and the course's toolchain (for example
+`odin` for odinlings):
+
+```sh
+(cd langlings && go build -o ~/.local/bin/langlings .)
+
+claude plugin install langlings@agentic-dsa    # Claude Code
+codex plugin add langlings@agentic-dsa         # Codex
+pi install ./plugins/langlings                 # Pi
+```
+
+Start the agent in a langlings workspace (the folder holding `tracks/`, or an
+empty folder to `langlings add` a course into) and ask, for example, "help me
+with the next odinlings exercise". Progress stays in langlings' own
+`.langlings/progress.json`; the plugin does not record anything in `algo learn`.
 
 ## Moving to another machine
 

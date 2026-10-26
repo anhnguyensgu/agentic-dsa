@@ -27,8 +27,9 @@ def read_json(path: Path) -> dict:
 
 
 def check_skill() -> None:
-    # One skill, shared by every agent: no copies anywhere in the tree.
-    skills = sorted(path.relative_to(ROOT.parent) for path in ROOT.parent.rglob("SKILL.md") if ".git" not in path.parts)
+    # One skill, shared by every agent: no copies anywhere in the tree. Other
+    # plugins in plugins/ bring their own skills.
+    skills = sorted(path.relative_to(ROOT.parent) for path in ROOT.parent.rglob("SKILL.md") if ".git" not in path.parts and path.parent.name == NAME)
     assert skills == [Path("plugins/algorithm-learning/skills/algorithm-learning/SKILL.md")], skills
     for file in PLUGIN.rglob("*"):
         if file.is_file() and file.suffix in {".json", ".md", ".yaml"}:
@@ -42,8 +43,8 @@ def check_claude() -> None:
     server = manifest["mcpServers"][NAME]
     assert server["command"] == "${CLAUDE_PLUGIN_ROOT}/scripts/launch_algolearn_mcp"
 
-    [entry] = read_json(MARKETPLACE / ".claude-plugin" / "marketplace.json")["plugins"]
-    assert entry["name"] == NAME and (MARKETPLACE / entry["source"]).resolve() == PLUGIN.resolve()
+    [entry] = [entry for entry in read_json(MARKETPLACE / ".claude-plugin" / "marketplace.json")["plugins"] if entry["name"] == NAME]
+    assert (MARKETPLACE / entry["source"]).resolve() == PLUGIN.resolve()
 
     # Claude's own validator, when this machine has Claude Code installed.
     if claude := shutil.which("claude"):
@@ -59,8 +60,8 @@ def check_codex() -> None:
     server = read_json(PLUGIN / ".mcp.json")["mcpServers"][NAME]
     assert server["command"] == "./scripts/launch_algolearn_mcp"
 
-    [entry] = read_json(MARKETPLACE / ".agents" / "plugins" / "marketplace.json")["plugins"]
-    assert entry["name"] == NAME and entry["source"]["source"] == "local"
+    [entry] = [entry for entry in read_json(MARKETPLACE / ".agents" / "plugins" / "marketplace.json")["plugins"] if entry["name"] == NAME]
+    assert entry["source"]["source"] == "local"
     assert (MARKETPLACE / entry["source"]["path"]).resolve() == PLUGIN.resolve()
 
 

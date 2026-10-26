@@ -1,0 +1,10 @@
+{
+  "name": "langlings",
+  "version": "0.1.0",
+  "description": "Coach fix-the-code language exercises (odinlings, ziglings, rustlings) with the local langlings runner.",
+  "private": true,
+  "keywords": ["pi-package"],
+  "pi": {
+    "skills": ["./skills"]
+  }
+}
