@@ -35,10 +35,10 @@ python3 tests/live_smoke.py
 PI_OFFLINE=1 pi --skill skills/algorithm-learning --list-models
   PASS: Pi 0.85.1 accepted the shared skill path without a model call
 
-claude plugin validate --strict plugins/algorithm-learning (and plugins/)
-claude plugin marketplace add ./algo/plugins && claude plugin install algorithm-learning@agentic-dsa
-codex plugin marketplace add ./algo/plugins && codex plugin add algorithm-learning@agentic-dsa
-echo '{"type":"get_commands"}' | pi --mode rpc --no-session -e plugins/algorithm-learning
+claude plugin validate --strict ../plugins/algorithm-learning (and ../plugins/)
+claude plugin marketplace add ./plugins && claude plugin install algorithm-learning@agentic-dsa
+codex plugin marketplace add ./plugins && codex plugin add algorithm-learning@agentic-dsa
+echo '{"type":"get_commands"}' | pi --mode rpc --no-session -e ../plugins/algorithm-learning
   PASS on 2026-10-20 with isolated CLAUDE_CONFIG_DIR and CODEX_HOME: Claude Code
   2.1.304 and Codex 0.161.0 installed the one plugin and started its MCP server;
   Pi 1.0.2 loaded skill:algorithm-learning from the same folder
@@ -55,7 +55,7 @@ must be updated if later edits change them.
 | A02 | Pass | LeetCode and Kattis fixture suites exercise structured discovery, problem data, safe scaffolds, local runners, and job contracts; both feed the same engine through `<provider>:<slug>` problem keys. |
 | A03 | Pass | `tests/mcp_protocol.py` compares MCP `state_get` with CLI state and checks equivalent structured/text envelopes. |
 | A04 | Pass | Checkpoint handoffs, changed-source hashes, portable export/import, and restored source bytes are exercised end to end. |
-| A05 | Pass | `plugins/README.md` documents shell and text-only behavior; the CLI and native MCP process are exercised directly. |
+| A05 | Pass | `../plugins/README.md` documents shell and text-only behavior; the CLI and native MCP process are exercised directly. |
 | A06 | Pass | LeetCode and Kattis collision fixtures preserve existing source bytes; engine fresh attempts reject existing or symlink-escaped destinations. |
 | A07 | Pass | Legacy hashes remain unchanged, imported shell commands stay inert, ambiguous events remain unresolved, and identical reimport is idempotent. |
 | A08 | Pass | Unit and reviewed teaching scenarios cover light/decisive help, cumulative disclosure, copied or agent-authored code, direct solutions, and translation-level exposure. |

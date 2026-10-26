@@ -9,8 +9,8 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-# algo/plugins/ is the marketplace root for both Claude Code and Codex.
-MARKETPLACE = ROOT / "plugins"
+# plugins/, beside algo/, is the marketplace root for both Claude Code and Codex.
+MARKETPLACE = ROOT.parent / "plugins"
 PLUGIN = MARKETPLACE / "algorithm-learning"
 LAUNCHER = PLUGIN / "scripts" / "launch_algolearn_mcp"
 NAME = "algorithm-learning"
@@ -28,7 +28,7 @@ def read_json(path: Path) -> dict:
 
 def check_skill() -> None:
     # One skill, shared by every agent: no copies anywhere in the tree.
-    skills = sorted(path.relative_to(ROOT) for path in ROOT.rglob("SKILL.md"))
+    skills = sorted(path.relative_to(ROOT.parent) for path in ROOT.parent.rglob("SKILL.md") if ".git" not in path.parts)
     assert skills == [Path("plugins/algorithm-learning/skills/algorithm-learning/SKILL.md")], skills
     for file in PLUGIN.rglob("*"):
         if file.is_file() and file.suffix in {".json", ".md", ".yaml"}:

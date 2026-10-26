@@ -8,7 +8,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 ALGO = ROOT / "bin" / "algo"
-SKILL = ROOT / "plugins" / "algorithm-learning" / "skills" / "algorithm-learning"
+SKILL = ROOT.parent / "plugins" / "algorithm-learning" / "skills" / "algorithm-learning"
 
 
 def registered_operations() -> set[str]:

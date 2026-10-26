@@ -17,7 +17,7 @@ make install PREFIX="$HOME/.local"
 ```
 
 The build produces `bin/algo`; the engine runs as `algo learn`. The agent plugin in
-`plugins/algorithm-learning/` (Claude Code, Codex, and Pi) ships no binary and
+`../plugins/algorithm-learning/` (Claude Code, Codex, and Pi) ships no binary and
 runs the installed `algo`.
 
 ## Start a workspace
@@ -143,9 +143,9 @@ The native server implements newline-delimited MCP stdio for protocol
 `2025-11-25`, including initialization, `tools/list`, `tools/call`, cancellation,
 shutdown, typed input/output schemas, and equivalent text plus structured
 content. Diagnostics stay on stderr. The portable teaching skill is in
-`plugins/algorithm-learning/skills/algorithm-learning/`.
+`../plugins/algorithm-learning/skills/algorithm-learning/`.
 
-See [`plugins/README.md`](../plugins/README.md) to set up Claude Code, Codex,
+See [`../plugins/README.md`](../../plugins/README.md) to set up Claude Code, Codex,
 Pi, or any other agent through MCP or the JSON CLI.
 
 ## Storage and data control
