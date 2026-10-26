@@ -1,0 +1,1165 @@
+# odinlings: small fix-the-code exercises for Odin, in the spirit of rustlings.
+# The order follows the Odin overview (https://odin-lang.org/docs/overview/)
+# and the demo file (examples/demo/demo.odin). The course source, with
+# solutions and dev/verify.sh, is langlings/builtin/odinlings.
+
+root = "../odinlings"
+run = "mkdir -p .build && odin run {file} -file -out:.build/{name}"
+test = "mkdir -p .build && odin test {file} -file -out:.build/{name} -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true -define:ODIN_TEST_LOG_LEVEL=warning -define:ODIN_TEST_FANCY=false -define:ODIN_TEST_SHORT_LOGS=true"
+
+# 00 intro
+
+[[exercise]]
+name = "intro1"
+file = "exercises/00_intro/intro1.odin"
+readme = "exercises/00_intro/README.md"
+expect = """
+Hellope! Welcome to odinlings.
+Fix each exercise, save the file, and watch it pass."""
+hint = "Nothing to fix here. Press `n` to move on."
+
+[[exercise]]
+name = "intro2"
+file = "exercises/00_intro/intro2.odin"
+readme = "exercises/00_intro/README.md"
+expect = "Hellope!"
+hint = """
+The compiler says `fmt` is an undeclared name.
+Packages from the standard library come in with `import "core:fmt"`,
+placed after the `package` line."""
+
+# 01 variables
+
+[[exercise]]
+name = "variables1"
+file = "exercises/01_variables/variables1.odin"
+readme = "exercises/01_variables/README.md"
+expect = "x has the value 5"
+hint = """
+`x = 5` assigns to a variable that already exists.
+To declare a new one and let Odin infer its type, use `:=`."""
+
+[[exercise]]
+name = "variables2"
+file = "exercises/01_variables/variables2.odin"
+readme = "exercises/01_variables/README.md"
+expect = "x is 3.5"
+hint = """
+`x := 10` infers `int` from the literal, and an `int` can't hold 3.5.
+Start `x` from a floating-point literal (`10.0`) or give it a type: `x: f64 = 10`."""
+
+[[exercise]]
+name = "variables3"
+file = "exercises/01_variables/variables3.odin"
+readme = "exercises/01_variables/README.md"
+expect = "Zero values checked!"
+hint = """
+Odin zero-initializes everything: numbers are 0, strings are "",
+booleans are false. `???` isn't valid syntax, so replace all four."""
+
+[[exercise]]
+name = "variables4"
+file = "exercises/01_variables/variables4.odin"
+readme = "exercises/01_variables/README.md"
+expect = "lives: 3"
+hint = """
+The error says the array count must be a constant.
+`name :: value` declares a compile-time constant; `name := value` declares a variable."""
+
+[[exercise]]
+name = "variables5"
+file = "exercises/01_variables/variables5.odin"
+readme = "exercises/01_variables/README.md"
+expect = """
+number is 5
+number is 15"""
+hint = """
+`number := ...` declares a second `number` in the same scope, which Odin rejects.
+You don't need a new variable here, just a new value: assign with `=`."""
+
+[[exercise]]
+name = "variables6"
+file = "exercises/01_variables/variables6.odin"
+readme = "exercises/01_variables/README.md"
+expect = "a = 2, b = 1"
+hint = """
+After `a = b`, the old value of `a` is gone.
+Odin evaluates every right-hand value first in a multiple assignment: `a, b = b, a`."""
+
+# 02 procedures
+
+[[exercise]]
+name = "procedures1"
+file = "exercises/02_procedures/procedures1.odin"
+readme = "exercises/02_procedures/README.md"
+hint = """
+`main` calls `call_me`, which doesn't exist yet.
+Declare it at the top level: `call_me :: proc() { ... }`."""
+
+[[exercise]]
+name = "procedures2"
+file = "exercises/02_procedures/procedures2.odin"
+readme = "exercises/02_procedures/README.md"
+expect = """
+Ring! Call number 1
+Ring! Call number 2
+Ring! Call number 3"""
+hint = """
+Every parameter needs a type: `name: Type`. The compiler reads `proc(num)` as
+an unnamed parameter whose *type* is `num`, which is why it says `num` is
+undeclared. `num` is used as a count, so `int` fits."""
+
+[[exercise]]
+name = "procedures3"
+file = "exercises/02_procedures/procedures3.odin"
+readme = "exercises/02_procedures/README.md"
+expect = """
+Hellope, Ada!
+Good morning, Bill!"""
+hint = """
+A default value goes where the type is: `greeting := "Hellope"`
+(or `greeting: string = "Hellope"`). Callers can then leave the argument out."""
+
+[[exercise]]
+name = "procedures4"
+file = "exercises/02_procedures/procedures4.odin"
+readme = "exercises/02_procedures/README.md"
+expect = "Your sale price is 48"
+hint = """
+The procedure returns a value, but its signature doesn't say so.
+Results go after `->`: `proc(price: int) -> int`."""
+
+[[exercise]]
+name = "procedures5"
+file = "exercises/02_procedures/procedures5.odin"
+readme = "exercises/02_procedures/README.md"
+mode = "test"
+hint = """
+`largest` starts as the first number but is never updated.
+Mirror the `smallest` check with `n > largest`."""
+
+[[exercise]]
+name = "procedures6"
+file = "exercises/02_procedures/procedures6.odin"
+readme = "exercises/02_procedures/README.md"
+expect = "100 0 42"
+hint = """
+You can't assign to a parameter, but you can declare a local variable with
+the same name that starts as a copy of it: `score := score`."""
+
+[[exercise]]
+name = "procedures7"
+file = "exercises/02_procedures/procedures7.odin"
+readme = "exercises/02_procedures/README.md"
+expect = """
+0
+6
+9"""
+hint = """
+`sum(odds)` tries to pass the whole slice as one `int`.
+Prefix the argument with `..` to spread it: `sum(..odds)`."""
+
+[[exercise]]
+name = "procedures8"
+file = "exercises/02_procedures/procedures8.odin"
+readme = "exercises/02_procedures/README.md"
+expect = """
+3
+[4, 6]"""
+hint = """
+An overload group is a constant too: `add :: proc{add_ints, add_vectors}`.
+Each call resolves to the member whose parameter types match."""
+
+# 03 control flow
+
+[[exercise]]
+name = "if1"
+file = "exercises/03_control_flow/if1.odin"
+readme = "exercises/03_control_flow/README.md"
+mode = "test"
+hint = """
+`if a > b { return a }` and then `return b` after it.
+No parentheses around the condition, and the braces are required."""
+
+[[exercise]]
+name = "if2"
+file = "exercises/03_control_flow/if2.odin"
+readme = "exercises/03_control_flow/README.md"
+mode = "test"
+hint = """
+Put the declaration before the condition with a semicolon:
+`if r := a % b; r == 0 { ... }`. The `else if` branches can see `r` too."""
+
+[[exercise]]
+name = "if3"
+file = "exercises/03_control_flow/if3.odin"
+readme = "exercises/03_control_flow/README.md"
+mode = "test"
+hint = """
+The shape is `value_if_true if condition else value_if_false`,
+for example `-n if n < 0 else n`."""
+
+[[exercise]]
+name = "switch1"
+file = "exercises/03_control_flow/switch1.odin"
+readme = "exercises/03_control_flow/README.md"
+mode = "test"
+hint = """
+Rune ranges work like number ranges: `case '0' ..= '9':`.
+List several values in one case with commas: `case ' ', '\\t', '\\n':`."""
+
+[[exercise]]
+name = "switch2"
+file = "exercises/03_control_flow/switch2.odin"
+readme = "exercises/03_control_flow/README.md"
+expect = """
+fuel
+ignition
+liftoff"""
+hint = """
+Each case stops at its end. Write `fallthrough` as the last statement of a case
+to continue into the next one. Two cases need it."""
+
+[[exercise]]
+name = "loops1"
+file = "exercises/03_control_flow/loops1.odin"
+readme = "exercises/03_control_flow/README.md"
+mode = "test"
+hint = """
+The three parts are init, condition, post: `for i := 1; i <= n; i += 1`.
+Odin has no `++`. A while loop drops the semicolons: `for n != 1 { ... }`."""
+
+[[exercise]]
+name = "loops2"
+file = "exercises/03_control_flow/loops2.odin"
+readme = "exercises/03_control_flow/README.md"
+mode = "test"
+hint = """
+`for _ in s { count += 1 }` runs once per rune. `_` throws the value away.
+For the second one, `for x, i in xs` gives you the index `i` next to the value."""
+
+[[exercise]]
+name = "loops3"
+file = "exercises/03_control_flow/loops3.odin"
+readme = "exercises/03_control_flow/README.md"
+mode = "test"
+hint = """
+Label the outer loop with `search: for r in 0 ..< 3 {` and leave it with
+`break search`. (A plain `return` would also do here.)"""
+
+# 04 defer and when
+
+[[exercise]]
+name = "defer1"
+file = "exercises/04_defer_when/defer1.odin"
+readme = "exercises/04_defer_when/README.md"
+expect = """
+1. open the door
+2. turn on the light
+3. read a book
+4. turn off the light
+5. close the door"""
+hint = """
+A deferred line runs when `main` ends, and the last one deferred runs first.
+Defer the "5." line and the "4." line."""
+
+[[exercise]]
+name = "defer2"
+file = "exercises/04_defer_when/defer2.odin"
+readme = "exercises/04_defer_when/README.md"
+mode = "test"
+hint = """
+Go one statement at a time. A `{ }` block and each loop iteration are scopes of
+their own, so their defers run at their closing brace. A deferred call reads
+`x` when it runs, not when it was written. There are seven values."""
+
+[[exercise]]
+name = "when1"
+file = "exercises/04_defer_when/when1.odin"
+readme = "exercises/04_defer_when/README.md"
+expect = "debug build"
+hint = """
+`debug_mode := true` is a variable, and its value is only known at run time.
+Make it a constant with `::`, e.g. `DEBUG_MODE :: true`, and use that name in the `when`."""
+
+[[exercise]]
+name = "when2"
+file = "exercises/04_defer_when/when2.odin"
+readme = "exercises/04_defer_when/README.md"
+cmd = "mkdir -p .build && odin run {file} -file -out:.build/{name} -define:GREETING=Hellope"
+expect = "Hellope world"
+hint = """
+`GREETING :: #config(GREETING, "Hello")`. The first argument is the name used
+with `-define`, the second is the default."""
+
+# 05 primitive types
+
+[[exercise]]
+name = "primitives1"
+file = "exercises/05_primitive_types/primitives1.odin"
+readme = "exercises/05_primitive_types/README.md"
+expect = """
+Good morning!
+It's not evening."""
+hint = """
+`!` negates a bool: `is_evening := !is_morning`."""
+
+[[exercise]]
+name = "primitives2"
+file = "exercises/05_primitive_types/primitives2.odin"
+readme = "exercises/05_primitive_types/README.md"
+mode = "test"
+hint = """
+Convert with the type name as a procedure: `rune(name[0])`.
+For the uppercase letter, shift by the distance between the alphabets: `c - 'a' + 'A'`."""
+
+[[exercise]]
+name = "primitives3"
+file = "exercises/05_primitive_types/primitives3.odin"
+readme = "exercises/05_primitive_types/README.md"
+expect = "Wow, that's a big array!"
+hint = """
+An array type is `[N]T`, and an empty compound literal zeroes it: `[100]int{}`."""
+
+[[exercise]]
+name = "primitives4"
+file = "exercises/05_primitive_types/primitives4.odin"
+readme = "exercises/05_primitive_types/README.md"
+mode = "test"
+hint = """
+2 is at index 1 and 4 is at index 3. The end of a slice expression is
+exclusive, so `a[1:4]`."""
+
+[[exercise]]
+name = "primitives5"
+file = "exercises/05_primitive_types/primitives5.odin"
+readme = "exercises/05_primitive_types/README.md"
+mode = "test"
+hint = """
+`total / count` is an int division, and an `int` can't be returned as `f64`.
+Convert both sides before dividing: `f64(total) / f64(count)`."""
+
+[[exercise]]
+name = "primitives6"
+file = "exercises/05_primitive_types/primitives6.odin"
+readme = "exercises/05_primitive_types/README.md"
+mode = "test"
+hint = """
+`-1 % 5` is -1, but `-1 %% 5` is 4. For the u8 sum: 250 + 10 = 260, and a u8
+counts modulo 256."""
+
+# 06 arrays
+
+[[exercise]]
+name = "arrays1"
+file = "exercises/06_arrays/arrays1.odin"
+readme = "exercises/06_arrays/README.md"
+mode = "test"
+hint = """
+Take a pointer: `arr: ^[3]int`. `arr[0] = 0` still works through it.
+For the second test: `b := a` copies the array, so changing `b` leaves `a` alone."""
+
+[[exercise]]
+name = "arrays2"
+file = "exercises/06_arrays/arrays2.odin"
+readme = "exercises/06_arrays/README.md"
+mode = "test"
+hint = """
+`(a + b) * 0.5` works on all three elements at once.
+Build a new array from swizzle fields with `{v.x, v.y, 0}`, and `v.zyx` reverses."""
+
+# 07 slices and dynamic arrays
+
+[[exercise]]
+name = "slices1"
+file = "exercises/07_slices_dynamic/slices1.odin"
+readme = "exercises/07_slices_dynamic/README.md"
+mode = "test"
+hint = """
+The compiler suggests it: declare the loop variable as `&x` to make it mutable.
+For the second test, `s := a[1:]` starts at `a[1]`, so `s[0]` *is* `a[1]`."""
+
+[[exercise]]
+name = "dynamic1"
+file = "exercises/07_slices_dynamic/dynamic1.odin"
+readme = "exercises/07_slices_dynamic/README.md"
+mode = "test"
+hint = """
+`append(&result, i * i)`. It takes the array's address because growing may
+move the elements."""
+
+[[exercise]]
+name = "dynamic2"
+file = "exercises/07_slices_dynamic/dynamic2.odin"
+readme = "exercises/07_slices_dynamic/README.md"
+mode = "test"
+hint = """
+The test passes `&list`, so the parameter is `list: ^[dynamic]string`.
+It's already a pointer then: `append(list, item)`, no `&`."""
+
+[[exercise]]
+name = "dynamic3"
+file = "exercises/07_slices_dynamic/dynamic3.odin"
+readme = "exercises/07_slices_dynamic/README.md"
+mode = "test"
+hint = """
+`ordered_remove(xs, i)` takes the same arguments and keeps the order."""
+
+[[exercise]]
+name = "dynamic4"
+file = "exercises/07_slices_dynamic/dynamic4.odin"
+readme = "exercises/07_slices_dynamic/README.md"
+mode = "test"
+hint = """
+`append` returns how many elements it added: 1 if there was room, 0 if not.
+Comparing `len(party)` with `cap(party)` before appending works too."""
+
+# 08 structs
+
+[[exercise]]
+name = "structs1"
+file = "exercises/08_structs/structs1.odin"
+readme = "exercises/08_structs/README.md"
+mode = "test"
+hint = """
+`Color :: struct { red, green, blue: u8 }`. Fields that share a type can share
+a line. A struct declaration is a constant, so it uses `::`."""
+
+[[exercise]]
+name = "structs2"
+file = "exercises/08_structs/structs2.odin"
+readme = "exercises/08_structs/README.md"
+mode = "test"
+hint = """
+`your_order := template` copies the whole struct. Then set the two fields that
+differ: `your_order.name = "Hacker"` and `your_order.count = 1`."""
+
+[[exercise]]
+name = "structs3"
+file = "exercises/08_structs/structs3.odin"
+readme = "exercises/08_structs/README.md"
+mode = "test"
+hint = """
+In `make_package`, return `{}, false` for light packages and
+`Package{sender, recipient, weight}, true` otherwise.
+International means the two countries differ; the fee is weight times the rate."""
+
+[[exercise]]
+name = "structs4"
+file = "exercises/08_structs/structs4.odin"
+readme = "exercises/08_structs/README.md"
+mode = "test"
+hint = """
+Put `using` in front of both fields: `using pos: Vec2` and `using entity: Entity`.
+The names stay, so `frog.entity.pos.x` still works too."""
+
+# 09 pointers
+
+[[exercise]]
+name = "pointers1"
+file = "exercises/09_pointers/pointers1.odin"
+readme = "exercises/09_pointers/README.md"
+expect = "score is 15"
+hint = """
+`&score` is the address of `score`. Dereference with `^` after the pointer:
+`p^ += 5`."""
+
+[[exercise]]
+name = "pointers2"
+file = "exercises/09_pointers/pointers2.odin"
+readme = "exercises/09_pointers/README.md"
+mode = "test"
+hint = """
+Take `p: ^Player`. The body can stay as it is, since field access goes through
+the pointer."""
+
+[[exercise]]
+name = "pointers3"
+file = "exercises/09_pointers/pointers3.odin"
+readme = "exercises/09_pointers/README.md"
+mode = "test"
+hint = """
+`c := new(Counter)` gives a `^Counter` on the heap. Set `c.count = start` and
+return `c`. In the test, `defer free(c)` right after creating it; without that,
+the test fails with a leak."""
+
+[[exercise]]
+name = "pointers4"
+file = "exercises/09_pointers/pointers4.odin"
+readme = "exercises/09_pointers/README.md"
+mode = "test"
+hint = """
+Loop with `for &p in players`, so `p` is the element itself and `&p` points
+into the slice. Return `&p` when the name matches and `nil` after the loop."""
+
+# 10 enums
+
+[[exercise]]
+name = "enums1"
+file = "exercises/10_enums/enums1.odin"
+readme = "exercises/10_enums/README.md"
+expect = """
+Resize
+Move
+Echo
+Quit"""
+hint = """
+`Message :: enum { Resize, Move, Echo, Quit }`. One value per line, each
+followed by a comma, is the usual layout."""
+
+[[exercise]]
+name = "enums2"
+file = "exercises/10_enums/enums2.odin"
+readme = "exercises/10_enums/README.md"
+mode = "test"
+hint = """
+`case .North: return .South` and so on, one case per direction.
+For `turn_right`: `Direction((int(d) + 1) % len(Direction))`."""
+
+[[exercise]]
+name = "enums3"
+file = "exercises/10_enums/enums3.odin"
+readme = "exercises/10_enums/README.md"
+mode = "test"
+hint = """
+Add `case .Teleport: return 50` to the first switch.
+Write the second one as `#partial switch c { ... }`."""
+
+[[exercise]]
+name = "enums4"
+file = "exercises/10_enums/enums4.odin"
+readme = "exercises/10_enums/README.md"
+mode = "test"
+hint = """
+`[Fruit]int{.Apple = 3, .Banana = 2, .Cherry = 5}`. The loop gives the element
+first and the enum value second: `total += count * prices[fruit]`."""
+
+# 11 unions
+
+[[exercise]]
+name = "unions1"
+file = "exercises/11_unions/unions1.odin"
+readme = "exercises/11_unions/README.md"
+mode = "test"
+hint = """
+Add `case Triangle: return v.base * v.height / 2`. In that case, `v` is a
+`Triangle`."""
+
+[[exercise]]
+name = "unions2"
+file = "exercises/11_unions/unions2.odin"
+readme = "exercises/11_unions/README.md"
+mode = "test"
+hint = """
+Assign the assertion to two values: `n, ok = v.(int)`, then `return`.
+If `v` holds something else, `ok` is false instead of the program panicking."""
+
+[[exercise]]
+name = "unions3"
+file = "exercises/11_unions/unions3.odin"
+readme = "exercises/11_unions/README.md"
+mode = "test"
+hint = """
+Loop with `for x, i in xs` and `return i` on a match: the int becomes a
+`Maybe(int)` on its own. Keep `return nil` after the loop."""
+
+# 12 strings
+
+[[exercise]]
+name = "strings1"
+file = "exercises/12_strings/strings1.odin"
+readme = "exercises/12_strings/README.md"
+mode = "test"
+hint = """
+`strings.trim_space(s)`, `strings.has_prefix(s, "Hellope")`.
+For the extension, find `dot := strings.last_index_byte(path, '.')` and return
+`path[dot + 1:]`, or "" when `dot < 0`."""
+
+[[exercise]]
+name = "strings2"
+file = "exercises/12_strings/strings2.odin"
+readme = "exercises/12_strings/README.md"
+mode = "test"
+hint = """
+Both writers take a pointer to the builder: `strings.write_string(&b, ", ")`
+and `strings.write_int(&b, i)`. Skip the separator when `i == 1`."""
+
+[[exercise]]
+name = "strings3"
+file = "exercises/12_strings/strings3.odin"
+readme = "exercises/12_strings/README.md"
+mode = "test"
+hint = """
+Add `defer delete(words)` right after each `strings.fields` call.
+The words point into `text`, not into the slice, so they outlive it."""
+
+[[exercise]]
+name = "strings4"
+file = "exercises/12_strings/strings4.odin"
+readme = "exercises/12_strings/README.md"
+mode = "test"
+hint = """
+Switch `fmt.aprintf` to `fmt.tprintf`. The pieces then live in the temp
+allocator, and only the joined string needs a `delete`. (Deleting each piece
+after the join would also work.)"""
+
+# 13 packages
+
+[[exercise]]
+name = "packages1"
+file = "exercises/13_packages/packages1.odin"
+readme = "exercises/13_packages/README.md"
+expect = "odin-is-fun"
+hint = """
+Put a name before the path: `import str "core:strings"`, then call
+`str.join(...)`. The variable `strings` keeps its name."""
+
+[[exercise]]
+name = "packages2"
+file = "exercises/13_packages/packages2/shapes/shapes.odin"
+readme = "exercises/13_packages/README.md"
+cmd = "mkdir -p .build && odin run exercises/13_packages/packages2 -out:.build/{name}"
+expect = """
+area: 12
+square: false"""
+hint = """
+Remove `@(private)` from `area` and `is_square`. `same` can stay
+`@(private)`, or become `@(private="file")` to hide it from the rest of the
+package too."""
+
+# 14 maps
+
+[[exercise]]
+name = "maps1"
+file = "exercises/14_maps/maps1.odin"
+readme = "exercises/14_maps/README.md"
+mode = "test"
+hint = """
+Insert like you assign: `basket["apple"] = 3`. You need at least three kinds
+of fruit and at least five pieces in total."""
+
+[[exercise]]
+name = "maps2"
+file = "exercises/14_maps/maps2.odin"
+readme = "exercises/14_maps/README.md"
+mode = "test"
+hint = """
+`if fruit not_in basket { basket[fruit] = 1 }`. Indexing through the `^map`
+works without dereferencing."""
+
+[[exercise]]
+name = "maps3"
+file = "exercises/14_maps/maps3.odin"
+readme = "exercises/14_maps/README.md"
+mode = "test"
+hint = """
+Copy, change, store back: `team := scores[m.home]`, update its fields, then
+`scores[m.home] = team`. A missing key reads as `Team{}`, so new teams start at
+zero. A small helper procedure saves writing it twice."""
+
+[[exercise]]
+name = "quiz1"
+file = "exercises/quizzes/quiz1.odin"
+readme = "exercises/quizzes/README.md"
+mode = "test"
+hint = """
+Loop `for event, i in events` and type-switch: `switch e in event`.
+`stock[e.item] += e.qty` works for new items too. For a sale, compare
+`stock[e.item]` with `e.qty` first, and on failure `append(&failed, i)`.
+For `low_stock`, collect into a `[dynamic]string` and return `low[:]`."""
+
+# 15 error handling
+
+[[exercise]]
+name = "errors1"
+file = "exercises/15_error_handling/errors1.odin"
+readme = "exercises/15_error_handling/README.md"
+mode = "test"
+hint = """
+Check before formatting: `if name == "" { return "", .Empty_Name }`, and the
+same with `len(name) > 20` for `.Too_Long`."""
+
+[[exercise]]
+name = "errors2"
+file = "exercises/15_error_handling/errors2.odin"
+readme = "exercises/15_error_handling/README.md"
+mode = "test"
+hint = """
+Keep the second result: `qty, ok := strconv.parse_int(item_quantity)`, and
+`if !ok { return 0, .Not_A_Number }`."""
+
+[[exercise]]
+name = "errors3"
+file = "exercises/15_error_handling/errors3.odin"
+readme = "exercises/15_error_handling/README.md"
+mode = "test"
+hint = """
+`cfg.name = parse_name(name) or_return`. `or_return` takes the error result
+off the right-hand side, so only the value is left to assign."""
+
+[[exercise]]
+name = "errors4"
+file = "exercises/15_error_handling/errors4.odin"
+readme = "exercises/15_error_handling/README.md"
+mode = "test"
+hint = """
+`strconv.parse_int(s) or_else 8080` and `nicknames[name] or_else "buddy"`."""
+
+[[exercise]]
+name = "errors5"
+file = "exercises/15_error_handling/errors5.odin"
+readme = "exercises/15_error_handling/README.md"
+mode = "test"
+hint = """
+`text := read_file(files, path) or_return`, then `return count_settings(text)`.
+In `describe`, `switch e in err` with a case per error type; a nil error
+falls through the switch, so return "ok" after it."""
+
+[[exercise]]
+name = "errors6"
+file = "exercises/15_error_handling/errors6.odin"
+readme = "exercises/15_error_handling/README.md"
+mode = "test"
+hint = """
+`n := strconv.parse_int(w) or_continue` in the first loop and `... or_break`
+in the second. The `ok` result disappears from the left-hand side.
+Watch "3rd": `parse_int` returns 3 *and* `ok = false`, so ignoring `ok`
+quietly counts it."""
+
+# 16 memory
+
+[[exercise]]
+name = "memory1"
+file = "exercises/16_memory/memory1.odin"
+readme = "exercises/16_memory/README.md"
+mode = "test"
+hint = """
+The test owns the greeting and already deletes it. Remove the `defer delete(s)`
+from `make_greeting`, since that frees it before it's returned."""
+
+[[exercise]]
+name = "memory2"
+file = "exercises/16_memory/memory2.odin"
+readme = "exercises/16_memory/README.md"
+mode = "test"
+hint = """
+Add `allocator := context.allocator` as the last parameter and pass it to
+`strings.repeat(upper, times, allocator)`. `upper` can stay in the temp
+allocator."""
+
+[[exercise]]
+name = "memory3"
+file = "exercises/16_memory/memory3.odin"
+readme = "exercises/16_memory/README.md"
+mode = "test"
+hint = """
+`virtual.arena_init_growing(&arena)` (it returns an error you can check),
+`defer virtual.arena_destroy(&arena)`, then
+`build_list(1000, virtual.arena_allocator(&arena))`."""
+
+[[exercise]]
+name = "memory4"
+file = "exercises/16_memory/memory4.odin"
+readme = "exercises/16_memory/README.md"
+expect = """
+["ada", "bo"] ODIN
+leaks: 0
+bad frees: 0"""
+hint = """
+`names` and `upper` are both allocated with `context.allocator`.
+`defer delete(names)` and `defer delete(upper)` right after each one."""
+
+# 17 context
+
+[[exercise]]
+name = "context1"
+file = "exercises/17_context/context1.odin"
+readme = "exercises/17_context/README.md"
+mode = "test"
+hint = """
+A callee sees the context of the scope it was called from. A change lasts until
+the end of its scope, and a callee's changes never come back to the caller."""
+
+[[exercise]]
+name = "context2"
+file = "exercises/17_context/context2.odin"
+readme = "exercises/17_context/README.md"
+expect = """
+[INFO ] --- starting up
+[WARN ] --- fuel at 5%"""
+hint = """
+`context.logger = log.create_console_logger(lowest = .Info, opt = {.Level})`
+and `defer log.destroy_console_logger(context.logger)`. `opt` is a bit set of
+options; `{.Level}` leaves out the date, time and source location."""
+
+[[exercise]]
+name = "context3"
+file = "exercises/17_context/context3.odin"
+readme = "exercises/17_context/README.md"
+mode = "test"
+hint = """
+Inside a `{ }` block, set `context.allocator = context.temp_allocator` and
+call the library there. Declare `result` before the block so you can use it
+afterwards."""
+
+[[exercise]]
+name = "quiz2"
+file = "exercises/quizzes/quiz2.odin"
+readme = "exercises/quizzes/README.md"
+mode = "test"
+hint = """
+`parse_line`: find ':' with `strings.index_byte`, then trim and parse each side.
+`parse_scores`: walk lines with `strings.split_lines_iterator(&text)` (shadow
+`text := text` first) and use `or_return` on `parse_line`.
+Cleaning up on error: a `defer` can't change the returned values, so either
+delete the map and `return nil, err` by hand at each error, or put the loop in
+a helper that returns just the error and clean up once in the caller."""
+
+# 18 generics
+
+[[exercise]]
+name = "generics1"
+file = "exercises/18_generics/generics1.odin"
+readme = "exercises/18_generics/README.md"
+mode = "test"
+hint = """
+`largest :: proc(xs: []$T) -> T`. The `$` goes on the first mention of `T`
+only, and the body doesn't change."""
+
+[[exercise]]
+name = "generics2"
+file = "exercises/18_generics/generics2.odin"
+readme = "exercises/18_generics/README.md"
+mode = "test"
+hint = """
+`Stack :: struct($T: typeid) { items: [dynamic]T }`. Procedures take
+`s: ^Stack($T)` and use `T` for elements; an empty result is `{}` or `T{}`."""
+
+[[exercise]]
+name = "generics3"
+file = "exercises/18_generics/generics3.odin"
+readme = "exercises/18_generics/README.md"
+mode = "test"
+hint = """
+`sum :: proc(values: [$N]$T) -> T where intrinsics.type_is_numeric(T)`.
+Start the total as `total: T = 0`."""
+
+[[exercise]]
+name = "generics4"
+file = "exercises/18_generics/generics4.odin"
+readme = "exercises/18_generics/README.md"
+mode = "test"
+hint = """
+Put the clause after the result type: `-> string where intrinsics.type_is_numeric(T)`,
+and the negation, `where !intrinsics.type_is_numeric(T)`, on the other one."""
+
+# 19 procedure values
+
+[[exercise]]
+name = "callbacks1"
+file = "exercises/19_procedure_values/callbacks1.odin"
+readme = "exercises/19_procedure_values/README.md"
+mode = "test"
+hint = """
+`mul` is declared just like `add`. In `fold`, keep an accumulator that starts
+at `start` and becomes `op(acc, x)` for each element."""
+
+[[exercise]]
+name = "callbacks2"
+file = "exercises/19_procedure_values/callbacks2.odin"
+readme = "exercises/19_procedure_values/README.md"
+mode = "test"
+hint = """
+Give `count_if` a data parameter and pass it to the callback:
+`count_if :: proc(xs: []int, data: $D, pred: proc(x: int, data: D) -> bool) -> int`.
+Then `count_if(xs, limit, proc(x: int, limit: int) -> bool { ... })`."""
+
+# 20 bit sets and bit fields
+
+[[exercise]]
+name = "bitsets1"
+file = "exercises/20_bit_sets/bitsets1.odin"
+readme = "exercises/20_bit_sets/README.md"
+mode = "test"
+hint = """
+Wrap the single value in a set literal: `p + {extra}`, `p - {gone}`.
+Membership is `needed in p`."""
+
+[[exercise]]
+name = "bitsets2"
+file = "exercises/20_bit_sets/bitsets2.odin"
+readme = "exercises/20_bit_sets/README.md"
+mode = "test"
+hint = """
+`set += {lower}` adds a letter. `card(set) == 26` checks for a pangram, and
+`letters_in(word) <= letters_in(keys)` means "every letter of word is in keys"."""
+
+[[exercise]]
+name = "bitfields1"
+file = "exercises/20_bit_sets/bitfields1.odin"
+readme = "exercises/20_bit_sets/README.md"
+mode = "test"
+hint = """
+`Rgb565 :: bit_field u16 { b: u8 | 5, g: u8 | 6, r: u8 | 5 }`. Blue comes first
+because the first field takes the lowest bits."""
+
+# 21 tests
+
+[[exercise]]
+name = "tests1"
+file = "exercises/21_tests/tests1.odin"
+readme = "exercises/21_tests/README.md"
+mode = "test"
+hint = """
+`testing.expect` takes a bool: `testing.expect(t, is_even(10))` and
+`testing.expect(t, !is_even(7))`."""
+
+[[exercise]]
+name = "tests2"
+file = "exercises/21_tests/tests2.odin"
+readme = "exercises/21_tests/README.md"
+mode = "test"
+hint = """
+2 to the power of 0, 1, 10 and 63. The last one is big; `1 << 63` is a fine
+way to write it."""
+
+[[exercise]]
+name = "tests3"
+file = "exercises/21_tests/tests3.odin"
+readme = "exercises/21_tests/README.md"
+mode = "test"
+hint = """
+Add `{-10, 10, false}`, `{10, -10, false}` and `{0, 10, false}` to the table.
+The zero case fails, so fix the check in `make_rectangle`: zero isn't positive."""
+
+# 22 iterators
+
+[[exercise]]
+name = "iterators1"
+file = "exercises/22_iterators/iterators1.odin"
+readme = "exercises/22_iterators/README.md"
+mode = "test"
+hint = """
+When `it.n <= 0`, return `0, false`. Otherwise remember `it.n`, decrease it,
+and return the remembered value with `true`."""
+
+[[exercise]]
+name = "iterators2"
+file = "exercises/22_iterators/iterators2.odin"
+readme = "exercises/22_iterators/README.md"
+mode = "test"
+hint = """
+`rest := line`, then `for field in strings.split_iterator(&rest, ",") { ... }`.
+Drop the `split` and the `delete`."""
+
+[[exercise]]
+name = "iterators3"
+file = "exercises/22_iterators/iterators3.odin"
+readme = "exercises/22_iterators/README.md"
+mode = "test"
+hint = """
+`slice.sort_by(students, proc(a, b: Student) -> bool { ... })`: compare grades
+with `>`, then names with `<`.
+`slice.filter(students, proc(s: Student) -> bool { ... }, allocator)` and
+`slice.reduce(students, 0, proc(acc: int, s: Student) -> int { ... })`."""
+
+# 23 threads
+
+[[exercise]]
+name = "threads1"
+file = "exercises/23_threads/threads1.odin"
+readme = "exercises/23_threads/README.md"
+mode = "test"
+hint = """
+`for th in threads { thread.destroy(th) }`. `destroy` waits for the thread
+before freeing it. Without it you get a leak report (the threads themselves)
+or a crash: threads still writing into `jobs` after `parallel_sum` returned
+and its stack frame was gone."""
+
+[[exercise]]
+name = "threads2"
+file = "exercises/23_threads/threads2.odin"
+readme = "exercises/23_threads/README.md"
+mode = "test"
+hint = """
+`sync.guard(&c.mutex)` on its own line locks the mutex and unlocks it at the end
+of the loop body. `sync.mutex_lock` plus a deferred `sync.mutex_unlock` works too."""
+
+[[exercise]]
+name = "threads3"
+file = "exercises/23_threads/threads3.odin"
+readme = "exercises/23_threads/README.md"
+mode = "test"
+hint = """
+`chan.close(c)` after the loop. If you forget it, the test hangs until the
+runner times out."""
+
+# 24 SoA
+
+[[exercise]]
+name = "soa1"
+file = "exercises/24_soa/soa1.odin"
+readme = "exercises/24_soa/README.md"
+mode = "test"
+hint = """
+`Particles :: #soa[N]Particle`. Element access and `for &p in ps` read the
+same as before, and `ps.vel` becomes a whole array of velocities."""
+
+[[exercise]]
+name = "soa2"
+file = "exercises/24_soa/soa2.odin"
+readme = "exercises/24_soa/README.md"
+mode = "test"
+hint = """
+`for p in soa_zip(x = xs, y = ys) { ... }`, adding up `p.x` and `p.y`, then
+divide by `f32(len(xs))`.
+`xs, _ := soa_unzip(points)` returns one slice per field."""
+
+# 25 reflection
+
+[[exercise]]
+name = "reflection1"
+file = "exercises/25_reflection/reflection1.odin"
+readme = "exercises/25_reflection/README.md"
+mode = "test"
+hint = """
+Add `case bool:` with `fmt.sbprintf(&b, "bool(%v)", x)`, and a default
+`case:` that writes "?"."""
+
+[[exercise]]
+name = "reflection2"
+file = "exercises/25_reflection/reflection2.odin"
+readme = "exercises/25_reflection/README.md"
+mode = "test"
+hint = """
+A u32 must start at a multiple of 4, and the whole struct is padded to a
+multiple of 4. `#packed` drops all padding. A float literal like 3.5 makes
+`x` an `f64`."""
+
+[[exercise]]
+name = "reflection3"
+file = "exercises/25_reflection/reflection3.odin"
+readme = "exercises/25_reflection/README.md"
+mode = "test"
+hint = """
+Tags are raw strings after the type: `` name: string `json:"user_name"`, ``.
+In the loop, `tag := reflect.struct_tag_get(tags[i], "json")`, then skip "-",
+append `tag` if it isn't empty, and `name` otherwise."""
+
+# 26 conversions
+
+[[exercise]]
+name = "conversions1"
+file = "exercises/26_conversions/conversions1.odin"
+readme = "exercises/26_conversions/README.md"
+mode = "test"
+hint = """
+`int(f)` truncates toward zero. For the bits, `transmute(u32)f`: same size,
+same bits, new type."""
+
+[[exercise]]
+name = "conversions2"
+file = "exercises/26_conversions/conversions2.odin"
+readme = "exercises/26_conversions/README.md"
+mode = "test"
+hint = """
+`Meters(b)` converts explicitly; then scale it: `a + Meters(b) * FEET_TO_METERS`."""
+
+[[exercise]]
+name = "conversions3"
+file = "exercises/26_conversions/conversions3.odin"
+readme = "exercises/26_conversions/README.md"
+mode = "test"
+hint = """
+`comma := strings.index_byte(s, ',')`. A comma at index 0 means an empty name.
+`p.age = strconv.parse_int(s[comma + 1:]) or_return` works because `ok` is the
+last named result. For formatting, `strings.write_string` and `strings.write_int`."""
+
+# 27 matrices
+
+[[exercise]]
+name = "matrix1"
+file = "exercises/27_matrices/matrix1.odin"
+readme = "exercises/27_matrices/README.md"
+mode = "test"
+hint = """
+Write the four numbers row by row: `0, -1, 1, 0`.
+Transposing a 2x3 matrix gives a 3x2 one; `mt[0, 1]` is `m[1, 0]`."""
+
+[[exercise]]
+name = "matrix2"
+file = "exercises/27_matrices/matrix2.odin"
+readme = "exercises/27_matrices/README.md"
+mode = "test"
+hint = """
+`q := linalg.quaternion_angle_axis_f32(angle, {0, 0, 1})`, then
+`return linalg.mul(q, v)`."""
+
+# 28 vet
+
+[[exercise]]
+name = "vet1"
+file = "exercises/28_vet/vet1.odin"
+readme = "exercises/28_vet/README.md"
+cmd = "mkdir -p .build && odin run {file} -file -out:.build/{name} -vet"
+expect = """
+running total 1
+running total 3
+running total 6
+total: 6"""
+hint = """
+Remove the unused import and variable. The shadowing error is the bug:
+`total := total + i` makes a new variable inside the loop. Write `total += i`."""
+
+[[exercise]]
+name = "vet2"
+file = "exercises/28_vet/vet2.odin"
+readme = "exercises/28_vet/README.md"
+cmd = "mkdir -p .build && odin run {file} -file -out:.build/{name} -strict-style"
+expect = "7"
+hint = """
+Add a comma after the last struct field (`y: int,`) and drop the semicolons at
+the ends of lines."""
+
+[[exercise]]
+name = "vet3"
+file = "exercises/28_vet/vet3.odin"
+readme = "exercises/28_vet/README.md"
+expect = "total: 900"
+hint = """
+`apply_discount` is never called, and the comment in the loop says it should be:
+`total += apply_discount(item.cents)`."""
+
+# 29 foreign
+
+[[exercise]]
+name = "cstrings1"
+file = "exercises/29_foreign/cstrings1.odin"
+readme = "exercises/29_foreign/README.md"
+mode = "test"
+hint = """
+`strings.clone_to_cstring(s, allocator)` copies and adds the 0.
+Back the other way, `string(cs)`."""
+
+[[exercise]]
+name = "foreign1"
+file = "exercises/29_foreign/foreign1.odin"
+readme = "exercises/29_foreign/README.md"
+expect = """
+7
+42"""
+hint = """
+The linker looks for a C symbol named after the Odin declaration. Put
+`@(link_name = "atoi")` on the line above `c_atoi`."""
+
+[[exercise]]
+name = "quiz3"
+file = "exercises/quizzes/quiz3.odin"
+readme = "exercises/quizzes/README.md"
+mode = "test"
+hint = """
+Allocate the output first. Declare a local `Job :: struct { input: []T, output: []U, f: proc(x: T) -> U }`,
+give each thread a slice of the input and the matching slice of the output, and
+start it with `thread.create_and_start_with_poly_data(&jobs[i], proc(job: ^Job) { ... })`.
+Use `n := max(1, min(thread_count, len(xs)))` threads, then destroy them all
+before returning."""

@@ -4,15 +4,18 @@ A DSA coach that lives inside your coding agent. It keeps you writing the
 solution, records how much help you actually got, and schedules spaced reviews
 per pattern so you can still solve it weeks later.
 
-Two pieces:
+Three pieces:
 
 - **`algo`**: one native command-line program. `algo judge` fetches, tests, and
   submits LeetCode and Kattis problems; `algo learn` is the tutoring engine that
   stores sessions, hints, test evidence, and reviews.
 - **One agent plugin** for Claude Code, Codex, and Pi that teaches your agent to use it.
+- **`langlings`**: a separate exercise runner for fix-the-code courses in any
+  language, with the odinlings course built in.
 
 ```text
 algo/       source for the algo program, the teaching skill, and the plugins
+langlings/  source for the langlings runner and its built-in courses
 problems/   practice solutions
 ```
 
@@ -62,3 +65,4 @@ becomes the learning workspace) and ask, for example:
 - [`algo/README.md`](algo/README.md): `algo judge` command reference
 - [`algo/learn/README.md`](algo/learn/README.md): the learning engine
 - [`algo/VERIFICATION.md`](algo/VERIFICATION.md): what is tested
+- [`langlings/README.md`](langlings/README.md): the langlings runner and how to add a course
