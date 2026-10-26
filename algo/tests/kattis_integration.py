@@ -70,7 +70,8 @@ def main() -> None:
 
             def cli(*args, expected=0, timeout=30, extra_env=None):
                 nonlocal checks
-                env = dict(os.environ)
+                env = dict(os.environ, ALGO_WORKSPACE=str(tmp_path / "algo-root"))
+                env.pop("KATTIS_ODIN_WORKSPACE", None)
                 if extra_env:
                     env.update(extra_env)
                 result = subprocess.run([str(algo), "judge", "kattis", *map(str, args)], cwd=tmp_path, text=True, capture_output=True, timeout=timeout, env=env)
@@ -102,6 +103,8 @@ def main() -> None:
             assert Path(picked["directory"]) == workspace / "twostones"
             from_env = json.loads(cli("get", "twostones", "--json", extra_env={"KATTIS_ODIN_WORKSPACE": str(tmp_path / "env-ws")}).stdout)
             assert Path(from_env["directory"]) == tmp_path / "env-ws" / "twostones"
+            from_root = json.loads(cli("get", "twostones", "--json").stdout)
+            assert Path(from_root["directory"]) == tmp_path / "algo-root" / "problems" / "twostones"
             cli("get", "twostones", "--lang", "python3", "--dir", tmp_path / "py", expected=1)
             assert not (tmp_path / "py").exists()
 

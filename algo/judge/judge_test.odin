@@ -48,7 +48,7 @@ parser_resolves_commands_flags_and_builtins :: proc(t: ^testing.T) {
 	testing.expect_value(t, positional(o, 1), "")
 	testing.expect(t, o.json && o.timeout == 5 && o.seen == {.Json, .Timeout})
 	testing.expect_value(t, o.limit, 20)
-	testing.expect_value(t, o.workspace, "problems")
+	testing.expect_value(t, o.workspace, join(workspace_root(), "problems"))
 
 	o, err = parse_options(p, {"list", "--", "--not-a-flag"})
 	testing.expect_value(t, err, Error.None)

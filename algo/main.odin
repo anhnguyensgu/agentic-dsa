@@ -9,6 +9,7 @@ package main
 import "core:fmt"
 import "core:os"
 import "judge"
+import "judge/exercism"
 import "judge/kattis"
 import "judge/leetcode"
 import "learn"
@@ -18,7 +19,8 @@ ALGO_VERSION :: "algo 0.1.0"
 USAGE :: `usage: algo <command> [arguments]
 
   judge                            list the online judge providers
-  judge <provider> <command> ...   run a provider command (leetcode, kattis)
+  judge <provider> <command> ...   run a provider command (leetcode, kattis,
+                                   exercism)
   learn <command> ...              Algorithm Learning engine (init, doctor,
                                    resume, serve, call, version)
   version                          this program's version
@@ -40,7 +42,7 @@ run :: proc(argv: []string) -> int {
 	switch Command_Name(args[0]) {
 	case JUDGE:
 		// The provider list, in the order `algo judge` lists them.
-		providers := [?]judge.Provider{leetcode.provider(), kattis.provider()}
+		providers := [?]judge.Provider{leetcode.provider(), kattis.provider(), exercism.provider()}
 		return judge.run(args[1:], providers[:])
 	case LEARN:
 		return learn.run(args[1:])

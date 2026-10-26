@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -55,7 +56,7 @@ def main() -> None:
         assert doctor["data"]["ready_for_local_practice"] is True
         assert doctor["data"]["concept_count"] >= 18
         assert doctor["data"]["curriculum_version"]
-        assert {provider["provider"] for provider in doctor["data"]["providers"]} == {"leetcode", "kattis"}
+        assert {provider["provider"] for provider in doctor["data"]["providers"]} == {"leetcode", "kattis", "exercism"}
 
         plan = call("plan_next", {"topic": "math-geometry", "time_budget_minutes": 30, "language": "odin"})
         practice = plan["data"]["candidates"][-1]
@@ -232,6 +233,15 @@ main :: proc() {
         assert imported_state["data"]["profile"]["goal"] == "foundations"
         imported_source = imported_workspace / attempt["data"]["source_path"]
         assert imported_source.read_text() == solution
+
+        # Without --workspace the engine uses the global algo workspace.
+        defaulted = subprocess.run(
+            [str(ALGO), "learn", "doctor", "--json"],
+            env=dict(os.environ, ALGO_WORKSPACE=str(workspace)), text=True, capture_output=True, timeout=30,
+        )
+        checks += 1
+        assert defaulted.returncode == 0, (defaulted.stdout, defaulted.stderr)
+        assert json.loads(defaulted.stdout)["data"]["workspace_initialized"] is True
 
         print(f"PASS: {checks} Algorithm Learning end-to-end checks (no remote submissions)")
 

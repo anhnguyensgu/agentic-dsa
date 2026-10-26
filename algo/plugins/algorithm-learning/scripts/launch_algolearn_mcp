@@ -2,8 +2,8 @@
 # Starts the algo learning MCP server for Claude Code and Codex. The binary is
 # ALGOLEARN_BIN, else `algo` on PATH, else `make install`'s default location
 # ~/.local/bin/algo, which an agent app started outside a shell may not have on
-# PATH. The workspace is ALGOLEARN_WORKSPACE, else the directory the agent
-# started the server in.
+# PATH. The workspace is ALGOLEARN_WORKSPACE, else algo's global workspace
+# (ALGO_WORKSPACE, else ~/algo).
 set -eu
 
 binary=${ALGOLEARN_BIN:-}
@@ -17,6 +17,7 @@ if [ -z "$binary" ]; then
 		exit 127
 	fi
 fi
-workspace=${ALGOLEARN_WORKSPACE:-"$PWD"}
-
-exec "$binary" learn serve --workspace "$workspace"
+if [ -n "${ALGOLEARN_WORKSPACE:-}" ]; then
+	exec "$binary" learn serve --workspace "$ALGOLEARN_WORKSPACE"
+fi
+exec "$binary" learn serve

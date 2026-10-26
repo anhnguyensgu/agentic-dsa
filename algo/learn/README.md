@@ -29,6 +29,9 @@ algo learn call plan_next --workspace ~/practice --input plan.json --json
 algo learn resume --workspace ~/practice --json
 ```
 
+Without `--workspace`, every command uses the global algo workspace:
+`$ALGO_WORKSPACE`, else `~/algo`.
+
 Example `profile.json`:
 
 ```json
@@ -69,14 +72,39 @@ conflict, 3 failed solution, 4 unverified local result, and 5 pending.
 ## Practice workflow
 
 Any problem on a supported judge can be practised and tracked; there is no
-bundled problem set. Name it by `<provider>:<slug>`, such as `leetcode:two-sum`
-or `kattis:twostones`, and discover problems with `algo judge <provider> list`,
-`show`, or `daily`. Use `plan_next` for a recommendation, then `session_start`
-and `attempt_start`.
+bundled problem set. Name it by `<provider>:<slug>`, such as `leetcode:two-sum`,
+`kattis:twostones`, or `exercism:leap`, and discover problems with
+`algo judge <provider> list`, `show`, or `daily`. Use `plan_next` for a
+recommendation, then `session_start` and `attempt_start`.
 Fresh attempts never overwrite an existing path. `case_add` records comparator
 and oracle provenance. `test_run` compiles and executes Odin with time and
 output limits, a credential-filtered child environment, immutable source
 snapshots, and structured verified/unverified counts.
+
+### Exercism
+
+Exercism exercises ship with their own tests, so they run as
+`odin_test_package` attempts:
+
+1. `plan_next` with `provider: exercism` names up to three exercises for the
+   next concept (see below).
+2. `attempt_start` with `problem_key: exercism:<slug>` and `language: odin`
+   downloads the exercise through `algo judge exercism download` into
+   `problems/exercism/odin/<slug>/` and registers its solution file. A
+   downloaded exercise is never downloaded again; later attempts use
+   `register_existing` on the same file.
+3. `test_run` runs `odin test` on the exercise. Each `@(test)` procedure is a
+   verified case with provenance `official_tests`. The attempt records a hash
+   of the `*_test.odin` files, and a run after they change is unverified.
+4. `submission_send` uploads the solution through `algo judge exercism submit`
+   and records `state: uploaded`. Exercism's own results appear only on
+   exercism.org, so `job_check` does not apply and progress counts uploads
+   separately from accepted verdicts.
+
+The engine must run in the global algo workspace (`$ALGO_WORKSPACE`, else
+`~/algo`) after `exercism configure --token=<token>` and
+`algo judge exercism setup`, because the exercism CLI decides where downloads
+land.
 
 Record delivered help immediately with `hint_record`. Scores from
 `assessment_record` must reference evidence in the same session. Independent
@@ -97,8 +125,9 @@ tool failure or interruption does not change learning progress.
 account alias, and source hash without network mutation. It refuses Odin on
 LeetCode. `submission_send` requires a host authorization reference and sends
 the prepared intent once by re-executing the running binary as
-`algo judge <provider> submit-start`. It returns a
-local durable job ID. Continue only with `job_check`.
+`algo judge <provider> submit-start` (`submit` for Exercism). It returns a
+local durable job ID. Continue only with `job_check`; an Exercism upload is
+already final.
 
 If bytes may have been sent but no remote ID is captured, the intent becomes
 `submission_outcome_unknown`; it is never replayed automatically. Reconcile it
@@ -151,7 +180,9 @@ plugin-managed handoffs and snapshots while preserving solution directories.
 hashing, two pointers, stack, binary search, sliding window, linked list,
 trees, tries, heap, backtracking, intervals, greedy, graphs, advanced graphs,
 1-D and 2-D dynamic programming, bit manipulation, math and geometry), each
-with prerequisites and the LeetCode topic tags that practise it.
+with prerequisites and the LeetCode topic tags that practise it. Thirteen of
+them also map concrete Exercism exercises in `problems.exercism`; tries, heap,
+intervals, greedy, and advanced graphs have no fitting exercise.
 
 Agents may also record free-form sub-patterns as `<group>/<pattern>`, such as
 `graphs/topological-sort` or `dp-2d/knapsack`. Reviews and progress are tracked
@@ -165,6 +196,14 @@ unmastered group (or its first unmet prerequisite) with its tags, and lists
 already-attempted problem keys so the agent can choose a new provider problem.
 In independent and assessment modes it marks the tags as hidden from the
 learner, since they can reveal the technique.
+
+With `provider: exercism` it names concrete exercises instead: the group's
+mapped exercises without a verified passing run, in-progress attempts first,
+then by difficulty. A group without any moves on to the next unmastered group
+that has some. The track's catalogue, which `algo judge exercism list` caches in
+`problems/exercism/.cache/<track>.json`, drops exercises the track lacks and
+supplies names and difficulty; without it the engine warns and keeps the
+curriculum's order. Planning never goes online.
 
 Local execution limits reduce accidental hangs and excessive output; they are
 not a security sandbox for arbitrary code. Use an operating-system sandbox when

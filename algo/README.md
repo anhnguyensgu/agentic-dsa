@@ -5,7 +5,7 @@ Odin, submitting to online judges, and learning persistently across them.
 
 ```text
 algo judge                                list the online judge providers
-algo judge <provider> <command> [args]    leetcode, kattis
+algo judge <provider> <command> [args]    leetcode, kattis, exercism
 algo learn <command> [args]               Algorithm Learning engine
 algo version | help
 ```
@@ -21,7 +21,8 @@ Every provider shares one command surface: the same verbs (`list`, `show`,
 (`search`, `fetch`, `pick`, `watch`), flags (`--json`, `--workspace`, `--dir`,
 `--lang`, `--timeout`), and exit codes. `algo judge <provider> help` lists a
 provider's commands. The LeetCode sections below describe the full workflow;
-[Kattis](#kattis) lists only its differences.
+[Kattis](#kattis) lists only its differences. [Exercism](#exercism) is the
+exception: it mirrors the official exercism CLI instead.
 
 ## Build and install
 
@@ -54,6 +55,7 @@ Each directory is one Odin package, imported by relative path, so plain
 | `judge/` | library | Shared provider core: the provider contract, command-line parsing, errors and exit codes, curl transport, HTML helpers, and the stdin/stdout sample runner |
 | `judge/leetcode/` | library | LeetCode provider: GraphQL queries, problem cache, Odin scaffold and runner generation (`local_runner.txt`), remote run/submit, account history, browser and cookie login |
 | `judge/kattis/` | library | Kattis provider: page parsers, sample scaffolds, e-mail login, submission and verdict polling |
+| `judge/exercism/` | library | Exercism provider: passes commands to the official exercism CLI, keeps its workspace in the algo workspace, and lists and caches track catalogues |
 | `learn/` | library | The learning engine: event store, projection, operation registry, one file per operation group, plus its CLI (`cli.odin`) and MCP stdio server (`mcp.odin`) |
 | `safeio/` | library | Shared OS safety code: owner-only atomic file writes and bounded child processes with a credential-free environment |
 
@@ -257,8 +259,10 @@ algo judge leetcode random --offline --difficulty Easy
 algo judge leetcode show two-sum --refresh
 ```
 
-The default workspace is `./problems`, relative to the current directory.
-`--workspace` overrides it for that command. A destination that already exists
+The default workspace is `problems/` in the global algo workspace:
+`$ALGO_WORKSPACE/problems`, else `~/algo/problems`. A provider's own workspace
+variable (`LEETCODE_ODIN_WORKSPACE`, `KATTIS_ODIN_WORKSPACE`) overrides that
+default, and `--workspace` overrides both for one command. A destination that already exists
 is never overwritten; choose a fresh `--dir` for another attempt or language.
 
 Problem details are read from the local cache unless `--refresh` is requested.
@@ -277,6 +281,7 @@ or private workspace caches to a repository.
 
 | Environment variable | Purpose |
 | --- | --- |
+| `ALGO_WORKSPACE` | Global algo workspace (default `~/algo`); problems go in its `problems/` |
 | `LEETCODE_ODIN_CONFIG` | Alternate credentials file; useful for isolated profiles |
 | `LEETCODE_ODIN_WORKSPACE` | Default workspace root |
 | `LEETCODE_ODIN_NO_BROWSER` | Print browser URLs without launching a browser |
@@ -290,11 +295,11 @@ Exit codes: `0` success, `1` operational error/timeout, `2` usage error,
 algo judge kattis list                     # problem table; --page <n> pages it
 algo judge kattis list "two stones"        # search
 algo judge kattis show twostones
-algo judge kattis get twostones            # problems/twostones/
-# Edit problems/twostones/solution.odin
-algo judge kattis test problems/twostones
+algo judge kattis get twostones            # ~/algo/problems/twostones/
+# Edit ~/algo/problems/twostones/solution.odin
+algo judge kattis test ~/algo/problems/twostones
 echo "$PASSWORD" | algo judge kattis auth you@example.com
-algo judge kattis submit problems/twostones
+algo judge kattis submit ~/algo/problems/twostones
 algo judge kattis submit twostones solution.py --lang "Python 3"
 algo judge kattis check 12345678 --timeout 300
 ```
@@ -320,6 +325,51 @@ Differences from LeetCode:
 - There is no problem cache, `--offline`, or account history command.
 - `KATTIS_ODIN_WORKSPACE` sets the default workspace root.
 
+## Exercism
+
+`algo judge exercism` mirrors the official
+[exercism CLI](https://exercism.org/docs/using/solving-exercises/working-locally)
+instead of sharing the command surface above. Every command except `setup`,
+`list`, and `capabilities` runs `exercism` with the same arguments, in the
+current directory, and shows its output unchanged.
+
+```sh
+exercism configure --token=<token>     # once, with the exercism CLI itself
+algo judge exercism setup              # once: exercises go to ~/algo/problems/exercism
+algo judge exercism list               # the Odin track's exercises, easiest first
+algo judge exercism download --track=odin --exercise=hello-world
+cd ~/algo/problems/exercism/odin/hello-world
+odin test .                            # the Odin track's tests
+algo judge exercism submit
+```
+
+- The exercism CLI owns the API token; `algo` never stores it. Run the token
+  step with `exercism` directly, so the token is not also on `algo`'s command
+  line.
+- `setup` creates `<root>/problems/exercism` and runs
+  `exercism configure --workspace` with it. `download`, `submit`, `test`, and
+  `open` (and their aliases `d`, `s`, `t`, `o`) refuse to run while the exercism
+  CLI's workspace is elsewhere; other commands and `--help` always pass through.
+- The exercism CLI's config is found as the CLI finds it: `EXERCISM_CONFIG_HOME`,
+  else `$XDG_CONFIG_HOME/exercism`, else `~/.config/exercism`. Only its
+  `workspace` field is read.
+- Exit codes: `0` success, `1` an exercism or operational error, `2` usage,
+  `3` a failing `exercism test`.
+- `list [--track <name>] [--json] [--offline]` reads the track's public
+  `config.json` from GitHub, since the exercism CLI cannot list exercises. It
+  shows the practice exercises that can be started, with their difficulty and
+  whether they are downloaded, and caches the catalogue in
+  `problems/exercism/.cache/<track>.json` for `algo learn`. `--offline` reads
+  only the cache.
+- Passed-through commands have no `--json`, and there is no remote verdict:
+  `submit` uploads an iteration, and its test results appear only on
+  exercism.org.
+- `algo learn` can suggest, download, test, and upload Exercism exercises; see
+  [its guide](learn/README.md#exercism).
+- The exercism CLI (3.5.8) cannot run the Odin track's tests: `exercism test`
+  reports the track as unsupported, which exits with `3`. Run `odin test .` in
+  the exercise directory, or `test_run` through `algo learn`, instead.
+
 ## Adding a provider
 
 A provider is one package under `judge/<name>/` that implements the provider
@@ -332,8 +382,14 @@ page or API parsing, login, submission, and verdict mapping.
 2. Register it in the provider list in `main.odin`.
 3. Add a fixture-server integration test under `tests/` that covers the shared
    command surface.
-4. Add the name to `PROVIDERS` in `learn/providers.odin` so `algo learn` accepts
-   `<name>:<slug>` problem keys and can run its jobs.
+4. Add a row to `PROVIDERS` in `learn/providers.odin`, describing how it
+   submits, reports verdicts, and starts attempts, so `algo learn` accepts
+   `<name>:<slug>` problem keys and can run its jobs. The engine reads these
+   traits and never branches on a provider's name.
+
+A provider that wraps another command-line tool sets `passthrough` in its
+`judge.Provider` instead of a command table and receives the raw arguments
+(see `judge/exercism/`).
 
 ## Verification and troubleshooting
 

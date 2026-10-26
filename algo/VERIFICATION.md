@@ -13,13 +13,15 @@ make test
   odin check -vet -strict-style passed for every package
   4 shared judge core unit tests passed
   19 LeetCode unit tests passed
-  18 Algorithm Learning unit tests passed (memory tracking enabled)
+  19 Algorithm Learning unit tests passed (memory tracking enabled)
   68 LeetCode fixture checks passed
-  38 Kattis fixture/bounded-runner checks passed
-  29 end-to-end learning checks passed
+  39 Kattis fixture/bounded-runner checks passed
+  21 Exercism pass-through checks passed (stub exercism CLI)
+  30 end-to-end learning checks passed
+  30 Exercism learning-engine checks passed (stub exercism CLI, fixture catalogue)
   10 reviewed teaching/recovery scenario contracts passed
   8 native MCP protocol checks passed
-  18 concept groups validated in prerequisite order with provider topic tags
+  18 concept groups validated in prerequisite order with provider topic tags; 13 map Exercism exercises
   single-plugin packaging (Claude Code, Codex, Pi) and install/upgrade/uninstall checks passed
 
 python3 tests/live_smoke.py

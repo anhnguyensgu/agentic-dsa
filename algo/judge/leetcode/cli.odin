@@ -27,7 +27,7 @@ USAGE :: `usage: algo judge leetcode <command> [arguments] [options]
   --json                           machine-readable output (data commands)
   --offline                        use cached public data only
   --refresh                        refresh cached problem data
-  --workspace <path>               workspace/cache root (default: ./problems)
+  --workspace <path>               workspace/cache root (default: ~/algo/problems)
   --lang <slug>                    starter/submission language
   --dir <path>                     destination directory for get
   --input <file>                   remote-run testcase input file
@@ -39,7 +39,7 @@ USAGE :: `usage: algo judge leetcode <command> [arguments] [options]
   --limit <1..100> --skip <n>      list/history pagination
 
 Aliases: search = list, fetch = show, pick = get, watch = check.
-Environment: LEETCODE_ODIN_CONFIG, LEETCODE_ODIN_WORKSPACE,
+Environment: ALGO_WORKSPACE, LEETCODE_ODIN_CONFIG, LEETCODE_ODIN_WORKSPACE,
              LEETCODE_ODIN_NO_BROWSER
 Exit codes: 0 success, 1 operational error, 2 usage, 3 failed solution,
             4 local cases without expected results.

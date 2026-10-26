@@ -20,6 +20,7 @@ Curriculum_Concept :: struct {
 	title:         string,
 	prerequisites: []string,
 	leetcode_tags: []string, // provider topic slugs that practise this concept
+	problems:      map[string][]string, // provider -> problem slugs that practise this concept
 }
 
 Curriculum :: struct {
@@ -63,7 +64,7 @@ find_concept :: proc(id: string) -> (Curriculum_Concept, bool) {
 }
 
 // Problem is a provider problem. The slug is also the provider's own id: the
-// LeetCode title slug or the Kattis problem id.
+// LeetCode title slug, the Kattis problem id, or the Exercism exercise slug.
 Problem :: struct {
 	key:      string,
 	provider: string,
@@ -75,12 +76,8 @@ Problem :: struct {
 // not start with '.', so it is always a single safe path component.
 parse_problem_key :: proc(key: string) -> (problem: Problem, err: Op_Error) {
 	provider, _, slug := strings.partition(key, ":")
-	known := PROVIDERS
-	valid :=
-		contains(known[:], provider) &&
-		slug != "" &&
-		len(slug) <= MAX_SLUG_LENGTH &&
-		slug[0] != '.'
+	_, known := provider_traits(provider)
+	valid := known && slug != "" && len(slug) <= MAX_SLUG_LENGTH && slug[0] != '.'
 	for c in slug {
 		switch c {
 		case 'a' ..= 'z', '0' ..= '9', '-', '_', '.':
@@ -89,7 +86,7 @@ parse_problem_key :: proc(key: string) -> (problem: Problem, err: Op_Error) {
 		}
 	}
 	if !valid {
-		return {}, invalid(fmt.aprintf("problem_key must be <provider>:<slug> with provider %s and a lowercase slug, such as leetcode:two-sum", strings.join(known[:], " or ")))
+		return {}, invalid(fmt.aprintf("problem_key must be <provider>:<slug> with provider %s and a lowercase slug, such as leetcode:two-sum", strings.join(provider_names(), ", ")))
 	}
 	return {key, provider, slug}, nil
 }

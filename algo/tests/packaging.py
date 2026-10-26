@@ -14,7 +14,7 @@ MARKETPLACE = ROOT / "plugins"
 PLUGIN = MARKETPLACE / "algorithm-learning"
 LAUNCHER = PLUGIN / "scripts" / "launch_algolearn_mcp"
 NAME = "algorithm-learning"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 MCP_HANDSHAKE = (
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}\n'
     '{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}\n'

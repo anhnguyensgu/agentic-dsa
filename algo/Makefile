@@ -22,6 +22,7 @@ check:
 	odin check judge -no-entry-point $(ODIN_FLAGS)
 	odin check judge/leetcode -no-entry-point $(ODIN_FLAGS)
 	odin check judge/kattis -no-entry-point $(ODIN_FLAGS)
+	odin check judge/exercism -no-entry-point $(ODIN_FLAGS)
 	odin check learn -no-entry-point $(ODIN_FLAGS)
 	odin check safeio -no-entry-point $(ODIN_FLAGS)
 
@@ -34,9 +35,11 @@ test-unit:
 test-integration: build
 	python3 tests/integration.py
 	python3 tests/kattis_integration.py
+	python3 tests/exercism_integration.py
 
 test-learning: build
 	python3 tests/learning_integration.py
+	python3 tests/exercism_learning.py
 	python3 tests/validate_curriculum.py
 	python3 tests/teaching_scenarios.py
 

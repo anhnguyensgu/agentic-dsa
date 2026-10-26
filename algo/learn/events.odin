@@ -126,6 +126,7 @@ Attempt_Started :: struct {
 	runner_kind:         string,
 	previous_attempt_id: string,
 	fresh:               bool,
+	tests_hash:          string, // the package's *_test.odin files at start (odin_test_package)
 }
 
 Case_Added :: struct {

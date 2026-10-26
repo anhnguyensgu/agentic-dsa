@@ -3,7 +3,7 @@
     "algorithm-learning": {
       "command": "./scripts/launch_algolearn_mcp",
       "args": [],
-      "env_vars": ["ALGOLEARN_BIN", "ALGOLEARN_WORKSPACE", "HOME", "PATH"],
+      "env_vars": ["ALGOLEARN_BIN", "ALGOLEARN_WORKSPACE", "ALGO_WORKSPACE", "HOME", "PATH"],
       "startup_timeout_sec": 10,
       "tool_timeout_sec": 90
     }

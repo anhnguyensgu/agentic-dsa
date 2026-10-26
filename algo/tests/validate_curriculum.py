@@ -7,6 +7,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+PROVIDERS = {"leetcode", "kattis", "exercism"}
 
 
 def main() -> None:
@@ -24,8 +25,14 @@ def main() -> None:
         assert set(concept["prerequisites"]) <= seen, (concept["id"], set(concept["prerequisites"]) - seen)
         assert concept["title"] and concept["outcomes"]
         assert concept["leetcode_tags"] and all(SLUG.match(tag) for tag in concept["leetcode_tags"])
+        # Mapped problems are provider slugs that become problem keys and paths.
+        for provider, slugs in concept.get("problems", {}).items():
+            assert provider in PROVIDERS, (concept["id"], provider)
+            assert slugs and len(set(slugs)) == len(slugs), (concept["id"], provider)
+            assert all(SLUG.match(slug) for slug in slugs), (concept["id"], slugs)
         seen.add(concept["id"])
-    print(f"PASS: {len(concepts)} concept groups in prerequisite order with provider topic tags")
+    mapped = sum(1 for concept in concepts if concept.get("problems"))
+    print(f"PASS: {len(concepts)} concept groups in prerequisite order with provider topic tags; {mapped} map Exercism exercises")
 
 
 if __name__ == "__main__":

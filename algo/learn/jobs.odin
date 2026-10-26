@@ -63,6 +63,10 @@ find_job :: proc(store: ^Store, job_id: string) -> (job: Remote_Job, found: bool
 					sent  = p,
 					state = "queued",
 				}
+				// A provider without verdicts is done once the upload succeeds.
+				if traits, known := provider_traits(p.provider); known && traits.check == .None {
+					job.state = "terminal"
+				}
 				found = true
 			}
 		case .Job_Observed:
@@ -98,8 +102,9 @@ op_submission_prepare :: proc(
 		return {}, fail(.Not_Found, "attempt does not exist")
 	}
 	problem := parse_problem_key(attempt.problem_key) or_return
-	if problem.provider == "leetcode" && attempt.language == "odin" {
-		return {}, fail(.Unsupported_Capability, "LeetCode does not judge Odin; preserve this attempt and create a separately tracked supported-language attempt for remote submission")
+	traits, _ := provider_traits(problem.provider)
+	if !traits.remote_odin && attempt.language == "odin" {
+		return {}, fail(.Unsupported_Capability, fmt.aprintf("%s does not judge Odin; preserve this attempt and create a separately tracked supported-language attempt for remote submission", traits.title))
 	}
 	source, read_err := os.read_entire_file(
 		join(ctx.workspace, attempt.source_path),
@@ -208,9 +213,11 @@ op_submission_send :: proc(
 		return {}, fail(.Stale_Source, "the working source changed after preparation; prepare a new immutable intent")
 	}
 	command := provider_command(intent.provider) or_return
+	traits, _ := provider_traits(intent.provider)
 
 	snapshot := join(ctx.workspace, intent.snapshot_path)
-	if intent.provider == "leetcode" {
+	switch traits.submit {
+	case .Start_Job_With_Language:
 		append(
 			&command,
 			"submit-start",
@@ -222,12 +229,16 @@ op_submission_send :: proc(
 			"--timeout",
 			"15",
 		)
-	} else {
-		// Kattis infers its judge language name from the extension for Odin.
+	case .Start_Job:
+		// The judge infers its language name from the extension for Odin.
 		append(&command, "submit-start", intent.provider_id, snapshot, "--json")
 		if intent.language != "odin" {
 			append(&command, "--lang", intent.language)
 		}
+	case .Upload:
+		// An upload sends the exercise's own file, which still matches the
+		// prepared hash (checked above).
+		append(&command, "submit", join(ctx.workspace, intent.source_path))
 	}
 	run := safeio.run(command[:], timeout = PROVIDER_SEND_TIMEOUT, keep_credentials = true)
 	if run.start_failed {
@@ -236,15 +247,28 @@ op_submission_send :: proc(
 	if run.timed_out || run.output_exceeded {
 		return {}, record_unknown_submission(ctx, store, req, intent, "provider process ended without a durable job id")
 	}
-	response, _ := parse_json(run.stdout)
-	remote_id := jstr(jget(response, "job_id"))
-	if remote_id == "" {
-		diagnostic := strings.to_lower(run.stderr)
-		if strings.contains(diagnostic, "sign") || strings.contains(diagnostic, "credential") {
-			return {}, fail(.Auth_Required, "provider authentication is required; use the provider's existing login flow")
+	diagnostic := strings.to_lower(run.stderr)
+	remote_id := ""
+	if traits.submit == .Upload {
+		if run.exit_code != 0 {
+			if strings.contains(diagnostic, "token") {
+				return {}, fail(.Auth_Required, "provider authentication is required; use the provider's existing login flow")
+			}
+			reason := strings.trim_space(run.stderr)
+			return {}, fail(.Unsupported_Capability, fmt.aprintf("%s did not accept the upload: %s", traits.title, reason[:min(len(reason), 400)]))
 		}
-		return {}, record_unknown_submission(ctx, store, req, intent, "provider response did not contain a valid job id")
+	} else {
+		response, _ := parse_json(run.stdout)
+		remote_id = jstr(jget(response, "job_id"))
+		if remote_id == "" {
+			if strings.contains(diagnostic, "sign") || strings.contains(diagnostic, "credential") {
+				return {}, fail(.Auth_Required, "provider authentication is required; use the provider's existing login flow")
+			}
+			return {}, record_unknown_submission(ctx, store, req, intent, "provider response did not contain a valid job id")
+		}
 	}
+	// An upload has no remote verdict, so its job is finished once sent.
+	state := "uploaded" if traits.submit == .Upload else "queued"
 
 	payload := Submission_Sent {
 		job_id                  = fmt_id("job", store.revision + 1),
@@ -287,7 +311,7 @@ op_submission_send :: proc(
 		payload.problem_key,
 		payload.language,
 		payload.source_hash,
-		"queued",
+		state,
 	}
 	if write_private_file(
 		   learning_path(ctx.workspace, "jobs", strings.concatenate({payload.job_id, ".json"})),
@@ -306,7 +330,17 @@ op_submission_send :: proc(
 		remote_id: string,
 		state:     string,
 	}
-	res.data = to_json(Data{replayed_flag(replayed), payload.job_id, remote_id, "queued"})
+	res.data = to_json(Data{replayed_flag(replayed), payload.job_id, remote_id, state})
+	if traits.submit == .Upload {
+		append(
+			&res.next_actions,
+			fmt.aprintf(
+				"%s shows no verdict here; assess the learner from the local test evidence",
+				traits.title,
+			),
+		)
+		return
+	}
 	res.status = .Pending
 	append(
 		&res.next_actions,
@@ -368,6 +402,10 @@ op_job_check :: proc(
 	if !found {
 		return {}, fail(.Not_Found, "remote job does not exist")
 	}
+	traits, known := provider_traits(job.provider)
+	if known && traits.check == .None {
+		return {}, fail(.Unsupported_Capability, fmt.aprintf("%s reports no verdict to check; its results appear only on its website", traits.title))
+	}
 	if job.state == "terminal" {
 		return {}, fail(.Request_Conflict, "job already has a terminal observation")
 	}
@@ -383,15 +421,17 @@ op_job_check :: proc(
 		return {}, fail(.Unsupported_Capability, "could not launch the provider adapter")
 	}
 
-	// Providers report differently: Kattis returns {state, verdict}; LeetCode
-	// returns its raw check result, which is final once state is SUCCESS.
 	provider_output := strings.trim_space(run.stdout)
 	state, verdict := "pending", ""
 	if result, ok := parse_json(provider_output); ok {
-		if job.provider == "kattis" {
+		switch traits.check {
+		case .State_Verdict:
 			state, verdict = jstr(jget(result, "state")), jstr(jget(result, "verdict"))
-		} else if jstr(jget(result, "state")) == "SUCCESS" {
-			state, verdict = "terminal", jstr(jget(result, "status_msg"))
+		case .Raw_Result:
+			if jstr(jget(result, "state")) == "SUCCESS" {
+				state, verdict = "terminal", jstr(jget(result, "status_msg"))
+			}
+		case .None:
 		}
 	}
 	if run.timed_out || strings.contains(strings.to_lower(run.stderr), "pending") {
