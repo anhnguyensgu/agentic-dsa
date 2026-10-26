@@ -9,13 +9,14 @@ Three pieces:
 - **`algo`**: one native command-line program. `algo judge` fetches, tests, and
   submits LeetCode and Kattis problems; `algo learn` is the tutoring engine that
   stores sessions, hints, test evidence, and reviews.
-- **One agent plugin** for Claude Code, Codex, and Pi that teaches your agent to use it.
+- **Agent plugins** for Claude Code, Codex, and Pi that teach your agent to use
+  `algo` and `langlings`.
 - **`langlings`**: a separate exercise runner for fix-the-code courses in any
   language, with the odinlings course built in.
 
 ```text
 algo/       source for the algo program
-plugins/    the agent plugin and its teaching skill
+plugins/    the agent plugins and their skills
 langlings/  source for the langlings runner and its built-in courses
 problems/   practice solutions
 ```
@@ -51,6 +52,9 @@ codex plugin add algorithm-learning@agentic-dsa
 # Pi
 pi install ./plugins/algorithm-learning
 ```
+
+For langlings exercises, also install the `langlings` plugin the same way; see
+[`plugins/README.md`](plugins/README.md#langlings).
 
 ### 3. Practise
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "agentic-dsa",
-  "description": "Algorithm practice tools: an evidence-backed DSA tutor for coding agents.",
+  "description": "Algorithm and language practice tools for coding agents: an evidence-backed DSA tutor and a langlings exercise coach.",
   "owner": {
     "name": "anh nguyen"
   },
@@ -10,6 +10,11 @@
       "name": "algorithm-learning",
       "source": "./algorithm-learning",
       "description": "Persistent, evidence-backed algorithm tutoring with local Odin execution, spaced review, and resumable judge jobs."
+    },
+    {
+      "name": "langlings",
+      "source": "./langlings",
+      "description": "Coach fix-the-code language exercises (odinlings, ziglings, rustlings) with the local langlings runner."
     }
   ]
 }

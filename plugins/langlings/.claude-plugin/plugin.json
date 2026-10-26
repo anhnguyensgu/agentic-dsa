@@ -1,0 +1,9 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "langlings",
+  "version": "0.1.0",
+  "description": "Coach fix-the-code language exercises (odinlings, ziglings, rustlings) with the local langlings runner.",
+  "author": {
+    "name": "anh nguyen"
+  }
+}

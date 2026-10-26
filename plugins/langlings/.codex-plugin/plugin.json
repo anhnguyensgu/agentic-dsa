@@ -1,0 +1,18 @@
+{
+  "name": "langlings",
+  "version": "0.1.0",
+  "description": "Coach fix-the-code language exercises (odinlings, ziglings, rustlings) with the local langlings runner.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Langlings",
+    "shortDescription": "Coach fix-the-code language exercises.",
+    "longDescription": "Work through odinlings, ziglings, rustlings, or any langlings track with graduated hints, runner-checked passes, and progress kept in the workspace.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Continue my langlings exercises from the current workspace."
+  }
+}
