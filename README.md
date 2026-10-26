@@ -14,7 +14,8 @@ Three pieces:
   language, with the odinlings course built in.
 
 ```text
-algo/       source for the algo program, the teaching skill, and the plugins
+algo/       source for the algo program
+plugins/    the agent plugin and its teaching skill
 langlings/  source for the langlings runner and its built-in courses
 problems/   practice solutions
 ```
@@ -40,15 +41,15 @@ From the repository root of your clone (keep the clone; agents use it in place):
 cd ..   # back to agentic-dsa/ after step 1
 
 # Claude Code
-claude plugin marketplace add ./algo/plugins
+claude plugin marketplace add ./plugins
 claude plugin install algorithm-learning@agentic-dsa
 
 # Codex
-codex plugin marketplace add ./algo/plugins
+codex plugin marketplace add ./plugins
 codex plugin add algorithm-learning@agentic-dsa
 
 # Pi
-pi install ./algo/plugins/algorithm-learning
+pi install ./plugins/algorithm-learning
 ```
 
 ### 3. Practise
@@ -61,7 +62,7 @@ becomes the learning workspace) and ask, for example:
 
 ## More
 
-- [`algo/plugins/README.md`](algo/plugins/README.md): per-agent setup details, MCP for Pi, other agents
+- [`plugins/README.md`](plugins/README.md): per-agent setup details, MCP for Pi, other agents
 - [`algo/README.md`](algo/README.md): `algo judge` command reference
 - [`algo/learn/README.md`](algo/learn/README.md): the learning engine
 - [`algo/VERIFICATION.md`](algo/VERIFICATION.md): what is tested

@@ -30,11 +30,6 @@ algo/
 ├── safeio/              atomic owner-only writes, bounded credential-free child processes
 ├── curriculum/          concepts.json (concept graph; there is no bundled problem set)
 ├── schemas/             JSON schemas: envelope, event, export (v1)
-├── plugins/             README.md is the per-agent setup guide
-│   └── algorithm-learning/  one plugin for Claude Code, Codex, and Pi: the tutoring
-│                            skill, MCP launcher, and one manifest per
-│                            agent; plugins/.claude-plugin/ and plugins/.agents/ hold
-│                            the Claude Code and Codex marketplaces
 ├── tests/               Python integration, MCP, packaging, teaching suites
 ├── README.md            CLI reference      AGENTIC_LEARNING.md  engine design spec
 ├── VERIFICATION.md      tested scope and expected test counts
@@ -92,7 +87,7 @@ covers the change (`make test` for anything cross-package).
 - If a change alters test counts, update `VERIFICATION.md`.
 - Command or flag changes must also update `README.md` (and `learn/README.md`
   for `algo learn`).
-- The tutoring skill exists once, in `plugins/algorithm-learning/skills/`;
+- The tutoring skill exists once, in `../plugins/algorithm-learning/skills/`;
   never copy it. Keep the version in all three manifests equal to the engine
   version. Never commit a binary into the plugin; agents find `algo` through
   `make install`.

@@ -22,12 +22,13 @@ stream, so a session started in one agent can be resumed in another.
 
 Everything agent-specific lives here. Install from a clone of this repository:
 Claude Code and Codex only read a marketplace at a GitHub repository's root, so
-`marketplace add owner/repo` does not find one in `algo/plugins/`. A local
+`marketplace add owner/repo` does not find one in `plugins/`. A local
 marketplace is used in place, so keep the clone where it is.
 
 The plugin ships no binary. Build and install `algo` first; every agent needs it:
 
 ```sh
+cd algo
 make install          # ~/.local/bin/algo
 algo learn doctor --workspace /path/to/practice --json
 make test-packaging   # validate the plugin, including Claude's own validator when installed
@@ -43,13 +44,13 @@ the global algo workspace (`ALGO_WORKSPACE`, else `~/algo`).
 From the repository root:
 
 ```sh
-claude plugin marketplace add ./algo/plugins
+claude plugin marketplace add ./plugins
 claude plugin install algorithm-learning@agentic-dsa
 ```
 
-Inside a session, use `/plugin marketplace add /path/to/agentic-dsa/algo/plugins`.
+Inside a session, use `/plugin marketplace add /path/to/agentic-dsa/plugins`.
 To try the plugin for one session without installing it, run
-`claude --plugin-dir algo/plugins/algorithm-learning`.
+`claude --plugin-dir plugins/algorithm-learning`.
 
 The plugin adds the `algorithm-learning` skill and an `algorithm-learning` MCP
 server with one tool per engine operation; `claude mcp list` shows it as
@@ -65,7 +66,7 @@ after installing the plugin so the skill is not loaded twice.
 From the repository root:
 
 ```sh
-codex plugin marketplace add ./algo/plugins
+codex plugin marketplace add ./plugins
 codex plugin add algorithm-learning@agentic-dsa
 ```
 
@@ -77,9 +78,9 @@ same launcher. Installing the plugin never changes other Codex settings.
 The plugin folder is also a Pi package that provides the skill:
 
 ```sh
-pi install ./algo/plugins/algorithm-learning       # personal
-pi install -l ./algo/plugins/algorithm-learning    # this project only
-pi -e ./algo/plugins/algorithm-learning            # one session, no install
+pi install ./plugins/algorithm-learning       # personal
+pi install -l ./plugins/algorithm-learning    # this project only
+pi -e ./plugins/algorithm-learning            # one session, no install
 ```
 
 Pi packages cannot declare MCP servers and Pi ignores the other manifests, so
