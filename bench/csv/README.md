@@ -6,6 +6,7 @@ one before it, so every step's effect is measured on its own.
 ```sh
 make bench          # build, generate data/sales.csv (15M rows, 957 MB), run all versions
 make test           # correctness sweep (~650 files, every version)
+sh test/run.sh v13  # the same sweep for some versions only
 ./bin/reader data/sales.csv -runs:3 v7 v8 floor   # run only some versions / floors
 ```
 
@@ -110,6 +111,14 @@ Floors (the same file, doing only part of the work):
   floor (a comparable full pass over the file, ~50 ms), probably because the
   pass also faulted in the mapping and warmed caches for the main pass, which
   now pays that itself (not measured).
+- **v13 (not in the table yet):** profiling v12 put number parsing on top
+  (29% of core time): v11's parser ran its full 8-byte routine three times a
+  row. v13 parses `amount` in one pass (drop the `.` from the loaded word,
+  then all digits at once as cents) and reads `qty`'s 1-2 digits directly.
+  Profiled over 10 runs, parsing CPU fell 23% and total CPU 9%, but parsing
+  is still first (27%), now close to writing the separator index (25%). The
+  rest of parsing is `amount`'s single chain of dependent steps. Its
+  wall-clock gain over v12 has not been measured head to head yet.
 
 ## Profiling v9 to find v11
 
@@ -173,6 +182,7 @@ reader/v8_field_index.odin  v8 (two-stage scan, shared by v9-v12)
 reader/v9_fast_hash.odin    v9
 reader/v10_threads.odin     v10
 reader/v11_tuned.odin       v11
-reader/v12_speculative.odin v12
+reader/v12_speculative.odin v12 (driver shared with v13)
+reader/v13_fused_parse.odin v13
 test/run.sh, test/hostile.py  correctness sweep
 ```

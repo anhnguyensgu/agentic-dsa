@@ -6,15 +6,20 @@
 #   - quote-heavy files with newlines, commas and "" inside fields
 #   - files of long multi-line quoted notes (v12's wrong-guess path)
 #   - a ragged file, which the record-indexing versions must reject
+#
+#   sh test/run.sh            every version
+#   sh test/run.sh v12 v13    only versions whose names start with these
 set -eu
+only="$*"
 cd "$(dirname "$0")/.."
 dir=data/test
 mkdir -p "$dir"
 fail=0
 
-check() { # file [versions...]
-	if ! ./bin/reader "$@" -runs:1 >/dev/null 2>&1; then
-		echo "FAIL: $*"
+check() { # file
+	# shellcheck disable=SC2086 # $only is a list of version prefixes
+	if ! ./bin/reader "$1" -runs:1 $only >/dev/null 2>&1; then
+		echo "FAIL: $1 ${only:-(all versions)}"
 		fail=1
 	fi
 }
@@ -44,14 +49,15 @@ for rows in 1 3 13 55 400 2000; do
 	check "$dir/l.csv"
 done
 
-# Number formats v11's branch-free parser hands back to the slow path.
-printf 'id,ts,user_id,city,amount,qty,note\n1,t,u,Oslo,1.5,7,x\n2,t,u,Oslo,12,"7",x\n3,t,u,Oslo,"3.25",10,x\n4,t,u,Oslo,123456789.01,1,x\n5,t,u,Oslo,-0.05,20,x\n' >"$dir/numbers.csv"
-printf 'Oslo\t5\t12345680571\t45\n' >"$dir/numbers.csv.expected"
+# Number formats at the edges of v11/v13's branch-free parsers: 8-byte
+# amounts, a sign, no whole part, 3-digit qty, and ones they hand back.
+printf 'id,ts,user_id,city,amount,qty,note\n1,t,u,Oslo,1.5,7,x\n2,t,u,Oslo,12,"7",x\n3,t,u,Oslo,"3.25",10,x\n4,t,u,Oslo,123456789.01,1,x\n5,t,u,Oslo,-0.05,20,x\n6,t,u,Oslo,99999.99,100,x\n7,t,u,Oslo,-9999.99,3,x\n8,t,u,Oslo,-.50,1,x\n' >"$dir/numbers.csv"
+printf 'Oslo\t8\t12354680521\t149\n' >"$dir/numbers.csv.expected"
 check "$dir/numbers.csv"
 
 printf 'id,ts,user_id,city,amount,qty,note\n1,t,u,Oslo,1.00,2,x\n2,t,u,Oslo,1.00,2\n' >"$dir/ragged.csv"
 printf 'Oslo\t2\t200\t4\n' >"$dir/ragged.csv.expected"
-for v in v8 v9 v10 v11 v12; do
+for v in ${only:-v8 v9 v10 v11 v12 v13}; do
 	if ./bin/reader "$dir/ragged.csv" -runs:1 "$v" 2>&1 | grep -q "does not have 7 fields"; then :; else
 		echo "FAIL: $v accepted a ragged record"
 		fail=1
@@ -59,5 +65,5 @@ for v in v8 v9 v10 v11 v12; do
 done
 
 rm -rf "$dir"
-[ "$fail" -eq 0 ] && echo "all reader versions correct"
+[ "$fail" -eq 0 ] && echo "correct: ${only:-all versions}"
 exit "$fail"

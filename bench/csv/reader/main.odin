@@ -31,6 +31,7 @@ VERSIONS := [?]Version {
 	{"v10_threads", v10_threads},
 	{"v11_tuned", v11_tuned},
 	{"v12_speculative", v12_speculative},
+	{"v13_fused_parse", v13_fused_parse},
 }
 
 main :: proc() {

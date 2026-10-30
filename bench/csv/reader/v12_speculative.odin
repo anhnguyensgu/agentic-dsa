@@ -21,6 +21,13 @@ Spec_Chunk :: struct {
 	table:      Table,
 	ok:         bool, // every record had NCOLS fields
 	odd_quotes: bool, // parity of the quotes in [start, end)
+	level:      Scan_Level,
+}
+
+// scan_index for a level chosen at run time (v12 and v13 share the driver).
+scan_index_at :: proc(data: []u8, t: ^Table, skip_header: bool, level: Scan_Level) -> (ok: bool, end_inside: bool) {
+	if level == .Fused_Parse {return scan_index(data, t, skip_header, Scan_Level.Fused_Parse)}
+	return scan_index(data, t, skip_header, Scan_Level.Tuned)
 }
 
 // One past the first newline at or after from, ignoring quotes.
@@ -32,6 +39,10 @@ next_newline :: proc(data: []u8, from: int) -> int {
 }
 
 v12_speculative :: proc(path: string) -> Result {
+	return scan_speculative(path, .Tuned)
+}
+
+scan_speculative :: proc(path: string, level: Scan_Level) -> Result {
 	data := map_file(path)
 	defer unmap_file(data)
 	n := len(data)
@@ -41,6 +52,7 @@ v12_speculative :: proc(path: string) -> Result {
 	defer delete(chunks)
 	for &c, k in chunks {
 		c.data = data
+		c.level = level
 		c.start = k == 0 ? 0 : next_newline(data, k * n / workers)
 	}
 	for &c, k in chunks {
@@ -52,7 +64,7 @@ v12_speculative :: proc(path: string) -> Result {
 		c.ok = true
 		if c.start >= c.end {return}
 		part := c.data[c.start:c.end]
-		c.ok, c.odd_quotes = scan_index(part, &c.table, c.start == 0, Scan_Level.Tuned)
+		c.ok, c.odd_quotes = scan_index_at(part, &c.table, c.start == 0, c.level)
 		if !c.ok {c.odd_quotes = count_quotes(part) & 1 == 1} 	// scan stopped early
 	})
 
@@ -80,7 +92,7 @@ v12_speculative :: proc(path: string) -> Result {
 			// the two real record boundaries around it.
 			t := table_make()
 			defer table_destroy(&t)
-			scan_index_or_exit(data[chunks[k].start:chunks[j - 1].end], &t, chunks[k].start == 0, Scan_Level.Tuned)
+			if ok, _ := scan_index_at(data[chunks[k].start:chunks[j - 1].end], &t, chunks[k].start == 0, level); !ok {ragged()}
 			table_merge(&total, &t)
 		}
 		k = j

@@ -19,7 +19,8 @@ NCOLS :: 7
 Scan_Level :: enum {
 	Basic,     // v8
 	Fast_Hash, // v9, v10: + branch-free key lookup
-	Tuned,     // v11: + prefetch and branch-free number parsing
+	Tuned,     // v11, v12: + prefetch and branch-free number parsing
+	Fused_Parse, // v13: + one parse pass for amount, direct read of qty
 }
 WINDOW :: 64 << 10 // bytes classified per stage-1 pass; keeps the index buffer in L2
 
@@ -87,10 +88,15 @@ consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratc
 		amount := field(data, (p[3] >> 1) + 1, p[4] >> 1, scratch)
 		qty := field(data, (p[4] >> 1) + 1, p[5] >> 1, scratch)
 		cs, ce := (p[2] >> 1) + 1, p[3] >> 1
-		when LEVEL == .Tuned {
+		when LEVEL >= .Tuned {
 			key := data[cs] == '"' && ce - cs >= 2 ? key_from_string(field(data, cs, ce, scratch)) : key_in_buffer(data, cs, ce)
-			cents, cents_ok := swar_cents(data, (p[3] >> 1) + 1, p[4] >> 1)
-			q, q_ok := swar_uint(data, (p[4] >> 1) + 1, p[5] >> 1)
+			when LEVEL == .Fused_Parse {
+				cents, cents_ok := swar_amount(data, (p[3] >> 1) + 1, p[4] >> 1)
+				q, q_ok := small_uint(data, (p[4] >> 1) + 1, p[5] >> 1)
+			} else {
+				cents, cents_ok := swar_cents(data, (p[3] >> 1) + 1, p[4] >> 1)
+				q, q_ok := swar_uint(data, (p[4] >> 1) + 1, p[5] >> 1)
+			}
 			if !cents_ok {cents = parse_cents(amount)} 	// quoted, other decimals, > 8 digits
 			if !q_ok {q = parse_uint(qty)}
 			table_add_key(t, key, cents, q)
@@ -121,7 +127,7 @@ scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $LEVEL: Scan_Level)
 		wend := min(nblocks, w + WINDOW / 64)
 		for ; w < wend; w += 1 {
 			base := w * 64
-			when LEVEL == .Tuned {
+			when LEVEL >= .Tuned {
 				intrinsics.prefetch_read_data(&data[min(base + PREFETCH_DISTANCE, len(data) - 1)], 3)
 			}
 			// Load into a local first: passing unaligned_load's result straight
