@@ -29,6 +29,7 @@ VERSIONS := [?]Version {
 	{"v8_field_index", v8_field_index},
 	{"v9_fast_hash", v9_fast_hash},
 	{"v10_threads", v10_threads},
+	{"v11_tuned", v11_tuned},
 }
 
 main :: proc() {

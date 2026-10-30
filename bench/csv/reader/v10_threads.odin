@@ -19,6 +19,7 @@ Chunk :: struct {
 	quotes:    int,
 	start, end: int, // record-aligned range this thread aggregates
 	table:     Table,
+	tuned:     bool, // v11's kernel instead of v9's
 }
 
 count_quotes :: proc(data: []u8) -> int #no_bounds_check {
@@ -48,6 +49,10 @@ next_record_start :: proc(data: []u8, from: int, inside: bool) -> int {
 }
 
 v10_threads :: proc(path: string) -> Result {
+	return scan_threaded(path, tuned = false)
+}
+
+scan_threaded :: proc(path: string, tuned: bool) -> Result {
 	data := map_file(path)
 	defer unmap_file(data)
 	n := len(data)
@@ -57,6 +62,7 @@ v10_threads :: proc(path: string) -> Result {
 	defer delete(chunks)
 	for &c, k in chunks {
 		c.data = data
+		c.tuned = tuned
 		c.lo = k * n / workers
 		c.hi = (k + 1) * n / workers
 	}
@@ -74,7 +80,12 @@ v10_threads :: proc(path: string) -> Result {
 
 	run_all(chunks, proc(c: ^Chunk) {
 		c.table = table_make()
-		if c.start < c.end {scan_index(c.data[c.start:c.end], &c.table, c.start == 0, FAST_HASH = true)}
+		if c.start >= c.end {return}
+		if c.tuned {
+			scan_index(c.data[c.start:c.end], &c.table, c.start == 0, Scan_Level.Tuned)
+		} else {
+			scan_index(c.data[c.start:c.end], &c.table, c.start == 0, Scan_Level.Fast_Hash)
+		}
 	})
 
 	total := table_make()

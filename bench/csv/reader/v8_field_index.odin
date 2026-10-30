@@ -14,6 +14,13 @@ import "core:os"
 // the field count from the first record), a ragged record is an error.
 
 NCOLS :: 7
+
+// Which later steps the shared two-stage kernel includes.
+Scan_Level :: enum {
+	Basic,     // v8
+	Fast_Hash, // v9, v10: + branch-free key lookup
+	Tuned,     // v11: + prefetch and branch-free number parsing
+}
 WINDOW :: 64 << 10 // bytes classified per stage-1 pass; keeps the index buffer in L2
 
 // Appends the positions of the set bits of seps to idx[n^:], tagging newlines.
@@ -66,7 +73,7 @@ ragged :: proc() -> ! {
 }
 
 // Consumes whole records from idx[:n]; returns how many entries it used.
-consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratch: ^[dynamic]u8, $FAST_HASH: bool) -> int #no_bounds_check {
+consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratch: ^[dynamic]u8, $LEVEL: Scan_Level) -> int #no_bounds_check {
 	r := 0
 	for r + NCOLS <= len(idx) {
 		p := idx[r:]
@@ -79,7 +86,14 @@ consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratc
 		amount := field(data, (p[3] >> 1) + 1, p[4] >> 1, scratch)
 		qty := field(data, (p[4] >> 1) + 1, p[5] >> 1, scratch)
 		cs, ce := (p[2] >> 1) + 1, p[3] >> 1
-		when FAST_HASH {
+		when LEVEL == .Tuned {
+			key := data[cs] == '"' && ce - cs >= 2 ? key_from_string(field(data, cs, ce, scratch)) : key_in_buffer(data, cs, ce)
+			cents, cents_ok := swar_cents(data, (p[3] >> 1) + 1, p[4] >> 1)
+			q, q_ok := swar_uint(data, (p[4] >> 1) + 1, p[5] >> 1)
+			if !cents_ok {cents = parse_cents(amount)} 	// quoted, other decimals, > 8 digits
+			if !q_ok {q = parse_uint(qty)}
+			table_add_key(t, key, cents, q)
+		} else when LEVEL == .Fast_Hash {
 			key := data[cs] == '"' && ce - cs >= 2 ? key_from_string(field(data, cs, ce, scratch)) : key_in_buffer(data, cs, ce)
 			table_add_key(t, key, parse_cents(amount), parse_uint(qty))
 		} else {
@@ -89,7 +103,7 @@ consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratc
 	return r
 }
 
-scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $FAST_HASH: bool) #no_bounds_check {
+scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $LEVEL: Scan_Level) #no_bounds_check {
 	idx := make([]int, WINDOW + NCOLS + 16)
 	defer delete(idx)
 	scratch := make([dynamic]u8, 0, 64)
@@ -102,6 +116,9 @@ scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $FAST_HASH: bool) #
 		wend := min(nblocks, w + WINDOW / 64)
 		for ; w < wend; w += 1 {
 			base := w * 64
+			when LEVEL == .Tuned {
+				intrinsics.prefetch_read_data(&data[min(base + PREFETCH_DISTANCE, len(data) - 1)], 3)
+			}
 			// Load into a local first: passing unaligned_load's result straight
 			// in as an argument can compile to an aligned load, which faults
 			// when a thread's chunk starts mid-block.
@@ -109,7 +126,7 @@ scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $FAST_HASH: bool) #
 			seps, nl := classify(block, &inside)
 			flatten(raw_data(idx), &n, base, seps, nl)
 		}
-		used := consume_records(data, idx[:n], t, &header, &scratch, FAST_HASH)
+		used := consume_records(data, idx[:n], t, &header, &scratch, LEVEL)
 		copy(idx[:], idx[used:n])
 		n -= used
 	}
@@ -124,14 +141,14 @@ scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $FAST_HASH: bool) #
 		live := u64(1) << uint(rest) - 1
 		flatten(raw_data(idx), &n, tail_at, seps & live, nl & live)
 	}
-	used := consume_records(data, idx[:n], t, &header, &scratch, FAST_HASH)
+	used := consume_records(data, idx[:n], t, &header, &scratch, LEVEL)
 	copy(idx[:], idx[used:n])
 	n -= used
 	if n > 0 {
 		// Last record has no trailing newline: close it at end of data.
 		idx[n] = len(data) << 1 | 1
 		n += 1
-		if consume_records(data, idx[:n], t, &header, &scratch, FAST_HASH) != n {ragged()}
+		if consume_records(data, idx[:n], t, &header, &scratch, LEVEL) != n {ragged()}
 	} else if len(data) > 0 && data[len(data) - 1] != '\n' {
 		ragged() // trailing text with no separators
 	}
@@ -142,6 +159,6 @@ v8_field_index :: proc(path: string) -> Result {
 	defer unmap_file(data)
 	t := table_make()
 	defer table_destroy(&t)
-	scan_index(data, &t, true, FAST_HASH = false)
+	scan_index(data, &t, true, Scan_Level.Basic)
 	return result_from_table(&t)
 }
