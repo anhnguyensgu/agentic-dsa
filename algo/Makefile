@@ -1,4 +1,4 @@
-.PHONY: build check test test-unit test-integration test-learning test-mcp test-packaging install uninstall clean
+.PHONY: build check test test-unit test-integration test-learning test-mcp test-packaging install install-algo install-langlings uninstall uninstall-algo uninstall-langlings clean
 
 PREFIX ?= $(HOME)/.local
 ODIN_FLAGS := -vet -strict-style
@@ -51,14 +51,26 @@ test-packaging: build
 
 test: check test-unit test-integration test-learning test-mcp test-packaging
 
-install: build
+install: install-algo install-langlings
+
+install-algo: build
 	install -d "$(PREFIX)/bin"
 	install -m 755 bin/algo "$(PREFIX)/bin/algo"
 	$(call remove_old_aliases,$(PREFIX)/bin)
 
-uninstall:
+# langlings, the exercise runner beside algo/, is a Go program.
+install-langlings:
+	install -d "$(PREFIX)/bin"
+	go -C ../langlings build -o "$(abspath $(PREFIX))/bin/langlings" .
+
+uninstall: uninstall-algo uninstall-langlings
+
+uninstall-algo:
 	rm -f "$(PREFIX)/bin/algo"
 	$(call remove_old_aliases,$(PREFIX)/bin)
+
+uninstall-langlings:
+	rm -f "$(PREFIX)/bin/langlings"
 
 clean:
 	rm -rf bin

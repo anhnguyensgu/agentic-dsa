@@ -1,0 +1,10 @@
+{
+  "name": "learn-anything",
+  "version": "0.1.0",
+  "description": "Get familiar with any domain fast: a sourced domain map, retrieval drills that carry over between sessions, and an agent mode that distills a skill file.",
+  "private": true,
+  "keywords": ["pi-package"],
+  "pi": {
+    "skills": ["./skills"]
+  }
+}

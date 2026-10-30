@@ -10,7 +10,8 @@ Three pieces:
   submits LeetCode and Kattis problems; `algo learn` is the tutoring engine that
   stores sessions, hints, test evidence, and reviews.
 - **Agent plugins** for Claude Code, Codex, and Pi that teach your agent to use
-  `algo` and `langlings`.
+  `algo` and `langlings`, plus `learn-anything`, which maps and drills any
+  domain with no binary of its own.
 - **`langlings`**: a separate exercise runner for fix-the-code courses in any
   language, with the odinlings course built in.
 
@@ -18,19 +19,20 @@ Three pieces:
 algo/       source for the algo program
 plugins/    the agent plugins and their skills
 langlings/  source for the langlings runner and its built-in courses
-problems/   practice solutions
 ```
 
 ## Install
 
-### 1. Build `algo`
+### 1. Build `algo` and `langlings`
 
-Requires [Odin](https://odin-lang.org) (`dev-2026-07` or later), `curl`, and `make`.
+Requires [Odin](https://odin-lang.org) (`dev-2026-07` or later), `curl`, and `make`;
+`langlings` also needs [Go](https://go.dev).
 
 ```sh
 git clone https://github.com/anhnguyensgu/agentic-dsa.git
 cd agentic-dsa/algo
-make install                    # installs to ~/.local/bin; add it to PATH
+make install                    # algo and langlings to ~/.local/bin; add it to PATH
+                                # (one of them: make install-algo / install-langlings)
 algo learn doctor --workspace . --json
 ```
 
@@ -54,7 +56,9 @@ pi install ./plugins/algorithm-learning
 ```
 
 For langlings exercises, also install the `langlings` plugin the same way; see
-[`plugins/README.md`](plugins/README.md#langlings).
+[`plugins/README.md`](plugins/README.md#langlings). For learning any other
+domain, install `learn-anything`; see
+[`plugins/README.md`](plugins/README.md#learn-anything).
 
 ### 3. Practise
 

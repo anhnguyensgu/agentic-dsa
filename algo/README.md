@@ -32,7 +32,8 @@ Requires Odin and `curl` on `PATH`. Developed and tested on macOS with
 ```sh
 make build                   # bin/algo
 ./bin/algo help
-make install                 # ~/.local/bin/algo
+make install                 # ~/.local/bin/algo and ~/.local/bin/langlings
+# Or one of them: make install-algo, make install-langlings
 # Or: make install PREFIX=/your/prefix
 ```
 

@@ -3,7 +3,7 @@
 *.dSYM/
 .DS_Store
 .algo/
+.learning/
 
-# compiled solutions and the problem-fetch cache
-/problems/*/solution
-/problems/.cache/
+# personal practice; algo itself writes to ~/algo/problems/
+/problems/

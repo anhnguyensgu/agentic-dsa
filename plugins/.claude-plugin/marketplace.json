@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "agentic-dsa",
-  "description": "Algorithm and language practice tools for coding agents: an evidence-backed DSA tutor and a langlings exercise coach.",
+  "description": "Learning tools for coding agents: an evidence-backed DSA tutor, a langlings exercise coach, and a learn-anything domain coach.",
   "owner": {
     "name": "anh nguyen"
   },
@@ -15,6 +15,11 @@
       "name": "langlings",
       "source": "./langlings",
       "description": "Coach fix-the-code language exercises (odinlings, ziglings, rustlings) with the local langlings runner."
+    },
+    {
+      "name": "learn-anything",
+      "source": "./learn-anything",
+      "description": "Get familiar with any domain fast: a sourced domain map, retrieval drills that carry over between sessions, and an agent mode that distills a skill file."
     }
   ]
 }

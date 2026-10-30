@@ -5,7 +5,7 @@ checking, hints, progress) is written once; each course is a TOML file in
 `tracks/`.
 
 ```sh
-# install
+# install (or: make -C algo install-langlings)
 (cd langlings && go build -o ~/.local/bin/langlings .)
 
 # learn Zig from an empty folder

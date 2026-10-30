@@ -1,14 +1,15 @@
 # Agent plugins
 
-Two plugins serve Claude Code, Codex, and Pi: `algorithm-learning/` for DSA
-tutoring with `algo`, and `langlings/` for coaching fix-the-code language
-exercises (see [langlings](#langlings)). Each holds the only copy of its skill,
+Three plugins serve Claude Code, Codex, and Pi: `algorithm-learning/` for DSA
+tutoring with `algo`, `langlings/` for coaching fix-the-code language exercises
+(see [langlings](#langlings)), and `learn-anything/` for getting familiar with
+any domain (see [learn-anything](#learn-anything)). Each holds the only copy of its skill,
 and each agent reads its own manifest from the same folder:
 
 ```text
 plugins/
-├── .claude-plugin/marketplace.json   Claude Code marketplace (lists both plugins)
-├── .agents/plugins/marketplace.json  Codex marketplace (lists both plugins)
+├── .claude-plugin/marketplace.json   Claude Code marketplace (lists all plugins)
+├── .agents/plugins/marketplace.json  Codex marketplace (lists all plugins)
 ├── algorithm-learning/               the algo plugin
 │   ├── skills/algorithm-learning/    the teaching skill (edit here)
 │   ├── scripts/launch_algolearn_mcp  starts `algo learn serve` (edit here)
@@ -16,8 +17,14 @@ plugins/
 │   ├── .codex-plugin/plugin.json     Codex: skill + MCP server (.mcp.json)
 │   ├── .mcp.json                     Codex's MCP config
 │   └── package.json                  Pi: skill
-└── langlings/                        the langlings plugin: skill only
-    ├── skills/langlings/             the coaching skill (edit here)
+├── langlings/                        the langlings plugin: skill only
+│   ├── skills/langlings/             the coaching skill (edit here)
+│   ├── .claude-plugin/plugin.json    Claude Code
+│   ├── .codex-plugin/plugin.json     Codex
+│   └── package.json                  Pi
+└── learn-anything/                   the domain-learning plugin: skill only
+    ├── skills/start/                 the workflow skill (edit here)
+    ├── skills/status/                the read-only progress report
     ├── .claude-plugin/plugin.json    Claude Code
     ├── .codex-plugin/plugin.json     Codex
     └── package.json                  Pi
@@ -137,7 +144,7 @@ mode. It needs `langlings` on `PATH` and the course's toolchain (for example
 `odin` for odinlings):
 
 ```sh
-(cd langlings && go build -o ~/.local/bin/langlings .)
+make -C algo install-langlings                  # or: make -C algo install
 
 claude plugin install langlings@agentic-dsa    # Claude Code
 codex plugin add langlings@agentic-dsa         # Codex
@@ -148,6 +155,29 @@ Start the agent in a langlings workspace (the folder holding `tracks/`, or an
 empty folder to `langlings add` a course into) and ask, for example, "help me
 with the next odinlings exercise". Progress stays in langlings' own
 `.langlings/progress.json`; the plugin does not record anything in `algo learn`.
+
+## learn-anything
+
+The `learn-anything` plugin is a skill only and needs no binary. It maps an
+unfamiliar domain from fetched sources and drills it with retrieval questions
+(human mode), or has the agent pre-test itself, check its answers against the
+sources, and distill the gaps into a skill file (agent mode). The skill holds
+the workflow only; each domain's map and state live in `.learning/<slug>/` in
+the folder the agent starts in:
+
+```sh
+claude plugin install learn-anything@agentic-dsa    # Claude Code
+codex plugin add learn-anything@agentic-dsa         # Codex
+pi install ./plugins/learn-anything                 # Pi
+```
+
+Ask, for example, "help me get familiar with Kubernetes networking" or "learn
+the current Bun test runner yourself and write a skill for it". In Claude Code,
+`/learn-anything:start [topic]` starts or continues a topic and
+`/learn-anything:status [topic]` shows each topic's status and current section
+without changing anything. Web search,
+subagents, and a question tool are used when the agent has them; without web
+access, give it URLs or files to work from.
 
 ## Moving to another machine
 

@@ -1,0 +1,18 @@
+{
+  "name": "learn-anything",
+  "version": "0.1.0",
+  "description": "Get familiar with any domain fast: a sourced domain map, retrieval drills that carry over between sessions, and an agent mode that distills a skill file.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Learn Anything",
+    "shortDescription": "Map a domain and drill it across sessions.",
+    "longDescription": "Get familiar with any domain: build a sourced map of its vocabulary, mental models, landscape, and common tasks, drill it with retrieval questions whose state carries over between sessions, or have the agent learn the domain and distill its gaps into a skill.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Help me get familiar with a new domain, continuing from the learning folder if there is one."
+  }
+}

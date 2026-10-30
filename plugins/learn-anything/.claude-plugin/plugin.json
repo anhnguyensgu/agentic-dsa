@@ -1,0 +1,9 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "learn-anything",
+  "version": "0.1.0",
+  "description": "Get familiar with any domain fast: a sourced domain map, retrieval drills that carry over between sessions, and an agent mode that distills a skill file.",
+  "author": {
+    "name": "anh nguyen"
+  }
+}
