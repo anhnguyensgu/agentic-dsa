@@ -150,6 +150,43 @@ multiplies), writing the separator index 27%, record walk 15%, key lookup 13%,
 SIMD classification 10%. No single hot spot is left; further gains would need
 a different scan design.
 
+## Parsing micro-benchmark
+
+`./bin/reader data/sales.csv -parse -rows:100000 -runs:301` times number
+parsing alone. Field bounds and city ids of the first N rows are found once
+(untimed); each method then turns the fields into per-city sums, reading the
+bytes from the mapped file. Methods run round-robin so VM drift hits them
+alike, and every method must produce the same totals. With 100K rows the bytes
+stay in L2, so only parsing is measured (millions of rows mostly measure memory
+noise on this VM). Mean of 3 repeats, single thread:
+
+| amount | used by | ns/row | net of floor | vs strconv |
+|---|---|---:|---:|---:|
+| touch the bytes only (floor) | | 1.95 | | |
+| `strconv.parse_f64` | v0-v2 | 26.0 | 24.1 | 1.0x |
+| digit loop | v3-v10 | 7.7 | 5.8 | 3.4x |
+| SWAR, two calls (whole part, cents) | v11-v12 | 5.4 | 3.4 | 4.8x |
+| SWAR, one pass (`.` removed) | v13 | 4.4 | 2.5 | 5.9x |
+| digit sums, no multiply (sum-only idea) | not used | 4.2 | 2.2 | 6.2x |
+
+| qty | used by | ns/row | net of floor | vs strconv |
+|---|---|---:|---:|---:|
+| touch the bytes only (floor) | | 1.81 | | |
+| `strconv.parse_int` | v0-v2 | 12.2 | 10.4 | 1.0x |
+| digit loop | v3-v10 | 6.5 | 4.7 | 1.9x |
+| SWAR 8-byte | v11-v12 | 3.2 | 1.4 | 3.8x |
+| 1-2 digits read directly | v13 | 2.2 | 0.4 | 5.5x |
+
+"Digit sums" skips converting each amount: since the query only needs per-city
+totals, it adds each row's digits position by position and weights the
+positions once every 4096 rows. In isolation it saves only ~0.3 ns a row over
+v13, so the multiplies are not what makes parsing cost; the shared work (load,
+close the `.` gap, mask, check every byte is a digit) is. Inside the full
+reader the profile charges parsing ~10 ns a row, about 3x what it costs here,
+so in context parsing is slowed by what runs around it (fewer rows overlap
+than in this tight loop), or the profile over-attributes to it. Only an
+in-reader A/B can tell which.
+
 ## Limits
 
 - v2 and later assume `\n` line endings. With `\r\n` the `\r` ends up in the

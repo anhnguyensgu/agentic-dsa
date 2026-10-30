@@ -37,9 +37,17 @@ VERSIONS := [?]Version {
 main :: proc() {
 	path := ""
 	runs := 5
+	parse_only := false
+	parse_rows := PARSE_ROWS
 	filters: [dynamic]string
 	for arg in os.args[1:] {
-		if strings.has_prefix(arg, "-runs:") {
+		if arg == "-parse" {
+			parse_only = true
+		} else if strings.has_prefix(arg, "-rows:") {
+			ok: bool
+			parse_rows, ok = strconv.parse_int(arg[len("-rows:"):])
+			if !ok || parse_rows < 1 {usage()}
+		} else if strings.has_prefix(arg, "-runs:") {
 			ok: bool
 			runs, ok = strconv.parse_int(arg[len("-runs:"):])
 			if !ok || runs < 1 {usage()}
@@ -50,6 +58,10 @@ main :: proc() {
 		}
 	}
 	if path == "" {usage()}
+	if parse_only {
+		if !parse_bench(path, runs, parse_rows) {os.exit(1)}
+		return
+	}
 
 	expected := string(read_file(strings.concatenate({path, ".expected"})))
 	info, serr := os.stat(path, context.allocator)
@@ -187,5 +199,6 @@ floor_simd_classify_mt :: proc(path: string) -> int {
 
 usage :: proc() -> ! {
 	fmt.eprintln("usage: reader <file.csv> [-runs:N] [version-name-prefix ...]")
+	fmt.eprintln("       reader <file.csv> -parse [-runs:N] [-rows:N]   number-parsing micro-benchmark")
 	os.exit(2)
 }
