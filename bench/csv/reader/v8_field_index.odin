@@ -72,13 +72,14 @@ ragged :: proc() -> ! {
 	os.exit(1)
 }
 
-// Consumes whole records from idx[:n]; returns how many entries it used.
-consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratch: ^[dynamic]u8, $LEVEL: Scan_Level) -> int #no_bounds_check {
+// Consumes whole records from idx[:n]; returns how many entries it used,
+// or ok = false at a record without NCOLS fields.
+consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratch: ^[dynamic]u8, $LEVEL: Scan_Level) -> (used: int, ok: bool) #no_bounds_check {
 	r := 0
 	for r + NCOLS <= len(idx) {
 		p := idx[r:]
 		r += NCOLS
-		if (p[0] | p[1] | p[2] | p[3] | p[4] | p[5]) & 1 != 0 || p[6] & 1 == 0 {ragged()}
+		if (p[0] | p[1] | p[2] | p[3] | p[4] | p[5]) & 1 != 0 || p[6] & 1 == 0 {return r - NCOLS, false}
 		if header^ {
 			header^ = false
 			continue
@@ -100,10 +101,14 @@ consume_records :: proc(data: []u8, idx: []int, t: ^Table, header: ^bool, scratc
 			table_add(t, field(data, cs, ce, scratch), parse_cents(amount), parse_uint(qty))
 		}
 	}
-	return r
+	return r, true
 }
 
-scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $LEVEL: Scan_Level) #no_bounds_check {
+// Aggregates the records of data into t, assuming data starts outside quotes.
+// ok is false at a record without NCOLS fields (scanning stops there);
+// otherwise end_inside tells whether data ends inside a quoted field, which is
+// the parity of its quote count.
+scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $LEVEL: Scan_Level) -> (ok: bool, end_inside: bool) #no_bounds_check {
 	idx := make([]int, WINDOW + NCOLS + 16)
 	defer delete(idx)
 	scratch := make([dynamic]u8, 0, 64)
@@ -126,7 +131,8 @@ scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $LEVEL: Scan_Level)
 			seps, nl := classify(block, &inside)
 			flatten(raw_data(idx), &n, base, seps, nl)
 		}
-		used := consume_records(data, idx[:n], t, &header, &scratch, LEVEL)
+		used, rec_ok := consume_records(data, idx[:n], t, &header, &scratch, LEVEL)
+		if !rec_ok {return false, false}
 		copy(idx[:], idx[used:n])
 		n -= used
 	}
@@ -141,17 +147,24 @@ scan_index :: proc(data: []u8, t: ^Table, skip_header: bool, $LEVEL: Scan_Level)
 		live := u64(1) << uint(rest) - 1
 		flatten(raw_data(idx), &n, tail_at, seps & live, nl & live)
 	}
-	used := consume_records(data, idx[:n], t, &header, &scratch, LEVEL)
+	used, rec_ok := consume_records(data, idx[:n], t, &header, &scratch, LEVEL)
+	if !rec_ok {return false, false}
 	copy(idx[:], idx[used:n])
 	n -= used
 	if n > 0 {
 		// Last record has no trailing newline: close it at end of data.
 		idx[n] = len(data) << 1 | 1
 		n += 1
-		if consume_records(data, idx[:n], t, &header, &scratch, LEVEL) != n {ragged()}
+		last, last_ok := consume_records(data, idx[:n], t, &header, &scratch, LEVEL)
+		if !last_ok || last != n {return false, false}
 	} else if len(data) > 0 && data[len(data) - 1] != '\n' {
-		ragged() // trailing text with no separators
+		return false, false // trailing text with no separators
 	}
+	return true, inside != 0
+}
+
+scan_index_or_exit :: proc(data: []u8, t: ^Table, skip_header: bool, $LEVEL: Scan_Level) {
+	if ok, _ := scan_index(data, t, skip_header, LEVEL); !ok {ragged()}
 }
 
 v8_field_index :: proc(path: string) -> Result {
@@ -159,6 +172,6 @@ v8_field_index :: proc(path: string) -> Result {
 	defer unmap_file(data)
 	t := table_make()
 	defer table_destroy(&t)
-	scan_index(data, &t, true, Scan_Level.Basic)
+	scan_index_or_exit(data, &t, true, Scan_Level.Basic)
 	return result_from_table(&t)
 }

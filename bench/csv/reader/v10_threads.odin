@@ -82,9 +82,9 @@ scan_threaded :: proc(path: string, tuned: bool) -> Result {
 		c.table = table_make()
 		if c.start >= c.end {return}
 		if c.tuned {
-			scan_index(c.data[c.start:c.end], &c.table, c.start == 0, Scan_Level.Tuned)
+			scan_index_or_exit(c.data[c.start:c.end], &c.table, c.start == 0, Scan_Level.Tuned)
 		} else {
-			scan_index(c.data[c.start:c.end], &c.table, c.start == 0, Scan_Level.Fast_Hash)
+			scan_index_or_exit(c.data[c.start:c.end], &c.table, c.start == 0, Scan_Level.Fast_Hash)
 		}
 	})
 
@@ -97,7 +97,7 @@ scan_threaded :: proc(path: string, tuned: bool) -> Result {
 	return result_from_table(&total)
 }
 
-run_all :: proc(chunks: []Chunk, fn: proc(c: ^Chunk)) {
+run_all :: proc(chunks: []$T, fn: proc(c: ^T)) {
 	threads := make([]^thread.Thread, len(chunks))
 	defer delete(threads)
 	for &c, k in chunks {

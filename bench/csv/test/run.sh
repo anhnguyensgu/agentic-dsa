@@ -4,6 +4,7 @@
 #   - generator output at many small sizes, so thread cuts land everywhere
 #   - the same files without their trailing newline
 #   - quote-heavy files with newlines, commas and "" inside fields
+#   - files of long multi-line quoted notes (v12's wrong-guess path)
 #   - a ragged file, which the record-indexing versions must reject
 set -eu
 cd "$(dirname "$0")/.."
@@ -36,6 +37,13 @@ for rows in 1 2 3 4 5 8 13 21 50 99 500 5000 20000; do
 	check "$dir/hn.csv"
 done
 
+# Notes made of many quoted lines: most of v12's guessed cuts land inside
+# quotes, so its redo path runs (all of its chunks, or only some of them).
+for rows in 1 3 13 55 400 2000; do
+	python3 -I test/hostile.py "$dir/l.csv" "$rows" long
+	check "$dir/l.csv"
+done
+
 # Number formats v11's branch-free parser hands back to the slow path.
 printf 'id,ts,user_id,city,amount,qty,note\n1,t,u,Oslo,1.5,7,x\n2,t,u,Oslo,12,"7",x\n3,t,u,Oslo,"3.25",10,x\n4,t,u,Oslo,123456789.01,1,x\n5,t,u,Oslo,-0.05,20,x\n' >"$dir/numbers.csv"
 printf 'Oslo\t5\t12345680571\t45\n' >"$dir/numbers.csv.expected"
@@ -43,7 +51,7 @@ check "$dir/numbers.csv"
 
 printf 'id,ts,user_id,city,amount,qty,note\n1,t,u,Oslo,1.00,2,x\n2,t,u,Oslo,1.00,2\n' >"$dir/ragged.csv"
 printf 'Oslo\t2\t200\t4\n' >"$dir/ragged.csv.expected"
-for v in v8 v9 v10 v11; do
+for v in v8 v9 v10 v11 v12; do
 	if ./bin/reader "$dir/ragged.csv" -runs:1 "$v" 2>&1 | grep -q "does not have 7 fields"; then :; else
 		echo "FAIL: $v accepted a ragged record"
 		fail=1

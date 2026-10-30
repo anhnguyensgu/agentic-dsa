@@ -93,6 +93,6 @@ v9_fast_hash :: proc(path: string) -> Result {
 	defer unmap_file(data)
 	t := table_make()
 	defer table_destroy(&t)
-	scan_index(data, &t, true, Scan_Level.Fast_Hash)
+	scan_index_or_exit(data, &t, true, Scan_Level.Fast_Hash)
 	return result_from_table(&t)
 }

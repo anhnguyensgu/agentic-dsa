@@ -1,6 +1,6 @@
 # Large CSV reader benchmark
 
-A ~1 GB CSV aggregated by twelve readers, each adding one optimization to the
+A ~1 GB CSV aggregated by thirteen readers, each adding one optimization to the
 one before it, so every step's effect is measured on its own.
 
 ```sh
@@ -22,31 +22,33 @@ it, so no version is graded against another parser.
 
 15M rows, 957 MB, best of 7 runs, warm page cache. Machine: 4-core Xeon VM
 (AVX-512), Linux. Odin `dev-2026-07`, `-o:speed -microarch:native`.
-Run-to-run noise is about ±5%.
+Run-to-run noise is about ±5-10%, and the VM's speed drifts between days, so
+compare the ratios within one run rather than times across runs.
 
 | version | what it adds | best ms | GB/s | vs v0 | vs prev |
 |---|---|---:|---:|---:|---:|
-| v0_stdlib_stream | `core:encoding/csv` on a file stream, `strconv`, `map[string]` | 4062 | 0.24 | 1.0x | |
-| v1_stdlib_memory | read the whole file first, same parser | 4395 | 0.22 | 0.92x | 0.92x |
-| v2_scanner | hand-written byte loop; fields are slices into the buffer; only 3 columns kept | 2840 | 0.34 | 1.4x | 1.55x |
-| v3_fast_numbers | parse cents and ints by hand instead of `strconv` | 2255 | 0.42 | 1.8x | 1.26x |
-| v4_hash_table | open-addressing table instead of `map[string]` | 2092 | 0.46 | 1.9x | 1.08x |
-| v5_no_bounds_check | `#no_bounds_check` on the scan loop | 1912 | 0.50 | 2.1x | 1.09x |
-| v6_simd | classify 64 bytes at a time (bitmasks + prefix-XOR quote mask) | 1443 | 0.66 | 2.8x | 1.33x |
-| v7_mmap | `mmap` the file instead of reading it into the heap | 902 | 1.06 | 4.5x | 1.60x |
-| v8_field_index | write separator positions to an index; read columns at fixed offsets | 816 | 1.17 | 5.0x | 1.11x |
-| v9_fast_hash | branch-free key: two in-place 8-byte words, 2-multiply hash | 599 | 1.60 | 6.8x | 1.36x |
-| v10_threads | 4 threads, quote-parity-aware chunking, per-thread tables | 177 | 5.39 | 23x | 3.38x |
-| v11_tuned | prefetch 2 KB ahead + branch-free number parsing (found by profiling) | **156** | **6.12** | **26x** | 1.13x |
+| v0_stdlib_stream | `core:encoding/csv` on a file stream, `strconv`, `map[string]` | 4284 | 0.22 | 1.0x | |
+| v1_stdlib_memory | read the whole file first, same parser | 4605 | 0.21 | 0.93x | 0.93x |
+| v2_scanner | hand-written byte loop; fields are slices into the buffer; only 3 columns kept | 2815 | 0.34 | 1.5x | 1.64x |
+| v3_fast_numbers | parse cents and ints by hand instead of `strconv` | 2293 | 0.42 | 1.9x | 1.23x |
+| v4_hash_table | open-addressing table instead of `map[string]` | 2020 | 0.47 | 2.1x | 1.13x |
+| v5_no_bounds_check | `#no_bounds_check` on the scan loop | 1899 | 0.50 | 2.3x | 1.06x |
+| v6_simd | classify 64 bytes at a time (bitmasks + prefix-XOR quote mask) | 1409 | 0.68 | 3.0x | 1.35x |
+| v7_mmap | `mmap` the file instead of reading it into the heap | 907 | 1.05 | 4.7x | 1.55x |
+| v8_field_index | write separator positions to an index; read columns at fixed offsets | 846 | 1.13 | 5.1x | 1.07x |
+| v9_fast_hash | branch-free key: two in-place 8-byte words, 2-multiply hash | 609 | 1.57 | 7.0x | 1.39x |
+| v10_threads | 4 threads, quote-parity-aware chunking, per-thread tables | 199 | 4.80 | 21x | 3.05x |
+| v11_tuned | prefetch 2 KB ahead + branch-free number parsing (found by profiling) | 173 | 5.53 | 25x | 1.15x |
+| v12_speculative | guess chunk starts instead of a quote-counting pass; verify, redo if wrong | **157** | **6.10** | **27x** | 1.10x |
 
 Floors (the same file, doing only part of the work):
 
 | floor | best ms | GB/s |
 |---|---:|---:|
-| `read_entire_file` into a fresh heap buffer | 487 | 1.97 |
-| `mmap` + touch one byte per page | 17 | 55 |
-| `mmap` + SIMD classification only, 1 thread | 154 | 6.2 |
-| same, 4 threads | 47 | 20 |
+| `read_entire_file` into a fresh heap buffer | 486 | 1.97 |
+| `mmap` + touch one byte per page | 35 | 28 |
+| `mmap` + SIMD classification only, 1 thread | 171 | 5.6 |
+| same, 4 threads | 54 | 18 |
 
 ## What each step taught
 
@@ -84,15 +86,30 @@ Floors (the same file, doing only part of the work):
   place (loads may overlap; within 8 bytes of the buffer's ends it falls back
   to a copy), stores those words in the slot, and compares with three integer
   compares. Same work, almost no branches.
-- **v10 (3.4x on 4 cores):** a chunk can't simply start at the next newline,
+- **v10 (3.1x on 4 cores):** a chunk can't simply start at the next newline,
   because quoted fields contain newlines. Each thread first counts quotes in
   its raw slice (SIMD popcount). The running parity says whether each cut
   point is inside quotes, and each chunk starts after the first newline
   outside quotes. That is correct for any RFC 4180 input, for one extra pass
-  that costs ~40 ms across 4 threads.
-- **v11 (1.13x; 1.38x single-threaded):** the two fixes profiling found, below.
+  over the file (v12 removes it).
+- **v11 (1.15x; 1.38x single-threaded):** the two fixes profiling found, below.
   The step is smaller with 4 threads because part of the memory wait was
-  already overlapped by the other cores.
+  already overlapped by the other cores, and the quote-counting pass, which
+  the fixes don't touch, is a larger share of the total.
+- **v12 (1.10x; 1.14x over 5 alternating rounds of v11 and v12):** no
+  quote-counting pass. Each chunk starts after the first newline past its raw
+  cut, as if that newline were outside quotes. That guess is wrong only when
+  the cut lands in a field holding a quoted newline (about 1% of rows here).
+  The scan already tracks quote state, so each chunk returns its quote parity
+  for free; chaining the parities from the start of the file gives the true
+  state at every guessed boundary. Chunks next to a wrong boundary are thrown
+  away and the range between the real boundaries around them is scanned
+  again, so the result is always exact. The scanner reports a malformed
+  record instead of exiting, because a wrongly started chunk can look ragged.
+  Removing the pass saved ~20 ms, less than the 4-thread classification
+  floor (a comparable full pass over the file, ~50 ms), probably because the
+  pass also faulted in the mapping and warmed caches for the main pass, which
+  now pays that itself (not measured).
 
 ## Profiling v9 to find v11
 
@@ -152,9 +169,10 @@ reader/common.odin    result type, number parsing, hash table
 reader/v0_stdlib.odin v0, v1
 reader/v2_scanner.odin  v2-v5 (one scanner; the record sink varies)
 reader/v6_simd.odin   v6, v7, mmap helper
-reader/v8_field_index.odin  v8 (two-stage scan, shared by v9-v11)
+reader/v8_field_index.odin  v8 (two-stage scan, shared by v9-v12)
 reader/v9_fast_hash.odin    v9
 reader/v10_threads.odin     v10
 reader/v11_tuned.odin       v11
+reader/v12_speculative.odin v12
 test/run.sh, test/hostile.py  correctness sweep
 ```
