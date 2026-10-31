@@ -1,6 +1,7 @@
 # Agent plugins
 
-Three plugins serve Claude Code, Codex, and Pi: `algorithm-learning/` for DSA
+Three plugins serve Claude Code, Codex, and Pi (and the skill and MCP server
+also work in [DeepTutor](#deeptutor)): `algorithm-learning/` for DSA
 tutoring with `algo`, `langlings/` for coaching fix-the-code language exercises
 (see [langlings](#langlings)), and `learn-anything/` for getting familiar with
 any domain (see [learn-anything](#learn-anything)). Each holds the only copy of its skill,
@@ -30,8 +31,9 @@ plugins/
     └── package.json                  Pi
 ```
 
-Every agent reaches the same `algo learn` operation registry and workspace event
-stream, so a session started in one agent can be resumed in another.
+Every agent reaches the same stateless `algo learn` tools. The tools store
+nothing: each result lists the events it produced, and the agent keeps them in
+its own memory. To continue a session in another agent, give it that record.
 
 Everything agent-specific lives here. Install from a clone of this repository:
 Claude Code and Codex only read a marketplace at a GitHub repository's root, so
@@ -66,7 +68,7 @@ To try the plugin for one session without installing it, run
 `claude --plugin-dir plugins/algorithm-learning`.
 
 The plugin adds the `algorithm-learning` skill and an `algorithm-learning` MCP
-server with one tool per engine operation; `claude mcp list` shows it as
+server with one tool per operation; `claude mcp list` shows it as
 `plugin:algorithm-learning:algorithm-learning`. It uses the global algo
 workspace; set `ALGOLEARN_WORKSPACE` to use another one. The plugin adds about 100
 tokens to every session (`claude plugin details algorithm-learning`).
@@ -106,8 +108,53 @@ pi mcp add algorithm-learning -- algo learn serve --workspace /absolute/path/to/
 ```
 
 Pi 1.0.2 loads the packaged skill (checked with `pi --mode rpc` and
-`get_commands`, without a model call). Pi resumes through
-`algo learn call session_resume`; it needs no separate progress store.
+`get_commands`, without a model call). Pi keeps the returned events itself, as
+the skill's `references/events.md` describes.
+
+## DeepTutor
+
+[DeepTutor](https://github.com/HKUDS/DeepTutor) is a host agent with its own
+memory, web UI, and model providers (including ChatGPT-plan sign-in through its
+OpenAI Codex provider). It takes `algo` as a stdio MCP server and the skill as
+an ordinary `SKILL.md` package. Connect `algo` through MCP. As a CLI App it
+works, but DeepTutor offers chat only the CLI Apps listed in its bundled
+CLI-Anything catalog, and `algo` is not listed. With an `algo` entry added to
+that catalog for one test process, DeepTutor's installer installed `algo` (a
+pip package whose `algo` command runs the real binary), and a chat turn loaded
+`cli_algo` and ran `algo learn doctor` through it. Running CLI Apps on macOS
+also needs `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=1`, since there is no other
+sandbox. A permanent CLI App would need `algo` in the upstream CLI-Anything
+catalog.
+
+1. Register the server. In DeepTutor, stdio MCP servers are administrator-only:
+   add it under Personalization → MCP Services as the admin, or put this entry
+   in `<runtime home>/data/user/settings/mcp.json`:
+
+   ```json
+   {"servers": {"algorithm-learning": {
+     "command": "/absolute/path/to/algo", "args": ["learn", "serve"],
+     "env": {}, "tool_timeout": 120}}}
+   ```
+
+   Use an absolute path: DeepTutor starts the server with a minimal
+   environment. Add `"--workspace", "/abs/practice"` to `args`, or
+   `ALGO_WORKSPACE` to `env`, for a workspace other than `~/algo`. Keep `odin`
+   on the `PATH` DeepTutor is started with, or `test_run` cannot compile.
+2. Add the skill: copy `algorithm-learning/skills/algorithm-learning/` into the
+   active workspace's skill library,
+   `<runtime home>/data/user/workspaces/<workspace id>/skills/`.
+   `deeptutor skill list` then shows it as a user skill.
+3. Restart `deeptutor start`. The tools appear as deferred tools named
+   `mcp_algorithm-learning_<operation>`; DeepTutor's agent reads the skill
+   with `read_skill` and loads them with `load_tools` when a turn needs them.
+
+Checked on 2026-10-31 with DeepTutor 1.7.0 (PyPI, Python 3.13): its MCP probe
+listed all six tools, its connection manager ran `doctor`, `curriculum_get`,
+`attempt_start`, `test_run`, and a refused `submit` through its own tool
+adapters, and a `deeptutor run chat` turn on `gpt-6-luna` (OpenAI Codex
+provider) read the skill, loaded the tools, and answered from `doctor` and
+`curriculum_get`. Whether DeepTutor's memory keeps the returned events across
+sessions was not checked; ask its agent to save them, as the skill directs.
 
 ## Any other agent
 
@@ -115,13 +162,13 @@ An agent that reads skills and runs commands can use the shared skill and the
 JSON CLI directly:
 
 ```sh
-algo learn call state_get --workspace /path/to/practice --input request.json --json
+algo learn call attempt_start --workspace /path/to/practice --input request.json --json
 ```
 
 Write JSON to a file or stdin. Do not interpolate learner text, source, or
 credentials into a shell command. A text-only agent without filesystem or
 process access can ask the learner to run commands and paste results, but must
-state that it did not execute or persist anything itself.
+state that it did not execute anything itself.
 
 An agent with local stdio MCP support can launch the server directly:
 
@@ -130,7 +177,7 @@ An agent with local stdio MCP support can launch the server directly:
 ```
 
 The compatibility target is MCP `2025-11-25`. The server exposes typed schemas
-for every engine operation, returns the envelope in `structuredContent` and an
+for every operation, returns the envelope in `structuredContent` and an
 equivalent text block, and keeps diagnostics off stdout. Do not copy
 configuration keys from one agent to another; if an agent does not document
 local stdio MCP, use the JSON CLI.

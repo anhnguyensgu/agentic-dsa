@@ -2,7 +2,7 @@ package learn
 
 // Provider discovery is conservative: an implemented adapter is separate from
 // one that is available now. The doctor checks versions and paths only; it
-// never starts a login or uploads source.
+// never starts a login, uploads source, or writes to the workspace.
 //
 // Everything provider-specific the engine needs is data in PROVIDERS; the
 // engine never branches on a provider's name.
@@ -18,7 +18,7 @@ Provider_Id :: enum {
 	Exercism,
 }
 
-// Submit_Style is how submission_send hands a prepared source to a provider.
+// Submit_Style is how submit hands a source to a provider.
 Submit_Style :: enum {
 	Start_Job_With_Language, // submit-start <slug> <file> --lang <language>: a remote job id
 	Start_Job, // submit-start <id> <file> [--lang <language>]: Odin is inferred from the extension
@@ -195,15 +195,7 @@ Doctor_Params :: struct {
 	check_accounts: bool,
 }
 
-op_doctor :: proc(
-	ctx: ^Context,
-	store: ^Store,
-	input: Input,
-	req: Request,
-) -> (
-	res: Result,
-	err: Op_Error,
-) {
+op_doctor :: proc(ctx: ^Context, input: Input, req: Request) -> (res: Result, err: Op_Error) {
 	p := params(input, Doctor_Params) or_return
 	providers := make([]Provider_Status, len(PROVIDERS))
 	self := self_executable()
@@ -221,8 +213,6 @@ op_doctor :: proc(
 		curriculum_version:       string,
 		concept_count:            int,
 		workspace_accessible:     bool,
-		workspace_initialized:    bool,
-		event_log_readable:       bool,
 		odin_compiler_available:  bool,
 		providers:                []Provider_Status,
 		ready_for_local_practice: bool,
@@ -234,8 +224,6 @@ op_doctor :: proc(
 			curriculum_version = curriculum_version(),
 			concept_count = len(concepts),
 			workspace_accessible = workspace_accessible,
-			workspace_initialized = os.is_file(manifest_path(ctx.workspace)),
-			event_log_readable = store.tail_warning == "",
 			odin_compiler_available = odin_available,
 			providers = providers,
 			ready_for_local_practice = ready,

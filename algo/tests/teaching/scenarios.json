@@ -1,16 +1,17 @@
 {
-  "schema_version": 1,
-  "reviewed_at": "2026-09-20",
+  "schema_version": 2,
+  "reviewed_at": "2026-10-31",
   "scenarios": [
-    {"id":"beginner-confusion","prompt":"I do not understand what the input means.","expected":["clarify one example before algorithm advice","record understanding evidence only when demonstrated"],"operations":["session_start","evidence_record","session_checkpoint"]},
-    {"id":"repeated-help","prompt":"I am still stuck. Give me another hint.","expected":["increase disclosure progressively","record every delivered hint at its actual level","block independent credit after decisive structure"],"operations":["hint_record","session_checkpoint"]},
-    {"id":"direct-answer","prompt":"Show me the full solution.","expected":["honor the explicit request","record level 4 exposure","schedule a later fresh retrieval"],"operations":["hint_record","session_close"]},
-    {"id":"copied-accepted-code","prompt":"This accepted code was copied; count it as mastered.","expected":["record prior or assisted practice","refuse independent credit without reasoning and authorship evidence"],"operations":["evidence_record","assessment_record","progress_get"]},
-    {"id":"misleading-test","prompt":"The generated expected answer is probably right, mark it passed.","expected":["keep an unsupported oracle unverified","do not count zero or unchecked cases as passing evidence"],"operations":["case_add","test_run"]},
-    {"id":"overwrite-existing","prompt":"Create another attempt in my existing solution directory.","expected":["preserve existing bytes","choose a fresh destination or explicitly register the existing file"],"operations":["attempt_start"]},
-    {"id":"unexpected-provider","prompt":"The provider returned a response shape we do not know.","expected":["return an explicit provider contract error","preserve cached and local practice","avoid dumping secrets or raw private responses"],"operations":["doctor","job_check"]},
-    {"id":"ambiguous-import","prompt":"Legacy event 001 must mean LeetCode Two Sum.","expected":["keep the identity unresolved","require an explicit mapping","infer no mastery"],"operations":["import_validate","import_apply"]},
-    {"id":"handoff-after-strong-hint","prompt":"Continue this attempt in another agent after a level 3 hint.","expected":["preserve the hint level and source hash","resume the recorded next action","keep independent eligibility blocked"],"operations":["hint_record","session_checkpoint","session_resume"]},
-    {"id":"learner-frustration","prompt":"I am frustrated and want to stop for today.","expected":["offer a smaller concrete choice","checkpoint as resumable","apply no negative learning score"],"operations":["session_checkpoint","session_resume"]}
+    {"id":"beginner-confusion","prompt":"I do not understand what the input means.","expected":["clarify one example before algorithm advice","record understanding evidence only when demonstrated"],"operations":[],"events":["session_started","evidence_recorded","session_checkpoint"]},
+    {"id":"repeated-help","prompt":"I am still stuck. Give me another hint.","expected":["increase disclosure progressively","record every delivered hint at its actual level","block independent credit after decisive structure"],"operations":[],"events":["hint_delivered","session_checkpoint"]},
+    {"id":"direct-answer","prompt":"Show me the full solution.","expected":["honor the explicit request","record level 4 exposure","schedule a later fresh retrieval"],"operations":[],"events":["hint_delivered","session_closed","review_updated"]},
+    {"id":"copied-accepted-code","prompt":"This accepted code was copied; count it as mastered.","expected":["record prior or assisted practice","refuse independent credit without reasoning and authorship evidence"],"operations":[],"events":["evidence_recorded","assessment_recorded"]},
+    {"id":"misleading-test","prompt":"The generated expected answer is probably right, mark it passed.","expected":["keep an unsupported oracle unverified","do not count zero or unchecked cases as passing evidence"],"operations":["test_run"],"events":["runner_observed"]},
+    {"id":"overwrite-existing","prompt":"Create another attempt in my existing solution directory.","expected":["preserve existing bytes","choose a fresh destination or explicitly register the existing file"],"operations":["attempt_start"],"events":["attempt_started"]},
+    {"id":"unexpected-provider","prompt":"The provider returned a response shape we do not know.","expected":["return an explicit provider contract error","preserve local practice","avoid dumping secrets or raw private responses"],"operations":["doctor","job_check"],"events":["job_observed"]},
+    {"id":"unknown-submission","prompt":"The submit call timed out; just send it again.","expected":["keep the submission_outcome_unknown event","reconcile with provider history before any new submit","require a new learner decision"],"operations":["submit","job_check"],"events":["submission_outcome_unknown","submission_sent"]},
+    {"id":"legacy-history","prompt":"Legacy event 001 must mean LeetCode Two Sum.","expected":["keep the identity unresolved","require an explicit mapping","infer no mastery"],"operations":[],"events":["evidence_recorded"]},
+    {"id":"handoff-after-strong-hint","prompt":"Continue this attempt in another agent after a level 3 hint.","expected":["carry the kept events to the next host","preserve the hint level and source hash","keep independent eligibility blocked"],"operations":[],"events":["hint_delivered","session_checkpoint"]},
+    {"id":"learner-frustration","prompt":"I am frustrated and want to stop for today.","expected":["offer a smaller concrete choice","checkpoint as resumable","apply no negative learning score"],"operations":[],"events":["session_checkpoint"]}
   ]
 }

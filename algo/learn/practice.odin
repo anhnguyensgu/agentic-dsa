@@ -1,7 +1,8 @@
 package learn
 
-// Attempt preparation and versioned local cases. Provider identity is stored
-// explicitly and never inferred from a directory name (sections 10-12).
+// Attempt preparation. Provider identity comes from the problem key and is
+// never inferred from a directory name. The attempt lives only in the files it
+// creates and in the attempt_started event the caller keeps.
 
 import "../safeio"
 import "core:fmt"
@@ -26,8 +27,8 @@ LOCAL_TEMPLATE :: `package main
 import "core:fmt"
 
 main :: proc() {
-	// This portable local harness uses stdin/stdout. Keep provider-specific
-	// identity in attempt.json and replace this body with the learner's work.
+	// This portable local harness uses stdin/stdout. Replace this body with
+	// the learner's work.
 	fmt.eprintln("Learner solution not implemented yet")
 }
 `
@@ -68,18 +69,17 @@ read_source_hash :: proc(path: string) -> (string, Engine_Error) {
 // -- attempt_start -------------------------------------------------------------
 
 Attempt_Start_Params :: struct {
-	session_id:          string,
 	problem_key:         string,
 	language:            string,
 	action:              string, // fresh (default) | register_existing
 	source_path:         string,
 	runner_kind:         string, // stdin_stdout (default) | odin_test_package | provider_workspace
 	previous_attempt_id: string,
+	session_id:          string, // the caller's own session id, copied into the event
 }
 
 op_attempt_start :: proc(
 	ctx: ^Context,
-	store: ^Store,
 	input: Input,
 	req: Request,
 ) -> (
@@ -87,8 +87,8 @@ op_attempt_start :: proc(
 	err: Op_Error,
 ) {
 	p := params(input, Attempt_Start_Params) or_return
-	if p.session_id == "" || p.problem_key == "" || p.language == "" {
-		return {}, invalid("session_id, problem_key, and language must be non-empty strings")
+	if p.problem_key == "" || p.language == "" {
+		return {}, invalid("problem_key and language must be non-empty strings")
 	}
 	action := first_nonempty(p.action, "fresh")
 	if action != "fresh" && action != "register_existing" {
@@ -112,31 +112,17 @@ op_attempt_start :: proc(
 	if traits.downloads && !valid_track(p.language) {
 		return {}, invalid("language must be the provider's track name: lowercase letters, digits, and '-'")
 	}
-	st := fold(store)
-	session := find_session(&st, p.session_id)
-	if session == nil {
-		return {}, fail(.Not_Found, "session does not exist")
-	}
-	if session.status == .Closed {
-		return {}, fail(.Request_Conflict, "cannot add an attempt to a closed session")
-	}
 
-	attempt_id := fmt_id("att", store.revision + 1)
+	attempt_id := new_id("att")
 	fresh := action == "fresh"
 	source_path := p.source_path
 	created_dir := ""
-	// A fresh directory that does not end up recorded is removed again.
+	// A fresh directory is removed again if the attempt fails after creating it.
 	defer if err != nil && created_dir != "" {
 		os.remove_all(created_dir)
 	}
 	if fresh && traits.downloads {
-		source_path, created_dir = download_exercise(
-			ctx,
-			store,
-			req,
-			problem,
-			p.language,
-		) or_return
+		source_path, created_dir = download_exercise(ctx, problem, p.language) or_return
 	} else if fresh {
 		source_path = create_fresh_attempt(ctx.workspace, problem, attempt_id) or_return
 		created_dir = join(ctx.workspace, os.dir(source_path))
@@ -172,74 +158,20 @@ op_attempt_start :: proc(
 		fresh,
 		tests_hash,
 	}
-	ev, replayed := commit(
-		ctx,
-		store,
-		req,
-		.Attempt_Started,
-		payload,
-		p.session_id,
-		attempt_id,
-	) or_return
-	if replayed {
-		// The original request already created its attempt; report that one.
-		if created_dir != "" {
-			os.remove_all(created_dir)
-		}
-		decode(string(ev.payload), &payload)
-	}
-
-	res = mutation_result(replayed)
-	Metadata :: struct {
-		schema_version:          int,
-		attempt_id:              string,
-		session_id:              string,
-		problem_key:             string,
-		language:                string,
-		source_path:             string,
-		source_hash_at_creation: string,
-		runner_kind:             string,
-	}
-	metadata := Metadata {
-		SCHEMA_VERSION,
-		ev.attempt_id,
-		p.session_id,
-		p.problem_key,
-		p.language,
-		payload.source_path,
-		payload.source_hash,
-		payload.runner_kind,
-	}
-	if write_private_file(
-		   learning_path(ctx.workspace, "attempts", ev.attempt_id, "metadata.json"),
-		   string(to_json(metadata)),
-	   ) !=
-	   nil {
-		append(
-			&res.warnings,
-			"attempt was recorded but its convenience metadata file could not be written; event replay remains authoritative",
-		)
-	}
+	emit(ctx, &res, .Attempt_Started, payload, p.session_id, attempt_id)
 
 	Data :: struct {
-		replayed:    Replayed `json:",omitempty"`,
 		attempt_id:  string,
 		source_path: string,
 		source_hash: string,
 		runner_kind: string,
+		tests_hash:  string,
+		fresh:       bool,
 	}
-	res.data = to_json(
-		Data {
-			replayed_flag(replayed),
-			ev.attempt_id,
-			payload.source_path,
-			payload.source_hash,
-			payload.runner_kind,
-		},
-	)
+	res.data = to_json(Data{attempt_id, source_path, source_hash, runner_kind, tests_hash, fresh})
 	append(
 		&res.next_actions,
-		"review the statement and cases, then let the learner implement the solution",
+		"keep the attempt_started event and pass source_path (and tests_hash for odin_test_package) to test_run",
 	)
 	return
 }
@@ -287,28 +219,16 @@ create_fresh_attempt :: proc(
 // problems/<provider>/<track>/<slug>/ through the provider adapter and returns
 // its solution file. An exercise that is already there is never downloaded
 // again: a later attempt registers it with register_existing. downloaded is
-// the new directory, which the caller removes if the attempt is not recorded.
+// the new directory, which the caller removes if the attempt then fails.
 @(private = "file")
 download_exercise :: proc(
 	ctx: ^Context,
-	store: ^Store,
-	req: Request,
 	problem: Problem,
 	track: string,
 ) -> (
 	source_path, downloaded: string,
 	err: Op_Error,
 ) {
-	// A replayed request downloaded its exercise already; commit returns it.
-	if req.request_id != "" {
-		for ev in store.events {
-			if ev.request_id == req.request_id && ev.type == EVENT_TYPE_NAMES[.Attempt_Started] {
-				original: Attempt_Started
-				decode(string(ev.payload), &original)
-				return original.source_path, "", nil
-			}
-		}
-	}
 	dir := join("problems", problem.provider, track, problem.slug)
 	dir_abs := join(ctx.workspace, dir)
 	if os.exists(dir_abs) {
@@ -402,90 +322,4 @@ valid_track :: proc(track: string) -> bool {
 		}
 	}
 	return true
-}
-
-// -- case_add ------------------------------------------------------------------
-
-Comparator :: enum {
-	Exact,
-	Trimmed,
-	Tokens,
-}
-
-COMPARATOR_NAMES := [Comparator]string {
-	.Exact   = "exact",
-	.Trimmed = "trimmed",
-	.Tokens  = "tokens",
-}
-
-Case_Add_Params :: struct {
-	attempt_id:      string,
-	input:           string,
-	comparator:      string,
-	provenance:      string,
-	name:            string,
-	expected:        Maybe(string),
-	oracle_verified: bool,
-	oracle_basis:    string,
-}
-
-op_case_add :: proc(
-	ctx: ^Context,
-	store: ^Store,
-	input: Input,
-	req: Request,
-) -> (
-	res: Result,
-	err: Op_Error,
-) {
-	p := params(input, Case_Add_Params) or_return
-	if p.attempt_id == "" || p.provenance == "" {
-		return {}, invalid("attempt_id and provenance must be non-empty strings")
-	}
-	if _, ok := parse_enum(COMPARATOR_NAMES, p.comparator); !ok {
-		return {}, invalid("comparator must be exact, trimmed, or tokens")
-	}
-	st := fold(store)
-	attempt := find_attempt(&st, p.attempt_id)
-	if attempt == nil {
-		return {}, fail(.Not_Found, "attempt does not exist")
-	}
-
-	// Only a case with an expected output can have a verified oracle.
-	_, has_expected := p.expected.?
-	oracle_verified := p.oracle_verified && has_expected
-	payload := Case_Added {
-		case_id         = fmt_id("case", store.revision + 1),
-		name            = p.name,
-		input           = p.input,
-		expected        = p.expected,
-		comparator      = p.comparator,
-		provenance      = p.provenance,
-		oracle_verified = oracle_verified,
-		oracle_basis    = p.oracle_basis,
-	}
-	ev, replayed := commit(
-		ctx,
-		store,
-		req,
-		.Case_Added,
-		payload,
-		attempt.session_id,
-		p.attempt_id,
-	) or_return
-
-	Data :: struct {
-		replayed:        Replayed `json:",omitempty"`,
-		case_id:         string,
-		verified_oracle: bool,
-	}
-	res = mutation_result(replayed)
-	res.data = to_json(Data{replayed_flag(replayed), fmt_id("case", ev.sequence), oracle_verified})
-	if !oracle_verified {
-		append(
-			&res.warnings,
-			"this case has no verified oracle and cannot count as passing evidence",
-		)
-	}
-	return
 }

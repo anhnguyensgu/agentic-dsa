@@ -1,11 +1,12 @@
 package learn
 
-// The concept curriculum and problem identity (section 8). There is no
-// bundled problem set: any provider problem can be practised, named by its key
-// `<provider>:<slug>`. The curriculum is a graph of pattern groups; agents may
-// also record free-form sub-patterns named `<group>/<pattern>`, such as
-// graphs/topological-sort, which planning and progress roll up under their
-// group. #load keeps the binary independent of its working directory.
+// The concept curriculum and problem identity. There is no bundled problem
+// set: any provider problem can be practised, named by its key
+// `<provider>:<slug>`. The curriculum is a graph of pattern groups in study
+// order; agents may also name free-form sub-patterns `<group>/<pattern>`, such
+// as graphs/topological-sort, and roll them up under their group. Agents
+// choose what comes next themselves; curriculum_get only describes the
+// groups. #load keeps the binary independent of its working directory.
 
 import "core:fmt"
 import "core:strings"
@@ -19,6 +20,7 @@ Curriculum_Concept :: struct {
 	id:            string,
 	title:         string,
 	prerequisites: []string,
+	outcomes:      []string, // what a learner can do once the group is learned
 	leetcode_tags: []string, // provider topic slugs that practise this concept
 	problems:      map[string][]string, // provider -> problem slugs that practise this concept
 }
@@ -61,6 +63,42 @@ find_concept :: proc(id: string) -> (Curriculum_Concept, bool) {
 		}
 	}
 	return {}, false
+}
+
+// -- curriculum_get ------------------------------------------------------------
+
+Curriculum_Get_Params :: struct {
+	concept_id: string, // a group, or a `<group>/<pattern>` that selects its group
+}
+
+op_curriculum_get :: proc(
+	ctx: ^Context,
+	input: Input,
+	req: Request,
+) -> (
+	res: Result,
+	err: Op_Error,
+) {
+	p := params(input, Curriculum_Get_Params) or_return
+	doc, ok := curriculum()
+	if !ok {
+		return {}, fail(.Storage_Error, "the bundled curriculum could not be read")
+	}
+	concepts := doc.concepts
+	if p.concept_id != "" {
+		concept, found := find_concept(concept_group(p.concept_id))
+		if !found {
+			return {}, fail(.Not_Found, "concept_id names no curriculum group")
+		}
+		concepts = make([]Curriculum_Concept, 1)
+		concepts[0] = concept
+	}
+	Data :: struct {
+		curriculum_version: string,
+		concepts:           []Curriculum_Concept,
+	}
+	res.data = to_json(Data{doc.curriculum_version, concepts})
+	return
 }
 
 // Problem is a provider problem. The slug is also the provider's own id: the

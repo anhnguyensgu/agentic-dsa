@@ -1,7 +1,6 @@
-// `algo learn`: CLI and MCP entry point for the Algorithm Learning engine
-// (sections 5 and 11 of AGENTIC_LEARNING.md). The convenience commands (init,
-// doctor, resume) run the same operation registry as `algo learn call`; they
-// never behave differently.
+// `algo learn`: CLI and MCP entry point for the stateless practice tools. The
+// doctor command runs the same operation registry as `algo learn call`; it
+// never behaves differently.
 package learn
 
 import "../judge"
@@ -10,12 +9,10 @@ import "core:mem/virtual"
 import "core:os"
 import "core:strings"
 
-USAGE :: `algo learn - Algorithm Learning engine
+USAGE :: `algo learn - algorithm practice tools
 
 usage:
-  algo learn init [--workspace DIR] [--input FILE|-] [--json]
   algo learn doctor [--workspace DIR] [--json]
-  algo learn resume [--workspace DIR] [--json]
   algo learn serve [--workspace DIR]
   algo learn call OP [--workspace DIR] [--input FILE|-] [--json]
   algo learn version
@@ -24,26 +21,19 @@ The workspace defaults to the global algo workspace: $ALGO_WORKSPACE, else
 ~/algo.
 
 Examples:
-  algo learn call session_start --workspace . --input request.json --json
+  algo learn call attempt_start --workspace . --input request.json --json
 
-Operations: workspace_init, doctor, profile_update, state_get, plan_next,
-  session_start, session_resume, attempt_start, evidence_record, hint_record,
-  case_add, test_run, submission_prepare, submission_send, job_check,
-  assessment_record, session_checkpoint, session_close, review_due,
-  review_update, progress_get, export_create, import_validate, import_apply,
-  data_delete
+Operations: doctor, curriculum_get, attempt_start, test_run, submit, job_check
 
-Mutating operations require request_id and expected_revision inside the
-input JSON. Paths are workspace-relative; diagnostics go to stderr.`
+Nothing is stored: each envelope lists the events the call produced, for the
+caller to keep. Paths are workspace-relative; diagnostics go to stderr.`
 
 CLI_HOST :: "generic-cli"
 
 Command :: enum {
 	Help,
 	Version,
-	Init,
 	Doctor,
-	Resume,
 	Serve,
 	Call,
 }
@@ -51,18 +41,14 @@ Command :: enum {
 COMMAND_NAMES := [Command]string {
 	.Help    = "help",
 	.Version = "version",
-	.Init    = "init",
 	.Doctor  = "doctor",
-	.Resume  = "resume",
 	.Serve   = "serve",
 	.Call    = "call",
 }
 
 // The operation each convenience command runs; call names its own.
 COMMAND_OPERATIONS := #partial [Command]string {
-	.Init   = "workspace_init",
 	.Doctor = "doctor",
-	.Resume = "session_resume",
 }
 
 Options :: struct {
@@ -97,7 +83,7 @@ run :: proc(args: []string) -> int {
 		return 0
 	case .Serve:
 		return serve_mcp(opts.workspace)
-	case .Init, .Doctor, .Resume, .Call:
+	case .Doctor, .Call:
 	}
 	return call_operation(opts)
 }
@@ -135,7 +121,7 @@ parse_args :: proc(args: []string) -> (opts: Options, usage_error: string) {
 	}
 	switch opts.command {
 	case .Help, .Version:
-	case .Init, .Doctor, .Resume, .Serve, .Call:
+	case .Doctor, .Serve, .Call:
 		if opts.workspace == "" {
 			opts.workspace = judge.workspace_root()
 		}
@@ -167,22 +153,15 @@ call_operation :: proc(opts: Options) -> int {
 		fmt.eprintln("algolearn:", message)
 		return EXIT_INVALID_INPUT
 	}
-
-	store, load_err := load_store(opts.workspace)
-	if load_err != nil {
-		res := failure_result({code = load_err, message = "could not load the event log"})
-		fmt.println(envelope(req, 0, res))
-		return 1
-	}
 	ctx := Context {
 		workspace = opts.workspace,
 		actor     = "agent:" + CLI_HOST,
 		host      = CLI_HOST,
 	}
-	res, found := run_operation(opts.operation, &ctx, &store, input, req)
+	res, found := run_operation(opts.operation, &ctx, input, req)
 	// The JSON envelope is the machine contract; text mode prints it too
 	// until a richer text rendering exists.
-	fmt.println(envelope(req, store.revision, res))
+	fmt.println(envelope(req, res))
 	if !found {
 		return 1
 	}

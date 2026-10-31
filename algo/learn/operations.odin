@@ -1,9 +1,10 @@
 package learn
 
-// The operation registry (section 11). The CLI and the MCP server call the
-// same handlers through run_operation. Each operation declares its input as
-// a params struct: the struct's fields are the accepted input fields, and the
-// MCP tool schemas are derived from the same types.
+// The operation registry. The CLI and the MCP server call the same handlers
+// through run_operation. Each operation declares its input as a params
+// struct: the struct's fields are the accepted input fields, and the MCP tool
+// schemas are derived from the same types. Operations keep no state; anything
+// they need from earlier calls arrives as parameters.
 
 import "core:encoding/json"
 import "core:fmt"
@@ -27,95 +28,62 @@ Op_Error :: union {
 	Failure,
 }
 
-Handler :: #type proc(
-	ctx: ^Context,
-	store: ^Store,
-	input: Input,
-	req: Request,
-) -> (
-	Result,
-	Op_Error,
-)
+Handler :: #type proc(ctx: ^Context, input: Input, req: Request) -> (Result, Op_Error)
 
 Operation :: struct {
-	name:     string,
-	handler:  Handler,
-	params:   typeid,
-	required: []string,
-	mutating: bool,
+	name:        string,
+	description: string,
+	handler:     Handler,
+	params:      typeid,
+	required:    []string,
 }
 
-// Every operation accepts the mutation envelope; mutating ones require it.
-ENVELOPE_FIELDS :: [?]string{"request_id", "expected_revision"}
+// Every operation accepts a request_id, echoed in its envelope.
+ENVELOPE_FIELDS :: [?]string{"request_id"}
 
 OPERATIONS := [?]Operation {
 	{
-		"workspace_init",
-		op_workspace_init,
-		Workspace_Init_Params,
-		{"goal", "language", "timezone", "experience", "time_budget_minutes"},
-		true,
+		"doctor",
+		"Report whether the workspace, the Odin compiler, the curriculum, and each judge provider are ready. Stores nothing.",
+		op_doctor,
+		Doctor_Params,
+		{},
 	},
-	{"doctor", op_doctor, Doctor_Params, {}, false},
-	{"profile_update", op_profile_update, Profile_Update_Params, {}, true},
-	{"state_get", op_state_get, State_Get_Params, {}, false},
-	{"session_start", op_session_start, Session_Start_Params, {"objective", "mode"}, true},
+	{
+		"curriculum_get",
+		"List the curriculum's pattern groups in study order, with prerequisites, LeetCode topic tags, and the provider problems mapped to each. Pass concept_id to get one group.",
+		op_curriculum_get,
+		Curriculum_Get_Params,
+		{},
+	},
 	{
 		"attempt_start",
+		"Create a fresh attempt for a <provider>:<slug> problem (an Odin scaffold, or the provider's own download for Exercism), or register an existing source file. Returns attempt_id, source_path, source_hash, and tests_hash, plus an attempt_started event to keep.",
 		op_attempt_start,
 		Attempt_Start_Params,
-		{"session_id", "problem_key", "language"},
-		true,
+		{"problem_key", "language"},
 	},
 	{
-		"case_add",
-		op_case_add,
-		Case_Add_Params,
-		{"attempt_id", "input", "comparator", "provenance"},
-		true,
-	},
-	{"test_run", op_test_run, Test_Run_Params, {"attempt_id"}, true},
-	{"submission_prepare", op_submission_prepare, Submission_Prepare_Params, {"attempt_id"}, true},
-	{
-		"submission_send",
-		op_submission_send,
-		Submission_Send_Params,
-		{"intent_id", "authorization_reference"},
-		true,
-	},
-	{"job_check", op_job_check, Job_Check_Params, {"job_id"}, true},
-	{
-		"session_checkpoint",
-		op_session_checkpoint,
-		Session_Checkpoint_Params,
-		{"session_id", "activity", "summary", "next_action"},
-		true,
-	},
-	{"session_resume", op_session_resume, Session_Resume_Params, {}, false},
-	{"hint_record", op_hint_record, Hint_Record_Params, {"session_id", "level"}, true},
-	{
-		"evidence_record",
-		op_evidence_record,
-		Evidence_Record_Params,
-		{"session_id", "evidence_type", "producer"},
-		true,
+		"test_run",
+		"Compile and run an Odin source with time and output limits. stdin_stdout runs the cases you pass; odin_test_package runs the package's own tests and needs the tests_hash attempt_start returned. Returns verified and unverified counts and a self-contained runner_observed event.",
+		op_test_run,
+		Test_Run_Params,
+		{"source_path"},
 	},
 	{
-		"assessment_record",
-		op_assessment_record,
-		Assessment_Record_Params,
-		{"session_id", "concept_id", "dimension", "score", "rationale", "rubric_version"},
-		true,
+		"submit",
+		"Send a source to the problem's online judge, once, after the learner asked for it. Returns the remote_id and a submission_sent event; keep them and poll with job_check. Never resubmit for a pending or unknown outcome.",
+		op_submit,
+		Submit_Params,
+		{"problem_key", "language", "source_path", "authorization_reference"},
 	},
-	{"session_close", op_session_close, Session_Close_Params, {"session_id", "reason"}, true},
-	{"review_due", op_review_due, Review_Due_Params, {}, false},
-	{"review_update", op_review_update, Review_Update_Params, {"review_id", "action"}, true},
-	{"plan_next", op_plan_next, Plan_Next_Params, {}, false},
-	{"progress_get", op_progress_get, Progress_Get_Params, {}, false},
-	{"export_create", op_export_create, Export_Create_Params, {}, true},
-	{"import_validate", op_import_validate, Import_Validate_Params, {}, false},
-	{"import_apply", op_import_apply, Import_Apply_Params, {"kind", "source_hash"}, true},
-	{"data_delete", op_data_delete, Data_Delete_Params, {"scope"}, true},
+	{
+		"job_check",
+		"Poll a judge for the verdict of a submission by provider and remote_id. Returns its state and a job_observed event. Creates no new submission.",
+		op_job_check,
+		Job_Check_Params,
+		{"provider", "remote_id"},
+	},
 }
 
 find_operation :: proc(name: string) -> (^Operation, bool) {
@@ -127,8 +95,7 @@ find_operation :: proc(name: string) -> (^Operation, bool) {
 	return nil, false
 }
 
-// new_request parses the input document and extracts the mutation envelope.
-// Callers should supply stable request ids so retries deduplicate.
+// new_request parses the input document and extracts its request_id.
 new_request :: proc(text: string) -> (input: Input, req: Request, message: string) {
 	value, err := json.parse_string(text, .JSON, parse_integers = true)
 	if err != nil {
@@ -143,15 +110,12 @@ new_request :: proc(text: string) -> (input: Input, req: Request, message: strin
 	if req.request_id == "" {
 		req.request_id = fmt.aprintf("req_%d", time.time_to_unix_nano(time.now()))
 	}
-	req.request_hash = hash_hex(text)
-	req.expected_revision = jint(fields["expected_revision"])
 	return
 }
 
 run_operation :: proc(
 	name: string,
 	ctx: ^Context,
-	store: ^Store,
 	input: Input,
 	req: Request,
 ) -> (
@@ -167,10 +131,14 @@ run_operation :: proc(
 	}
 	err := check_fields(op, input)
 	if err == nil {
-		res, err = op.handler(ctx, store, input, req)
+		res, err = op.handler(ctx, input, req)
 	}
 	if failure, failed := err.(Failure); failed {
-		return failure_result(failure), true
+		// A failure can still carry events, such as an unknown send outcome.
+		events := res.events
+		res = failure_result(failure)
+		res.events = events
+		return res, true
 	}
 	if res.data == "" {
 		res.data = EMPTY_OBJECT
@@ -192,14 +160,14 @@ failure_result :: proc(f: Failure) -> (res: Result) {
 }
 
 // check_fields rejects unexpected fields rather than ignoring them, and
-// requires the declared ones (section 11).
+// requires the declared ones.
 @(private = "file")
 check_fields :: proc(op: ^Operation, input: Input) -> Op_Error {
 	accepted := reflect.struct_field_names(op.params)
 	envelope := ENVELOPE_FIELDS
 	for key in input.fields {
 		if !contains(accepted, key) && !contains(envelope[:], key) {
-			return invalid("input contains unexpected fields")
+			return invalid(fmt.aprintf("input contains unexpected field %q", key))
 		}
 	}
 	for key in op.required {
@@ -238,22 +206,6 @@ nonempty :: proc(fields: ..[2]string) -> Op_Error {
 	return nil
 }
 
-in_range :: proc(name: string, value, lo, hi: int) -> Op_Error {
-	if value < lo || value > hi {
-		return invalid(fmt.aprintf("field %q must be between %d and %d", name, lo, hi))
-	}
-	return nil
-}
-
-nonempty_items :: proc(name: string, items: []string) -> Op_Error {
-	for item in items {
-		if item == "" {
-			return invalid(fmt.aprintf("field %q must contain non-empty strings", name))
-		}
-	}
-	return nil
-}
-
 // enum_value parses a wire name, failing with the list of accepted names.
 enum_value :: proc(names: [$E]string, field, value: string) -> (E, Op_Error) {
 	if e, ok := parse_enum(names, value); ok {
@@ -266,88 +218,19 @@ enum_value :: proc(names: [$E]string, field, value: string) -> (E, Op_Error) {
 	return {}, invalid(fmt.aprintf("%s must be one of: %s", field, strings.join(accepted[:], ", ")))
 }
 
-// -- committing ----------------------------------------------------------------
-
-COMMIT_ERROR_MESSAGES := #partial [Engine_Error]string {
-	.Request_Conflict   = "this request id was already used for a different payload; use a fresh request id",
-	.Stale_Revision     = "the workspace changed since it was loaded; reload state and retry with the current revision",
-	.Destination_Exists = "learning storage already exists in this workspace",
-	.Workspace_Locked   = "another client holds the workspace lock; retry after it releases",
-	.Storage_Error      = "the event log needs repair before further writes",
-}
-
-commit_failure :: proc(code: Engine_Error) -> Op_Error {
-	message := COMMIT_ERROR_MESSAGES[code]
-	return fail(code, message if message != "" else ERROR_CODES[code])
-}
-
-// commit appends an event and refreshes the projection. A replayed request
-// returns its original event.
-commit :: proc(
-	ctx: ^Context,
-	store: ^Store,
-	req: Request,
-	type: Event_Type,
-	payload: any,
-	session_id := "",
-	attempt_id := "",
-) -> (
-	ev: Event,
-	replayed: bool,
-	err: Op_Error,
-) {
-	commit_err: Engine_Error
-	ev, replayed, commit_err = commit_event(
-		store,
-		EVENT_TYPE_NAMES[type],
-		ctx.actor,
-		req,
-		session_id,
-		attempt_id,
-		to_json(payload),
-	)
-	if commit_err != nil {
-		return {}, false, commit_failure(commit_err)
-	}
-	st := fold(store)
-	if write_state(store.workspace, &st) != nil {
-		return ev, replayed, fail(
-			.Storage_Error,
-			"event committed but the projection could not be written",
-		)
-	}
-	store.revision, store.workspace_id = st.revision, st.workspace_id
-	return ev, replayed, nil
-}
-
-// mutation_result starts the result of a committed operation.
-mutation_result :: proc(replayed: bool) -> (res: Result) {
-	if replayed {
-		append(&res.warnings, "this request was already applied; the existing result is returned")
-	}
-	return
-}
-
-// Replayed marks data produced by a repeated request; it is omitted otherwise.
-Replayed :: Maybe(bool)
-
-replayed_flag :: proc(replayed: bool) -> Replayed {
-	return true if replayed else nil
-}
-
 // -- envelope ------------------------------------------------------------------
 
-// Envelope is the response contract shared by the CLI and MCP (section 11;
-// schemas/envelope-v1.json).
+// Envelope is the response contract shared by the CLI and MCP
+// (schemas/envelope-v2.json).
 Envelope :: struct {
-	schema_version:     int,
-	request_id:         string,
-	workspace_revision: int,
-	status:             string,
-	data:               Raw_JSON,
-	warnings:           []string,
-	error:              Maybe(Envelope_Error), // null unless status is "error"
-	next_actions:       []string,
+	schema_version: int,
+	request_id:     string,
+	status:         string,
+	data:           Raw_JSON,
+	events:         []Event,
+	warnings:       []string,
+	error:          Maybe(Envelope_Error), // null unless status is "error"
+	next_actions:   []string,
 }
 
 Envelope_Error :: struct {
@@ -355,15 +238,15 @@ Envelope_Error :: struct {
 	message: string,
 }
 
-envelope :: proc(req: Request, revision: int, res: Result) -> Raw_JSON {
+envelope :: proc(req: Request, res: Result) -> Raw_JSON {
 	e := Envelope {
-		schema_version     = SCHEMA_VERSION,
-		request_id         = req.request_id,
-		workspace_revision = revision,
-		status             = STATUS_NAMES[res.status],
-		data               = res.data if res.data != "" else EMPTY_OBJECT,
-		warnings           = res.warnings[:],
-		next_actions       = res.next_actions[:],
+		schema_version = SCHEMA_VERSION,
+		request_id     = req.request_id,
+		status         = STATUS_NAMES[res.status],
+		data           = res.data if res.data != "" else EMPTY_OBJECT,
+		events         = res.events[:],
+		warnings       = res.warnings[:],
+		next_actions   = res.next_actions[:],
 	}
 	if res.status == .Error {
 		e.error = Envelope_Error{ERROR_CODES[res.err], res.message}

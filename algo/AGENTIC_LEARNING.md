@@ -1,5 +1,14 @@
 # Agentic algorithm learning: end-to-end plugin plan
 
+> **Superseded in part (engine 0.5.0, 2026-10-31).** `algo learn` no longer
+> stores anything: the event store, projection, sessions, hints, assessments,
+> reviews, planning, handoffs, and import/export described below moved to the
+> host agent, which keeps the events the tools return
+> (`schemas/event-v2.json`). The tools that remain are `doctor`,
+> `curriculum_get`, `attempt_start`, `test_run`, `submit`, and `job_check`; see
+> [`learn/README.md`](learn/README.md). The teaching rules below still guide
+> the agent through the plugin skill.
+
 Status: implemented on 2026-09-20. Technical acceptance evidence and explicitly
 unrun opt-in checks are recorded in [VERIFICATION.md](VERIFICATION.md).
 

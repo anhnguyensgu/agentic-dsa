@@ -14,7 +14,7 @@ MARKETPLACE = ROOT.parent / "plugins"
 PLUGIN = MARKETPLACE / "algorithm-learning"
 LAUNCHER = PLUGIN / "scripts" / "launch_algolearn_mcp"
 NAME = "algorithm-learning"
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 MCP_HANDSHAKE = (
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}\n'
     '{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}\n'
@@ -138,20 +138,18 @@ def check_install() -> None:
         assert algo.is_file()
         assert not (bin_dir / "leetcode").is_symlink() and not (bin_dir / "kattis").is_symlink()
         assert (bin_dir / "algolearn").read_text() == "unrelated\n"
-        initialized = subprocess.run([
-            str(algo), "learn", "call", "workspace_init", "--workspace", str(workspace), "--input", "-", "--json",
-        ], input=json.dumps({
-            "request_id": "install-init", "expected_revision": 0,
-            "goal": "foundations", "language": "odin", "timezone": "UTC",
-            "experience": "beginner", "time_budget_minutes": 20,
-        }), text=True, capture_output=True, check=True)
-        assert json.loads(initialized.stdout)["workspace_revision"] == 1
-        events = workspace / ".algo" / "learning" / "events.jsonl"
-        before = events.read_bytes()
+        practice = workspace / "problems" / "kept.odin"
+        practice.parent.mkdir()
+        practice.write_text("package main\n")
+        before = practice.read_bytes()
+        doctor = subprocess.run([str(algo), "learn", "doctor", "--workspace", str(workspace), "--json"],
+                                text=True, capture_output=True, check=True)
+        assert json.loads(doctor.stdout)["data"]["ready_for_local_practice"] is True
         subprocess.run(["make", "install", f"PREFIX={prefix}"], cwd=ROOT, check=True, capture_output=True, text=True)
-        assert events.read_bytes() == before
+        assert practice.read_bytes() == before
         subprocess.run(["make", "uninstall", f"PREFIX={prefix}"], cwd=ROOT, check=True, capture_output=True, text=True)
-        assert not algo.exists() and (bin_dir / "algolearn").exists() and events.read_bytes() == before
+        assert not algo.exists() and (bin_dir / "algolearn").exists() and practice.read_bytes() == before
+        assert not (workspace / ".algo").exists()
 
 
 def main() -> None:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercism through the learning engine: plan_next suggestions, downloads,
+"""Exercism through the practice tools: curriculum exercises, downloads,
 test-package runs, and uploads, against a stub exercism CLI and a fixture
 catalogue. Nothing reaches exercism.org or GitHub."""
 
@@ -154,107 +154,79 @@ def main() -> None:
             judge("list", "--track", "../odin", expected=2)
             judge("list", "--track", "rust", "--offline", expected=1)
 
-            revision = 0
-
-            def mutate(operation, payload, expected=0):
-                nonlocal revision
-                envelope = call(operation, dict(payload, request_id=f"{operation}-{revision}", expected_revision=revision), expected)
-                revision = envelope["workspace_revision"]
-                return envelope
-
-            mutate("workspace_init", {
-                "goal": "foundations", "language": "odin", "timezone": "UTC",
-                "experience": "beginner", "time_budget_minutes": 30,
-            })
             doctor = call("doctor", {})
             exercism = next(p for p in doctor["data"]["providers"] if p["provider"] == "exercism")
             assert exercism["available"] is True and exercism["version"] == "exercism version 9.9.9"
 
-            # plan_next names concrete exercises the track has, easiest first.
-            plan = call("plan_next", {"provider": "exercism", "topic": "math-geometry"})
-            problems = [c for c in plan["data"]["candidates"] if c["kind"] == "problem"]
-            assert [c["problem_key"] for c in problems] == ["exercism:leap", "exercism:difference-of-squares"], problems
-            assert problems[0]["name"] == "Leap" and problems[0]["difficulty"] == 1
-            assert not plan["warnings"]
-            # A concept without mapped exercises moves on to the next one that has some.
-            fallback = call("plan_next", {"provider": "exercism", "topic": "tries"})
-            moved = [c for c in fallback["data"]["candidates"] if c["kind"] == "problem"]
-            assert [c["problem_key"] for c in moved] == ["exercism:leap", "exercism:difference-of-squares"], moved
-            assert moved[0]["concept"] == "math-geometry" and "tries maps no unpassed exercism problem" in moved[0]["reason"]
-            # Without the cached catalogue, mapped exercises come unfiltered, with a warning.
-            cache.rename(cache.with_suffix(".bak"))
-            uncached = call("plan_next", {"provider": "exercism", "topic": "binary-search"})
-            assert [c["problem_key"] for c in uncached["data"]["candidates"] if c["kind"] == "problem"] == ["exercism:binary-search"]
-            assert "not cached" in uncached["warnings"][0]
-            cache.with_suffix(".bak").rename(cache)
-            call("plan_next", {"provider": "codeforces"}, expected=2)
-
-            session = mutate("session_start", {"objective": "leap years", "mode": "guided", "concept_ids": ["math-geometry"]})
-            session_id = session["data"]["session_id"]
+            # The curriculum names concrete exercises per group; agents pick the next one.
+            [math] = call("curriculum_get", {"concept_id": "math-geometry"})["data"]["concepts"]
+            assert "leap" in math["problems"]["exercism"]
 
             # attempt_start downloads the exercise through the provider, once.
-            request = {"session_id": session_id, "problem_key": "exercism:leap", "language": "odin",
-                       "request_id": "attempt-leap", "expected_revision": revision}
+            request = {"problem_key": "exercism:leap", "language": "odin"}
             attempt = call("attempt_start", request)
-            revision = attempt["workspace_revision"]
             assert attempt["data"]["source_path"] == "problems/exercism/odin/leap/leap.odin"
             assert attempt["data"]["runner_kind"] == "odin_test_package"
+            tests_hash = attempt["data"]["tests_hash"]
+            assert tests_hash and attempt["events"][0]["payload"]["tests_hash"] == tests_hash
             assert [c for c in stub_calls() if c.startswith("download")] == ["download --track=odin --exercise=leap"]
-            replayed = call("attempt_start", request)
-            assert replayed["data"]["attempt_id"] == attempt["data"]["attempt_id"]
-            assert len([c for c in stub_calls() if c.startswith("download")]) == 1
-            again = call("attempt_start", dict(request, request_id="attempt-leap-2", expected_revision=revision), expected=2)
+            again = call("attempt_start", request, expected=2)
             assert again["error"]["code"] == "destination_exists" and "register_existing" in again["next_actions"][0]
-            missing = call("attempt_start", dict(request, problem_key="exercism:sieve", request_id="attempt-sieve", expected_revision=revision), expected=1)
+            assert len([c for c in stub_calls() if c.startswith("download")]) == 1
+            missing = call("attempt_start", dict(request, problem_key="exercism:sieve"), expected=1)
             assert "download failed" in missing["error"]["message"]
             assert not (workspace / "problems" / "exercism" / "odin" / "sieve").exists()
-            attempt_id = attempt["data"]["attempt_id"]
+            registered = call("attempt_start", dict(request, action="register_existing", source_path=attempt["data"]["source_path"]))
+            assert registered["data"]["fresh"] is False and registered["data"]["tests_hash"] == tests_hash
             solution = workspace / attempt["data"]["source_path"]
             tests = solution.parent / "leap_test.odin"
+            run = {"source_path": attempt["data"]["source_path"], "runner_kind": "odin_test_package",
+                   "tests_hash": tests_hash, "problem_key": "exercism:leap"}
 
             # test_run runs the exercise's own tests; each is verified evidence.
-            failed = mutate("test_run", {"attempt_id": attempt_id}, expected=3)
+            failed = call("test_run", run, expected=3)
             assert failed["data"]["outcome"] == "failed"
             assert failed["data"]["verified_passed"] == 1 and failed["data"]["verified_failed"] == 1
             assert {c["provenance"] for c in failed["data"]["cases"]} == {"official_tests"}
             solution.write_text(RIGHT_LEAP)
-            passed = mutate("test_run", {"attempt_id": attempt_id})
+            passed = call("test_run", run)
             assert passed["data"]["outcome"] == "passed" and passed["data"]["verified_passed"] == 2
             assert passed["data"]["tests_modified"] is False
             # Editing the tests makes a run unverified until they are restored.
             tests.write_text(LEAP_TESTS + "\n// edited\n")
-            edited = mutate("test_run", {"attempt_id": attempt_id}, expected=4)
+            edited = call("test_run", run, expected=4)
             assert edited["data"]["outcome"] == "unverified" and edited["data"]["tests_modified"] is True
             tests.write_text(LEAP_TESTS)
+            # Without the starting tests_hash, nothing proves the tests unchanged.
+            unproven = call("test_run", dict(run, tests_hash=""), expected=4)
+            assert unproven["data"]["verified_passed"] == 0 and "tests_hash" in unproven["next_actions"][0]
             solution.write_text("package leap\n\nis_leap_year :: proc(year: int) -> bool {\n\treturn nope\n}\n")
-            broken = mutate("test_run", {"attempt_id": attempt_id}, expected=3)
+            broken = call("test_run", run, expected=3)
             assert broken["data"]["outcome"] == "compile_error"
             solution.write_text(RIGHT_LEAP)
 
-            # A passed exercise is not suggested again.
-            plan = call("plan_next", {"provider": "exercism", "topic": "math-geometry"})
-            assert [c["problem_key"] for c in plan["data"]["candidates"] if c["kind"] == "problem"] == ["exercism:difference-of-squares"]
-
-            # Sending uploads the exercise file; there is no verdict to wait for.
-            intent = mutate("submission_prepare", {"attempt_id": attempt_id})
-            sent = mutate("submission_send", {"intent_id": intent["data"]["intent_id"], "authorization_reference": "learner said submit"})
+            # Submitting uploads the exercise file; there is no verdict to wait for.
+            sent = call("submit", {"problem_key": "exercism:leap", "language": "odin",
+                                   "source_path": attempt["data"]["source_path"],
+                                   "source_hash": passed["data"]["source_hash"],
+                                   "authorization_reference": "learner said submit"})
             assert sent["status"] == "completed" and sent["data"]["state"] == "uploaded"
+            [event] = sent["events"]
+            assert event["type"] == "submission_sent" and event["payload"]["remote_id"] == ""
             assert stub_calls()[-1] == f"submit {solution}"
-            checked = call("job_check", {"job_id": sent["data"]["job_id"], "request_id": "check-1", "expected_revision": revision}, expected=1)
+            checked = call("job_check", {"provider": "exercism", "remote_id": "none"}, expected=1)
             assert checked["error"]["code"] == "unsupported_capability"
-            progress = call("progress_get", {})
-            assert progress["data"]["judge"]["uploaded"] == 1 and progress["data"]["judge"]["pending"] == 0
-            resumed = call("session_resume", {"session_id": session_id})
-            assert resumed["data"]["handoff"]["pending_jobs"] == []
 
-            # A rejected upload is reported and recorded as not sent.
+            # A rejected upload is reported, and no submission_sent event is emitted.
             solution.write_text(RIGHT_LEAP + "// iteration 2\n")
-            intent = mutate("submission_prepare", {"attempt_id": attempt_id})
             env["EXERCISM_STUB_EXIT"] = "1"
-            rejected = mutate("submission_send", {"intent_id": intent["data"]["intent_id"], "authorization_reference": "again"}, expected=1)
-            assert "did not accept the upload" in rejected["error"]["message"]
+            rejected = call("submit", {"problem_key": "exercism:leap", "language": "odin",
+                                       "source_path": attempt["data"]["source_path"],
+                                       "authorization_reference": "again"}, expected=1)
+            assert "did not accept the upload" in rejected["error"]["message"] and rejected["events"] == []
             del env["EXERCISM_STUB_EXIT"]
-            print(f"PASS: {checks} Exercism learning-engine checks (stub CLI, fixture catalogue)")
+            assert not (workspace / ".algo").exists()
+            print(f"PASS: {checks} Exercism practice-tool checks (stub CLI, fixture catalogue)")
     finally:
         server.shutdown()
         server.server_close()
