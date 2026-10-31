@@ -149,11 +149,11 @@ catalog.
    with `read_skill` and loads them with `load_tools` when a turn needs them.
 
 Checked on 2026-10-31 with DeepTutor 1.7.0 (PyPI, Python 3.13): its MCP probe
-listed all six tools, its connection manager ran `doctor`, `curriculum_get`,
-`attempt_start`, `test_run`, and a refused `submit` through its own tool
-adapters, and a `deeptutor run chat` turn on `gpt-6-luna` (OpenAI Codex
-provider) read the skill, loaded the tools, and answered from `doctor` and
-`curriculum_get`. Whether DeepTutor's memory keeps the returned events across
+listed the tools, its connection manager ran `doctor`, `attempt_start`,
+`test_run`, and a refused `submit` through its own tool adapters, and a
+`deeptutor run chat` turn on `gpt-6-luna` (OpenAI Codex provider) read the
+skill, loaded the tools, and answered from `doctor` (and from `curriculum_get`,
+which was removed later that day). Whether DeepTutor's memory keeps the returned events across
 sessions was not checked; ask its agent to save them, as the skill directs.
 
 ## Any other agent

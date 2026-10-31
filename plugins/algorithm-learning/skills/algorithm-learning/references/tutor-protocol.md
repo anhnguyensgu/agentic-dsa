@@ -13,7 +13,7 @@ For a first diagnosis, use one small example, ask for a direct approach and its 
 Use this sequence to guide a practice session. Read the record once and record events at meaningful milestones; these steps do not each require a tool call or need to be repeated on every turn.
 
 1. Read the learner's preferences, active session, attempt, prior assistance, unfinished submissions, and due reviews from your kept events.
-2. State one observable objective.
+2. State one observable objective; you set it.
 3. Select or accept a problem without revealing spoiler tags in independent work.
 4. Prepare or register the attempt in the requested language when implementation begins, preserving earlier work.
 5. Ask the learner to restate inputs, outputs, constraints, and one example.

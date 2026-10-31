@@ -69,7 +69,7 @@ def main() -> None:
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
         tools = receive(2)["result"]["tools"]
         names = {tool["name"] for tool in tools}
-        assert names == {"doctor", "curriculum_get", "attempt_start", "test_run", "submit", "job_check"}
+        assert names == {"doctor", "attempt_start", "test_run", "submit", "job_check"}
         assert all("inputSchema" in tool and "outputSchema" in tool and tool["description"] for tool in tools)
         by_name = {tool["name"]: tool for tool in tools}
         assert "events" in by_name["doctor"]["outputSchema"]["required"]
@@ -78,12 +78,12 @@ def main() -> None:
         assert cases["type"] == "array" and set(cases["items"]["required"]) == {"input", "comparator", "provenance"}
         checks += 1
 
-        send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "curriculum_get", "arguments": {}}})
-        mcp_curriculum = receive(3)["result"]
-        assert mcp_curriculum["isError"] is False
-        assert json.loads(mcp_curriculum["content"][0]["text"]) == mcp_curriculum["structuredContent"]
-        cli_curriculum = cli(workspace, "curriculum_get", {})
-        assert mcp_curriculum["structuredContent"]["data"] == cli_curriculum["data"]
+        send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "doctor", "arguments": {}}})
+        mcp_doctor = receive(3)["result"]
+        assert mcp_doctor["isError"] is False
+        assert json.loads(mcp_doctor["content"][0]["text"]) == mcp_doctor["structuredContent"]
+        cli_doctor = cli(workspace, "doctor", {})
+        assert mcp_doctor["structuredContent"]["data"] == cli_doctor["data"]
         checks += 1
 
         send({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "attempt_start", "arguments": {

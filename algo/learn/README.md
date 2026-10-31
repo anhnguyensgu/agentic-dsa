@@ -11,7 +11,7 @@ a store built later, can read the same record.
 ## Build and verify
 
 Odin and `curl` are required at runtime. Python is used only by the fixture,
-protocol, curriculum, and packaging tests.
+protocol, and packaging tests.
 
 ```sh
 make build
@@ -27,8 +27,7 @@ runs the installed `algo`.
 
 | Operation | What it does |
 | --- | --- |
-| `doctor` | Reports whether the workspace, Odin compiler, curriculum, and each provider are ready. |
-| `curriculum_get` | Lists the 18 pattern groups in study order, or one group by `concept_id`. |
+| `doctor` | Reports whether the workspace, Odin compiler, and each provider are ready. |
 | `attempt_start` | Creates a fresh Odin scaffold, downloads an Exercism exercise, or registers an existing file. Emits `attempt_started`. |
 | `test_run` | Compiles and runs an Odin source against the cases passed in, or runs its package tests. Emits `runner_observed`. |
 | `submit` | Sends a source to the problem's judge once. Emits `submission_sent`, or `submission_outcome_unknown` with an error. |
@@ -72,8 +71,9 @@ solution, 4 unverified local result, and 5 pending.
 Any problem on a supported judge can be practised; there is no bundled problem
 set. Name it by `<provider>:<slug>`, such as `leetcode:two-sum`,
 `kattis:twostones`, or `exercism:leap`, and discover problems with
-`algo judge <provider> list`, `show`, or `daily`. The agent decides what comes
-next from its own record; `curriculum_get` describes the groups.
+`algo judge <provider> list`, `show`, or `daily`. The tools carry no
+curriculum: the agent decides what comes next, and the skill's
+`references/curriculum.md` offers a default study path.
 
 `attempt_start` returns an `attempt_id`, the `source_path`, its `source_hash`,
 and, for a test package, a `tests_hash`. Fresh attempts never overwrite an
@@ -99,7 +99,7 @@ result, so nothing is left on disk.
 Exercism exercises ship with their own tests, so they run as
 `odin_test_package` attempts:
 
-1. `curriculum_get` names the Exercism exercises mapped to each group.
+1. Pick an exercise with `algo judge exercism list`.
 2. `attempt_start` with `problem_key: exercism:<slug>` and `language: odin`
    downloads the exercise through `algo judge exercism download` into
    `problems/exercism/odin/<slug>/` and returns its solution file and
@@ -155,20 +155,7 @@ and import/export as operations. Those now belong to the agent. The tools
 neither read nor change an existing `.algo/learning/`; the skill tells agents
 how to read it as legacy history.
 
-## Curriculum and limits
-
-`curriculum/concepts.json` holds 18 pattern groups in study order (arrays and
-hashing, two pointers, stack, binary search, sliding window, linked list,
-trees, tries, heap, backtracking, intervals, greedy, graphs, advanced graphs,
-1-D and 2-D dynamic programming, bit manipulation, math and geometry), each
-with prerequisites, learning outcomes, and the LeetCode topic tags that
-practise it. Thirteen of them also map concrete Exercism exercises in
-`problems.exercism`; tries, heap, intervals, greedy, and advanced graphs have
-no fitting exercise.
-
-Agents may also name free-form sub-patterns as `<group>/<pattern>`, such as
-`graphs/topological-sort` or `dp-2d/knapsack`, and roll them up under their
-group; `curriculum_get` accepts either form.
+## Limits
 
 Local execution limits reduce accidental hangs and excessive output; they are
 not a security sandbox for arbitrary code. Use an operating-system sandbox when

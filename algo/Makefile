@@ -40,7 +40,6 @@ test-integration: build
 test-learning: build
 	python3 tests/learning_integration.py
 	python3 tests/exercism_learning.py
-	python3 tests/validate_curriculum.py
 	python3 tests/teaching_scenarios.py
 
 test-mcp: build

@@ -202,16 +202,13 @@ op_doctor :: proc(ctx: ^Context, input: Input, req: Request) -> (res: Result, er
 	for p, id in PROVIDERS {
 		providers[id] = provider_status(p, self, provider_version(p.name))
 	}
-	concepts, curriculum_ok := curriculum_concepts()
 	workspace_accessible := os.is_directory(ctx.workspace)
 	odin_available := find_executable(ctx.workspace, "odin") != ""
-	ready := workspace_accessible && odin_available && curriculum_ok
+	ready := workspace_accessible && odin_available
 
 	Data :: struct {
 		engine_version:           string,
 		schema_version:           int,
-		curriculum_version:       string,
-		concept_count:            int,
 		workspace_accessible:     bool,
 		odin_compiler_available:  bool,
 		providers:                []Provider_Status,
@@ -221,8 +218,6 @@ op_doctor :: proc(ctx: ^Context, input: Input, req: Request) -> (res: Result, er
 		Data {
 			engine_version = ENGINE_VERSION,
 			schema_version = SCHEMA_VERSION,
-			curriculum_version = curriculum_version(),
-			concept_count = len(concepts),
 			workspace_accessible = workspace_accessible,
 			odin_compiler_available = odin_available,
 			providers = providers,
@@ -232,7 +227,7 @@ op_doctor :: proc(ctx: ^Context, input: Input, req: Request) -> (res: Result, er
 	if !ready {
 		append(
 			&res.next_actions,
-			"fix the reported workspace, compiler, or curriculum problem before local practice",
+			"fix the reported workspace or compiler problem before local practice",
 		)
 	}
 	if p.check_accounts {

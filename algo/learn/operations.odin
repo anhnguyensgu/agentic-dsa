@@ -44,16 +44,9 @@ ENVELOPE_FIELDS :: [?]string{"request_id"}
 OPERATIONS := [?]Operation {
 	{
 		"doctor",
-		"Report whether the workspace, the Odin compiler, the curriculum, and each judge provider are ready. Stores nothing.",
+		"Report whether the workspace, the Odin compiler, and each judge provider are ready. Stores nothing.",
 		op_doctor,
 		Doctor_Params,
-		{},
-	},
-	{
-		"curriculum_get",
-		"List the curriculum's pattern groups in study order, with prerequisites, LeetCode topic tags, and the provider problems mapped to each. Pass concept_id to get one group.",
-		op_curriculum_get,
-		Curriculum_Get_Params,
 		{},
 	},
 	{

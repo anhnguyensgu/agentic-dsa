@@ -29,7 +29,6 @@ algo/
 │   ├── cli.odin           `algo learn` CLI      mcp.odin  MCP stdio server
 │   └── README.md          tools user guide
 ├── safeio/              atomic owner-only writes, bounded credential-free child processes
-├── curriculum/          concepts.json (concept graph; there is no bundled problem set)
 ├── schemas/             JSON schemas: envelope, event (v2)
 ├── tests/               Python integration, MCP, packaging, teaching suites
 ├── README.md            CLI reference      AGENTIC_LEARNING.md  original engine design spec

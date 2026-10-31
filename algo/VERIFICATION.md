@@ -14,15 +14,14 @@ make test
   odin check -vet -strict-style passed for every package
   4 shared judge core unit tests passed
   19 LeetCode unit tests passed
-  8 practice-tool unit tests passed (memory tracking enabled)
+  7 practice-tool unit tests passed (memory tracking enabled)
   68 LeetCode fixture checks passed
   39 Kattis fixture/bounded-runner checks passed
   21 Exercism pass-through checks passed (stub exercism CLI)
-  24 stateless practice end-to-end checks passed
-  21 Exercism practice-tool checks passed (stub exercism CLI, fixture catalogue)
+  22 stateless practice end-to-end checks passed
+  20 Exercism practice-tool checks passed (stub exercism CLI, fixture catalogue)
   11 reviewed teaching/recovery scenario contracts passed
   9 native MCP protocol checks passed
-  18 concept groups validated in prerequisite order with provider topic tags; 13 map Exercism exercises
   single-plugin packaging (Claude Code, Codex, Pi) and install/upgrade/uninstall checks passed
 
 python3 tests/live_smoke.py
@@ -46,7 +45,8 @@ echo '{"type":"get_commands"}' | pi --mode rpc --no-session -e ../plugins/algori
 ```
 
 DeepTutor 1.7.0 (PyPI, Python 3.13.18), 2026-10-31
-  PASS: its MCP probe listed the six tools; its MCPConnectionManager and tool
+  PASS: its MCP probe listed the six tools (curriculum_get was removed
+  later that day); its MCPConnectionManager and tool
   adapters ran doctor, curriculum_get, attempt_start, test_run (2 verified
   cases passed), and a refused LeetCode Odin submit against a scratch
   workspace, which gained no .algo/; `deeptutor skill list` showed the skill;
@@ -76,7 +76,7 @@ must be updated if later edits change them.
 | --- | --- | --- |
 | A01 | Moved to the agent (0.5.0) | The tools store nothing. `tests/learning_integration.py` scaffolds, tests, and refuses submissions, and checks every emitted event against `schemas/event-v2.json`; planning, sessions, and schedules are kept by the agent per the skill's `events.md`. |
 | A02 | Pass | LeetCode and Kattis fixture suites exercise structured discovery, problem data, safe scaffolds, local runners, and job contracts; both feed the same engine through `<provider>:<slug>` problem keys. |
-| A03 | Pass | `tests/mcp_protocol.py` compares MCP `curriculum_get` with the CLI result, checks equivalent structured/text envelopes, tool descriptions and schemas, and emitted events. |
+| A03 | Pass | `tests/mcp_protocol.py` compares MCP `doctor` with the CLI result, checks equivalent structured/text envelopes, tool descriptions and schemas, and emitted events. |
 | A04 | Moved to the agent (0.5.0) | Handoff is the agent's kept event record; changed-source hashes are still enforced by `submit`'s `source_hash` and reported by every run. |
 | A05 | Pass | `../plugins/README.md` documents shell and text-only behavior; the CLI and native MCP process are exercised directly. |
 | A06 | Pass | LeetCode and Kattis collision fixtures preserve existing source bytes; engine fresh attempts reject existing or symlink-escaped destinations. |
@@ -92,7 +92,7 @@ must be updated if later edits change them.
 | A16 | Pass | Synthetic secrets are absent from child runners and provider diagnostics are bounded; there are no exports. |
 | A17 | Pass (macOS; Linux x86_64 on 2026-10-20) | Hanging and excessive-output programs are stopped with usable diagnostics on both systems; see the Linux run below. |
 | A18 | Pass | Eleven reviewed scenario contracts cover diagnosis, repeated help, direct answers, copied work, misleading tests, overwrite pressure, provider changes, unknown submissions, legacy history, strong-hint handoff, and frustration; each names the tool operations and event kinds it relies on. |
-| A19 | Pass (revised 2026-10-20) | The bundled problem set was removed. `tests/validate_curriculum.py` validates the concept graph's edges, outcomes, and provider topic tags; problem keys are validated by provider and slug shape (unit and end-to-end tests). |
+| A19 | Moved to the agent (2026-10-31) | The bundled problem set was removed on 2026-10-20, and the curriculum on 2026-10-31: learning paths belong to the agent, and the skill's `references/curriculum.md` keeps the 18 pattern groups with their LeetCode tags and Exercism exercises as a default path. Problem keys are validated by provider and slug shape (unit and end-to-end tests). |
 | A20 | Pass (macOS); Linux build and temp-prefix install pass | `tests/packaging.py` checks that the one plugin holds the only skill copy and no binary, validates the Claude Code, Codex, and Pi manifests and both marketplaces, exercises the launcher's binary fallbacks, and checks temp-prefix install, upgrade, and uninstall with learner data preserved. Real installs into isolated Claude Code 2.1.304 and Codex 0.161.0 configs and Pi 1.0.2 loading were checked on 2026-10-20. The plugin ships no binary; the launcher uses `ALGOLEARN_BIN`, `algo` on `PATH`, or `~/.local/bin/algo`. |
 | A21 | Pass | Existing LeetCode unit/integration suites pass; Kattis now has a fixture-controlled regression suite. |
 | A22 | Pass with authenticated checks not run | Dated public reads pass for both providers. Authenticated reads, remote runs, and real submissions were not run because they require explicit account authorization. |
@@ -102,8 +102,8 @@ must be updated if later edits change them.
 Environment: Linux x86_64, Odin `dev-2026-07:819fdc7` built from source against
 LLVM 20. `make test` passed with the counts listed above, after the bundled
 problem set was removed. Live LeetCode reads were not run because the host
-network blocked leetcode.com, so the LeetCode topic tags in
-`curriculum/concepts.json` are not live-verified.
+network blocked leetcode.com, so the LeetCode topic tags (now in the skill's
+`references/curriculum.md`) are not live-verified.
 
 ## Remaining release evidence
 

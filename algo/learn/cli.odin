@@ -23,10 +23,7 @@ The workspace defaults to the global algo workspace: $ALGO_WORKSPACE, else
 Examples:
   algo learn call attempt_start --workspace . --input request.json --json
 
-Operations: doctor, curriculum_get, attempt_start, test_run, submit, job_check
-
-Nothing is stored: each envelope lists the events the call produced, for the
-caller to keep. Paths are workspace-relative; diagnostics go to stderr.`
+Operations: doctor, attempt_start, test_run, submit, job_check`
 
 CLI_HOST :: "generic-cli"
 

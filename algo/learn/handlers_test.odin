@@ -184,20 +184,6 @@ submit_refuses_stale_or_unjudged_sources_before_sending :: proc(t: ^testing.T) {
 }
 
 @(test)
-curriculum_get_selects_a_group_by_any_concept_id :: proc(t: ^testing.T) {
-	context.allocator = context.temp_allocator
-	defer free_all(context.temp_allocator)
-	ctx := test_context(".")
-
-	all := call(t, &ctx, "curriculum_get", `{}`)
-	testing.expect(t, has(all, `"id":"arrays-hashing"`) && has(all, `"id":"math-geometry"`))
-	one := call(t, &ctx, "curriculum_get", `{"concept_id":"graphs/topological-sort"}`)
-	testing.expect(t, has(one, `"id":"graphs"`) && !has(one, `"id":"arrays-hashing"`))
-	missing := call(t, &ctx, "curriculum_get", `{"concept_id":"astrology"}`)
-	testing.expect_value(t, missing.err, Engine_Error.Not_Found)
-}
-
-@(test)
 problem_keys_name_any_provider_problem_as_one_path_component :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
 	defer free_all(context.temp_allocator)

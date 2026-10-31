@@ -63,18 +63,11 @@ def main() -> None:
 
         doctor = call("doctor", {})
         assert doctor["data"]["ready_for_local_practice"] is True
-        assert doctor["data"]["concept_count"] >= 18
         assert {provider["provider"] for provider in doctor["data"]["providers"]} == {"leetcode", "kattis", "exercism"}
         assert doctor["events"] == []
-
-        curriculum = call("curriculum_get", {})
-        groups = [concept["id"] for concept in curriculum["data"]["concepts"]]
-        assert groups[0] == "arrays-hashing" and len(groups) >= 18
-        group = call("curriculum_get", {"concept_id": "math-geometry/parity"})
-        [math] = group["data"]["concepts"]
-        assert math["id"] == "math-geometry" and "math" in math["leetcode_tags"] and math["outcomes"]
-        missing = call("curriculum_get", {"concept_id": "astrology"}, expected=1)
-        assert missing["error"]["code"] == "not_found"
+        # Learning paths belong to the agent; the tools carry no curriculum.
+        gone = call("curriculum_get", {}, expected=1)
+        assert gone["error"]["code"] == "not_found"
 
         attempt = call("attempt_start", {
             "problem_key": "kattis:twostones", "language": "odin", "session_id": "my-session",

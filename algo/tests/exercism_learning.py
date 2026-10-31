@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Exercism through the practice tools: curriculum exercises, downloads,
-test-package runs, and uploads, against a stub exercism CLI and a fixture
+"""Exercism through the practice tools: downloads, test-package runs, and uploads, against a stub exercism CLI and a fixture
 catalogue. Nothing reaches exercism.org or GitHub."""
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -157,10 +156,6 @@ def main() -> None:
             doctor = call("doctor", {})
             exercism = next(p for p in doctor["data"]["providers"] if p["provider"] == "exercism")
             assert exercism["available"] is True and exercism["version"] == "exercism version 9.9.9"
-
-            # The curriculum names concrete exercises per group; agents pick the next one.
-            [math] = call("curriculum_get", {"concept_id": "math-geometry"})["data"]["concepts"]
-            assert "leap" in math["problems"]["exercism"]
 
             # attempt_start downloads the exercise through the provider, once.
             request = {"problem_key": "exercism:leap", "language": "odin"}
