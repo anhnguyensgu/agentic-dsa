@@ -1,14 +1,15 @@
 # agentic-dsa
 
 A DSA coach that lives inside your coding agent. It keeps you writing the
-solution, records how much help you actually got, and schedules spaced reviews
-per pattern so you can still solve it weeks later.
+solution, has your agent record how much help you actually got, and schedules
+spaced reviews per pattern so you can still solve it weeks later.
 
 Three pieces:
 
 - **`algo`**: one native command-line program. `algo judge` fetches, tests, and
-  submits LeetCode and Kattis problems; `algo learn` is the tutoring engine that
-  stores sessions, hints, test evidence, and reviews.
+  submits LeetCode and Kattis problems; `algo learn` gives agents stateless
+  practice tools (scaffold, test, submit) over a JSON CLI and MCP, and returns
+  events the agent keeps in its own memory.
 - **Agent plugins** for Claude Code, Codex, and Pi that teach your agent to use
   `algo` and `langlings`, plus `learn-anything`, which maps and drills any
   domain with no binary of its own.
@@ -72,6 +73,6 @@ becomes the learning workspace) and ask, for example:
 
 - [`plugins/README.md`](plugins/README.md): per-agent setup details, MCP for Pi, other agents
 - [`algo/README.md`](algo/README.md): `algo judge` command reference
-- [`algo/learn/README.md`](algo/learn/README.md): the learning engine
+- [`algo/learn/README.md`](algo/learn/README.md): the stateless practice tools
 - [`algo/VERIFICATION.md`](algo/VERIFICATION.md): what is tested
 - [`langlings/README.md`](langlings/README.md): the langlings runner and how to add a course

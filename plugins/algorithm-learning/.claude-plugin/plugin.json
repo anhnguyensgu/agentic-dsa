@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "algorithm-learning",
-  "version": "0.4.0",
-  "description": "Persistent, evidence-backed algorithm tutoring with local Odin execution, spaced review, and resumable judge jobs.",
+  "version": "0.5.0",
+  "description": "Evidence-backed algorithm tutoring with stateless practice tools: local Odin tests, judge submissions, and events your agent keeps.",
   "author": {
     "name": "anh nguyen"
   },

@@ -1,28 +1,24 @@
-# Engine operations
+# Tool operations
 
-Call the engine when the learner needs stored state, new external information, execution, or a meaningful durable change. Reuse information already returned. A learning conversation is not a checklist to rerun on each message.
+Call a tool when the learner needs new external information, execution, or a submission. The tools are stateless: they read nothing from earlier calls, so pass what they need from your kept events. A learning conversation is not a checklist to rerun on each message.
 
 ## Choose calls by need
 
 | Situation | Calls |
 | --- | --- |
-| Enter an existing learning workspace or recover lost context | `session_resume` once; its handoff includes profile, latest attempt, hints, results, and pending jobs. |
-| First setup or tooling failure | `doctor`; initialize only after required profile fields are known. |
+| First setup or tooling failure | `doctor`. |
+| Learner returns, or a host switch | No tool call; read your kept events (`events.md`). |
 | Learner asks for today's problem | Fetch the provider daily problem once (`algo judge leetcode daily`) and reuse its statement. |
-| Learner names or links a problem | Practise it directly; any problem on a supported judge can be tracked. Fetch it with `algo judge <provider> show`. |
-| Learner asks what to practise next | `plan_next`, or `review_due` for review work. `plan_next` names a concept and LeetCode topic tags, not a problem: pick an unattempted one with `algo judge leetcode random --tag <tag>` or `list`, avoiding `attempted_problem_keys`. |
-| Start a learning session | `session_start` once with one objective and the accepted problem. |
-| Learner begins implementation or registers work | For a requested provider starter, `algo judge <provider> get --lang` into a fresh directory; then `attempt_start` once with the correct language and source path. Reuse an existing learner file when supplied. |
-| Ordinary discussion of the same problem | Usually no calls; collect routine hints as described in `tutor-protocol.md`. |
-| Testing or assessment | Flush pending assistance, then record the actual cases, execution, or assessment needed. |
-| Interruption, handoff, substantial activity change, or context loss | Flush pending assistance, then `session_checkpoint`. |
-| Finished learning session or requested progress report | `session_close` after reflection; `progress_get` when reporting progress. |
-
-Keep `workspace_revision`, active IDs, schemas, and the strongest recorded assistance level in the current context. Perform dependent mutations sequentially, using the revision returned by the preceding call. Related necessary calls may share one host tool invocation; never parallelize mutations against the same revision. Refresh state after a revision conflict or a known change by another host.
+| Learner names or links a problem | Practise it directly; any problem on a supported judge works. Fetch it with `algo judge <provider> show`. |
+| Learner asks what to practise next | Decide from the record: due reviews first, then the next group of your study path (`curriculum.md` has a default with LeetCode tags and Exercism exercises); pick an unattempted LeetCode problem with `algo judge leetcode random --tag <tag>` or `list`. Do not show tags to the learner in independent work. |
+| Learner begins implementation or registers work | For a requested provider starter, `algo judge <provider> get --lang` into a fresh directory; then `attempt_start` once with the correct language and source path. Keep the returned event. |
+| Ordinary discussion of the same problem | No calls; collect routine hints as described in `tutor-protocol.md`. |
+| Testing | Record pending hints, then `test_run` with the source path and cases, or with `tests_hash` for an Exercism package. Keep the `runner_observed` event. |
+| Submission the learner asked for | `submit`, then `job_check` with the returned `remote_id` until terminal. |
 
 ## Schemas and requests
 
-Use exposed MCP input schemas. In CLI-only hosts such as Pi, discover unknown schemas with the native MCP server once, then retain the relevant fields and required values in context. This read-only exchange exits at stdin EOF:
+Use exposed MCP input schemas. In CLI-only hosts such as Pi, discover unknown schemas with the MCP server once, then retain the relevant fields in context. This read-only exchange exits at stdin EOF:
 
 ```sh
 printf '%s\n' \
@@ -32,28 +28,25 @@ printf '%s\n' \
   | algo learn serve --workspace /path/to/practice
 ```
 
-Do not read the executable as text or write a discovery program on every turn. The schemas list fields and required inputs; string enums may need the quick reference below or the matching handler source. After `invalid_input`, inspect the schema and error before one corrected retry. If it still fails, report the specific tooling obstacle and continue any tutoring that does not depend on it. Do not try a series of guessed payloads.
+After `invalid_input`, inspect the schema and error before one corrected retry. If it still fails, report the specific tooling obstacle and continue any tutoring that does not depend on it. Do not try a series of guessed payloads.
 
-Quick reference for engine 0.4.0; live schemas and validation take precedence:
+Quick reference for engine 0.5.0; live schemas and validation take precedence:
 
 | Operation | Inputs that commonly cause mistakes |
 | --- | --- |
-| `workspace_init` | Required: `goal`, `language`, `timezone`, `experience`, `time_budget_minutes` (integer 5–480). Optional: `explanation_language`. Collect missing preferences together before calling. |
-| `plan_next` | Optional: `topic` (a concept ID), `mode`, `language`, `time_budget_minutes`, `provider`. Returns at most one due review and one concept with `leetcode_tags`; when `hide_tags_from_learner` is true, do not show those tags. With `provider: exercism` it returns up to three `kind: problem` candidates instead: unpassed Exercism exercises the curriculum maps to the next concept, in-progress ones first, then easiest; when `hide_concept_from_learner` is true, do not show their concept. A warning that the catalogue is not cached means some may not exist on the learner's track; run `algo judge exercism list --track <language>` once. |
-| `session_start` | Required: `objective`, `mode`. Modes: `guided`, `independent`, `assessment`, `review`, `worked_example`. Accepts `problem_key` and `concept_ids`. |
-| Concept IDs | Use the specific pattern the learner actually exercised, written `<group>/<pattern>` under one of the 18 curriculum groups (`arrays-hashing`, `two-pointers`, `stack`, `binary-search`, `sliding-window`, `linked-list`, `trees`, `tries`, `heap`, `backtracking`, `intervals`, `greedy`, `graphs`, `advanced-graphs`, `dp-1d`, `dp-2d`, `bit-manipulation`, `math-geometry`), such as `graphs/topological-sort` or `dp-2d/knapsack`. Reuse an existing sub-pattern ID from `progress_get` instead of inventing a synonym. Use the bare group only when no narrower pattern applies. Apply the same IDs to `session_start`, `hint_record`, and `assessment_record`. |
-| `session_checkpoint` | Required: `session_id`, `activity`, `summary`, `next_action`. Activities: `understanding`, `planning`, `implementing`, `testing`, `reflecting`, `reviewing`. |
-| `hint_record` | Required: `session_id`, integer `level` (0–4). Optional: `attempt_id`, `content`, `concept_ids`. |
-| `attempt_start` | Required: `session_id`, `problem_key`, `language`. `problem_key` is `<provider>:<slug>` for any problem on `leetcode`, `kattis`, or `exercism`, using the LeetCode title slug, Kattis problem ID, or Exercism exercise slug (lowercase), such as `leetcode:two-sum` or `exercism:leap`. `action`: `fresh` or `register_existing`. `runner_kind`: `stdin_stdout`, `odin_test_package`, or `provider_workspace`; Exercism attempts default to `odin_test_package`. `register_existing` needs an existing workspace-relative `source_path`. For Exercism, `language` is the track (`odin`) and `fresh` downloads the exercise; it fails with `destination_exists` once downloaded, so later attempts use `register_existing` with the solution file under `problems/exercism/<track>/<slug>/`. |
-| `test_run` | Required: `attempt_id`. For `odin_test_package` it runs `odin test` on the attempt's package: each `@(test)` procedure is one verified case. If the `*_test.odin` files changed after the attempt began, `tests_modified` is true and the run is unverified until they are restored. |
+| Concept IDs | Use the specific pattern the learner actually exercised, written `<group>/<pattern>` under a group of your study path (the groups in `curriculum.md` by default), such as `graphs/topological-sort`. Reuse a sub-pattern ID already in your record instead of inventing a synonym. The tools never read concept IDs. |
+| `attempt_start` | Required: `problem_key`, `language`. `problem_key` is `<provider>:<slug>` for `leetcode`, `kattis`, or `exercism`, using the LeetCode title slug, Kattis problem ID, or Exercism exercise slug (lowercase), such as `leetcode:two-sum` or `exercism:leap`. `action`: `fresh` (default) or `register_existing`, which needs an existing workspace-relative `source_path`. `runner_kind`: `stdin_stdout`, `odin_test_package`, or `provider_workspace`; Exercism defaults to `odin_test_package`. For Exercism, `language` is the track (`odin`) and `fresh` downloads the exercise; once downloaded it fails with `destination_exists`, so later attempts use `register_existing` with the solution file under `problems/exercism/<track>/<slug>/`. Optional `session_id` and `previous_attempt_id` are copied into the event. |
+| `test_run` | Required: `source_path` (an Odin file). `stdin_stdout` takes `cases`: each needs `input`, `comparator` (`exact`, `trimmed`, `tokens`), and `provenance`; `expected` and `oracle_verified: true` make it verifiable. `odin_test_package` runs the package's `@(test)` procedures and needs the `tests_hash` from `attempt_start`; pass `problem_key` so Exercism tests are marked `official_tests`. Without `tests_hash`, or after the tests changed, the run is unverified. |
+| `submit` | Required: `problem_key`, `language` (the provider's language name), `source_path`, `authorization_reference`. Pass `source_hash` from the run you rely on; a changed file fails with `stale_source`. LeetCode does not judge Odin. |
+| `job_check` | Required: `provider`, `remote_id` from `submit`. Optional `wait_seconds` (1–30). Exercism has no verdict to check. |
 
-Every mutation also includes a stable `request_id` and the `expected_revision` returned by the last envelope. Repeating the same request and payload is safe; reusing an ID for different content fails. Read operations accept `{}` unless their schema requires a selector. Write learner text and JSON through a structured tool argument, a file, or safely supplied stdin rather than interpolating it into shell code.
+Every call accepts an optional `request_id`, echoed in the envelope. Repeating a call repeats its effect: a second `attempt_start` creates a second attempt, and a second `submit` creates a second submission. Write learner text and JSON through a structured tool argument, a file, or safely supplied stdin rather than interpolating it into shell code.
 
 ## Requested language
 
-The current guaranteed local runner and `action: fresh` scaffold are Odin. Setting `language: typescript` with `runner_kind: provider_workspace` does not change the fresh scaffold's extension.
+The guaranteed local runner and the `fresh` scaffold are Odin. Setting `language: typescript` with `runner_kind: provider_workspace` does not change the scaffold's extension.
 
-When the provider offers starters in the requested language, fetch one rather than creating an empty file or using the engine's Odin scaffold. Today only LeetCode offers multi-language starters; `algo judge kattis get` scaffolds Odin only. For LeetCode, reuse `codeSnippets` from an already fetched problem to check language support, and call `algo judge leetcode languages <problem> --json` only when that information is missing. The language selector is the provider's own name for the language: LeetCode's `langSlug` (such as `typescript` or `python3`), or the judge's language name for Kattis submissions.
+When the provider offers starters in the requested language, fetch one rather than creating an empty file or using the Odin scaffold. Today only LeetCode offers multi-language starters; `algo judge kattis get` scaffolds Odin only. For LeetCode, reuse `codeSnippets` from an already fetched problem to check language support, and call `algo judge leetcode languages <problem> --json` only when that information is missing. The language name is the provider's own: LeetCode's `langSlug` (such as `typescript` or `python3`), or the judge's language name for Kattis.
 
 When the learner wants a starter workspace, use a fresh destination inside the practice workspace:
 
@@ -63,35 +56,21 @@ algo judge leetcode get valid-parentheses --lang typescript \
   --dir /path/to/practice/problems/leetcode/valid-parentheses/typescript-attempt-1 --json
 ```
 
-`get` writes the provider starter as `solution.ts` in this example, along with the statement, metadata, and example cases. It refuses an existing destination. Reuse the fetched problem and examples.
+Register the generated source, or the learner's existing file, with `action: register_existing`, its workspace-relative `source_path`, the requested `language`, and `runner_kind: provider_workspace`. This registration does not provide a verified local runner for that language and is not a fresh attempt. Do not award fresh-attempt credit or claim local execution support from it.
 
-Register the generated source, or the learner's existing file, with `action: register_existing`, its workspace-relative `source_path`, the requested `language`, and `runner_kind: provider_workspace`. Check the returned source path before directing the learner to it. Preserve earlier work and let the learner write the solution. For a provider without starter support, an empty file at a fresh destination remains an option when file creation is requested.
+## Remote operations
 
-This registration does not provide a verified local runner for that language and is not marked as a fresh attempt by the engine. Do not award fresh-attempt credit or claim local execution support from it.
+1. `submit` once, after the learner's explicit request.
+2. `job_check` with the returned `provider` and `remote_id` until `state: terminal`.
 
-## Remote and data operations
+Exercism has no verdict to wait for: `submit` uploads the exercise's solution file through the exercism CLI and returns `state: uploaded`. Its tests run on exercism.org, so assess from the local `test_run` evidence. The exercism CLI must be set up once with `exercism configure --token=<token>` and `algo judge exercism setup`; a missing token is reported as `auth_required`.
 
-Remote flow:
-
-1. `submission_prepare`
-2. `submission_send` once with an authorization reference
-3. `job_check` on the returned local job ID until terminal
-
-Exercism has no verdict to wait for: `submission_send` uploads the exercise's solution file through the exercism CLI and returns `state: uploaded`, and `job_check` does not apply. Its tests run on exercism.org, so assess from the local `test_run` evidence. The exercism CLI must be set up once with `exercism configure --token=<token>` and `algo judge exercism setup`; the engine reports a missing token as `auth_required`.
-
-Data flow:
-
-- `export_create` creates a private profile/history or handoff export and lists excluded content.
-- `import_validate` previews legacy or portable data without mutation.
-- `import_apply` checks the validated source hash before applying.
-- `data_delete` returns a preview unless `execute=true` and the exact confirmation string is supplied.
-
-CLI fallback:
+## CLI fallback
 
 ```sh
 algo learn call OP --workspace /path/to/practice --input request.json --json
 ```
 
-Convenience commands `algo learn init`, `doctor`, and `resume` call the same registry. Engine exit codes below apply to `algo learn`; `algo judge` provider commands use 0 success, 1 operational error, 2 usage, 3 failed solution, and 4 local cases without expected output. JSON envelopes contain `schema_version`, `request_id`, `workspace_revision`, `status`, `data`, `warnings`, `error`, and `next_actions`.
+`algo learn doctor` calls the same registry. JSON envelopes contain `schema_version`, `request_id`, `status`, `data`, `events`, `warnings`, `error`, and `next_actions`; even an error can carry an event, such as `submission_outcome_unknown`.
 
-Exit codes are 0 completed, 1 operational failure, 2 invalid input or conflict, 3 failed solution, 4 unverified local result, and 5 pending. Wrong answers and unchecked cases are domain outcomes, not malformed tool calls.
+Exit codes for `algo learn` are 0 completed, 1 operational failure, 2 invalid input, 3 failed solution, 4 unverified local result, and 5 pending. `algo judge` provider commands use 0 success, 1 operational error, 2 usage, 3 failed solution, and 4 local cases without expected output. Wrong answers and unchecked cases are domain outcomes, not malformed tool calls.

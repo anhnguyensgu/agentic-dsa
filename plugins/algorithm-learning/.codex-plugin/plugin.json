@@ -1,15 +1,15 @@
 {
   "name": "algorithm-learning",
-  "version": "0.4.0",
-  "description": "Persistent, evidence-backed algorithm tutoring with local Odin execution and resumable provider jobs.",
+  "version": "0.5.0",
+  "description": "Evidence-backed algorithm tutoring with stateless practice tools: local Odin tests, judge submissions, and events your agent keeps.",
   "author": {
     "name": "Local developer"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Algorithm Learning",
-    "shortDescription": "Persistent algorithm tutoring and review.",
-    "longDescription": "Teach and practise algorithms with durable sessions, honest hint accounting, bounded local tests, spaced review, and cross-agent handoff.",
+    "shortDescription": "Algorithm tutoring with stateless practice tools.",
+    "longDescription": "Teach and practise algorithms with honest hint accounting, bounded local tests, and judge submissions. The tools store nothing: each call returns events for your agent to keep.",
     "developerName": "Local developer",
     "category": "Productivity",
     "capabilities": [],

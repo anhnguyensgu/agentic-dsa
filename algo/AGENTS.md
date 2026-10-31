@@ -1,11 +1,12 @@
 # AGENTS.md
 
 `algo` is one Odin executable for algorithm practice: online judge providers
-(`algo judge <provider> ...`) and an evidence-backed tutoring engine
-(`algo learn ...`). Paths below are relative to `algo/`. The learner's data
-lives in the global algo workspace (`$ALGO_WORKSPACE`, else `~/algo`) as
-`problems/` and `.algo/`; the repository root's `../problems/` and `../.algo/`
-hold earlier practice.
+(`algo judge <provider> ...`) and stateless practice tools for tutoring agents
+(`algo learn ...`). `algo learn` stores no learner state: each result lists the
+events it produced (`schemas/event-v2.json`) and the host agent keeps them.
+Paths below are relative to `algo/`. The learner's solutions live in the global
+algo workspace (`$ALGO_WORKSPACE`, else `~/algo`) under `problems/`; the
+repository root's `../problems/` and `../.algo/` hold earlier practice.
 
 ## Layout
 
@@ -21,17 +22,16 @@ algo/
 │   ├── leetcode/          LeetCode provider (GraphQL, cache, Odin scaffold + runner)
 │   ├── kattis/            Kattis provider (page parsing, login, submit, verdicts)
 │   └── exercism/          Exercism provider (exercism CLI pass-through, track catalogue)
-├── learn/               learning engine (library)
+├── learn/               stateless practice tools (library)
 │   ├── operations.odin    OPERATIONS registry shared by CLI and MCP
-│   ├── store.odin, events.odin, projection.odin   event store -> State
-│   ├── <group>.odin       one file per operation group (sessions, jobs, reviews, ...)
+│   ├── events.odin        emitted event types (schemas/event-v2.json)
+│   ├── <group>.odin       one file per operation group (practice, execution, jobs, ...)
 │   ├── cli.odin           `algo learn` CLI      mcp.odin  MCP stdio server
-│   └── README.md          engine user guide
+│   └── README.md          tools user guide
 ├── safeio/              atomic owner-only writes, bounded credential-free child processes
-├── curriculum/          concepts.json (concept graph; there is no bundled problem set)
-├── schemas/             JSON schemas: envelope, event, export (v1)
+├── schemas/             JSON schemas: envelope, event (v2)
 ├── tests/               Python integration, MCP, packaging, teaching suites
-├── README.md            CLI reference      AGENTIC_LEARNING.md  engine design spec
+├── README.md            CLI reference      AGENTIC_LEARNING.md  original engine design spec
 ├── VERIFICATION.md      tested scope and expected test counts
 └── PLAN.md              original LeetCode plan and completion record
 ```
@@ -84,6 +84,9 @@ covers the change (`make test` for anything cross-package).
 - Never commit credentials, cookies, `../problems/.cache/`, or `../.algo/`.
 - Don't modify the learner's solutions in `../problems/` or attempt records in
   `../.algo/` unless asked; they are evidence, not code.
+- `algo learn` stays stateless: don't add persisted learner state to it. New
+  operations take what they need as parameters and return events. A store, if
+  one is built, is a separate consumer of those events.
 - If a change alters test counts, update `VERIFICATION.md`.
 - Command or flag changes must also update `README.md` (and `learn/README.md`
   for `algo learn`).

@@ -27,28 +27,9 @@ def main() -> None:
     checks = 0
     with tempfile.TemporaryDirectory(prefix="algolearn-mcp-") as tmp:
         workspace = Path(tmp)
-        cli(workspace, "workspace_init", {
-            "request_id": "init", "expected_revision": 0, "goal": "foundations",
-            "language": "odin", "timezone": "UTC", "experience": "beginner",
-            "time_budget_minutes": 20,
-        })
-        session = cli(workspace, "session_start", {
-            "request_id": "session", "expected_revision": 1,
-            "objective": "bounded execution", "mode": "guided", "concept_ids": ["foundations"],
-        })
-        attempt = cli(workspace, "attempt_start", {
-            "request_id": "attempt", "expected_revision": 2,
-            "session_id": session["data"]["session_id"], "problem_key": "kattis:twostones",
-            "language": "odin", "runner_kind": "stdin_stdout",
-        })
+        attempt = cli(workspace, "attempt_start", {"problem_key": "kattis:twostones", "language": "odin"})
         source = workspace / attempt["data"]["source_path"]
         source.write_text('package main\nmain :: proc() { for {} }\n')
-        cli(workspace, "case_add", {
-            "request_id": "case", "expected_revision": 3,
-            "attempt_id": attempt["data"]["attempt_id"], "input": "",
-            "expected": "done\n", "comparator": "exact", "provenance": "fixture",
-            "oracle_verified": True,
-        })
 
         process = subprocess.Popen(
             [str(ALGO), "learn", "serve", "--workspace", str(workspace)],
@@ -88,23 +69,27 @@ def main() -> None:
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
         tools = receive(2)["result"]["tools"]
         names = {tool["name"] for tool in tools}
-        required = {
-            "workspace_init", "doctor", "profile_update", "state_get",
-            "plan_next", "session_start", "session_resume", "attempt_start", "evidence_record", "hint_record",
-            "case_add", "test_run", "submission_prepare", "submission_send", "job_check", "assessment_record",
-            "session_checkpoint", "session_close", "review_due", "review_update", "progress_get", "export_create",
-            "import_validate", "import_apply", "data_delete",
-        }
-        assert names == required
-        assert all("inputSchema" in tool and "outputSchema" in tool for tool in tools)
+        assert names == {"doctor", "attempt_start", "test_run", "submit", "job_check"}
+        assert all("inputSchema" in tool and "outputSchema" in tool and tool["description"] for tool in tools)
+        by_name = {tool["name"]: tool for tool in tools}
+        assert "events" in by_name["doctor"]["outputSchema"]["required"]
+        assert set(by_name["submit"]["inputSchema"]["required"]) == {"problem_key", "language", "source_path", "authorization_reference"}
+        cases = by_name["test_run"]["inputSchema"]["properties"]["cases"]
+        assert cases["type"] == "array" and set(cases["items"]["required"]) == {"input", "comparator", "provenance"}
         checks += 1
 
-        send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "state_get", "arguments": {}}})
-        mcp_state = receive(3)["result"]
-        assert mcp_state["isError"] is False
-        assert json.loads(mcp_state["content"][0]["text"]) == mcp_state["structuredContent"]
-        cli_state = cli(workspace, "state_get", {})
-        assert mcp_state["structuredContent"]["data"] == cli_state["data"]
+        send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "doctor", "arguments": {}}})
+        mcp_doctor = receive(3)["result"]
+        assert mcp_doctor["isError"] is False
+        assert json.loads(mcp_doctor["content"][0]["text"]) == mcp_doctor["structuredContent"]
+        cli_doctor = cli(workspace, "doctor", {})
+        assert mcp_doctor["structuredContent"]["data"] == cli_doctor["data"]
+        checks += 1
+
+        send({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "attempt_start", "arguments": {
+            "problem_key": "kattis:twostones", "language": "odin", "session_id": "mcp-session"}}})
+        started = receive(4)["result"]["structuredContent"]
+        assert started["events"][0]["type"] == "attempt_started" and started["events"][0]["actor"] == "agent:mcp"
         checks += 1
 
         process.stdin.write("not-json\n")
@@ -116,8 +101,8 @@ def main() -> None:
         send({
             "jsonrpc": "2.0", "id": 50, "method": "tools/call",
             "params": {"name": "test_run", "arguments": {
-                "request_id": "mcp-run", "expected_revision": 4,
-                "attempt_id": attempt["data"]["attempt_id"], "mode": "local", "timeout_seconds": 3,
+                "request_id": "mcp-run", "source_path": attempt["data"]["source_path"], "timeout_seconds": 3,
+                "cases": [{"input": "", "expected": "done\n", "comparator": "exact", "provenance": "fixture", "oracle_verified": True}],
             }},
         })
         send({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 50, "reason": "fixture cancellation"}})
@@ -134,6 +119,7 @@ def main() -> None:
         process.stdin.close()
         assert process.wait(timeout=15) == 0
         assert all(json.loads(line)["jsonrpc"] == "2.0" for line in seen_lines)
+        assert not (workspace / ".algo").exists()
         checks += 1
         print(f"PASS: {checks} native MCP protocol checks")
 

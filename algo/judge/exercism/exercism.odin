@@ -6,8 +6,7 @@
 //
 // The exercism CLI cannot list a track's exercises, so `list` reads the
 // track's public config.json from GitHub and caches it in
-// <root>/problems/exercism/.cache/<track>.json, where the learning engine's
-// plan_next finds it.
+// <root>/problems/exercism/.cache/<track>.json for `list --offline`.
 //
 // Exercises belong in the global algo workspace, at <root>/problems/exercism.
 // `setup` points the exercism CLI there once; the commands that work on

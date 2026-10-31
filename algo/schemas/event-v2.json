@@ -1,0 +1,742 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.algolearn/schemas/event-v2.json",
+  "title": "Algorithm practice event",
+  "description": "One event. The tools emit attempt_started, runner_observed, submission_sent, submission_outcome_unknown, and job_observed in each result's events array and store nothing. The other kinds are recorded by the agent in its own memory. Whoever keeps events adds any ordering it needs.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "timestamp",
+    "actor",
+    "type",
+    "session_id",
+    "attempt_id",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1,
+      "description": "agent:<host>, learner, or tool"
+    },
+    "type": {
+      "enum": [
+        "attempt_started",
+        "runner_observed",
+        "submission_sent",
+        "submission_outcome_unknown",
+        "job_observed",
+        "session_started",
+        "session_checkpoint",
+        "session_closed",
+        "hint_delivered",
+        "evidence_recorded",
+        "assessment_recorded",
+        "review_updated"
+      ]
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "attempt_id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "attempt_started"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/attempt_started"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "runner_observed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/runner_observed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "submission_sent"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/submission_sent"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "submission_outcome_unknown"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/submission_outcome_unknown"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "job_observed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/job_observed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "session_started"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/session_started"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "session_checkpoint"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/session_checkpoint"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "session_closed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/session_closed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "hint_delivered"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/hint_delivered"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "evidence_recorded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/evidence_recorded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "assessment_recorded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/assessment_recorded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "review_updated"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/review_updated"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "case_result": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "name",
+        "verified",
+        "passed",
+        "comparator",
+        "provenance",
+        "exit_code",
+        "timed_out",
+        "output_limit_exceeded",
+        "actual",
+        "stderr"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "comparator": {
+          "type": "string"
+        },
+        "provenance": {
+          "type": "string"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "timed_out": {
+          "type": "boolean"
+        },
+        "output_limit_exceeded": {
+          "type": "boolean"
+        },
+        "actual": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "attempt_started": {
+      "type": "object",
+      "required": [
+        "problem_key",
+        "language",
+        "source_path",
+        "source_hash",
+        "runner_kind",
+        "previous_attempt_id",
+        "fresh",
+        "tests_hash"
+      ],
+      "properties": {
+        "problem_key": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": "string"
+        },
+        "runner_kind": {
+          "enum": [
+            "stdin_stdout",
+            "odin_test_package",
+            "provider_workspace"
+          ]
+        },
+        "previous_attempt_id": {
+          "type": "string"
+        },
+        "fresh": {
+          "type": "boolean"
+        },
+        "tests_hash": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "runner_observed": {
+      "type": "object",
+      "required": [
+        "source_path",
+        "source_hash",
+        "runner_kind",
+        "outcome",
+        "verified_passed",
+        "verified_failed",
+        "unchecked",
+        "tests_modified",
+        "cases"
+      ],
+      "properties": {
+        "source_path": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": "string"
+        },
+        "runner_kind": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "unverified",
+            "compile_error"
+          ]
+        },
+        "verified_passed": {
+          "type": "integer"
+        },
+        "verified_failed": {
+          "type": "integer"
+        },
+        "unchecked": {
+          "type": "integer"
+        },
+        "tests_modified": {
+          "type": "boolean"
+        },
+        "cases": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/case_result"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "submission_sent": {
+      "type": "object",
+      "required": [
+        "provider",
+        "problem_key",
+        "language",
+        "source_path",
+        "source_hash",
+        "remote_id",
+        "state",
+        "authorization_reference",
+        "account_alias"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "problem_key": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": "string"
+        },
+        "remote_id": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "uploaded"
+          ]
+        },
+        "authorization_reference": {
+          "type": "string"
+        },
+        "account_alias": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "submission_outcome_unknown": {
+      "type": "object",
+      "required": [
+        "provider",
+        "problem_key",
+        "language",
+        "source_hash",
+        "reason"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "problem_key": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "job_observed": {
+      "type": "object",
+      "required": [
+        "provider",
+        "remote_id",
+        "state",
+        "verdict",
+        "source_hash",
+        "provider_result"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "remote_id": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "terminal"
+          ]
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": "string"
+        },
+        "provider_result": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "session_started": {
+      "type": "object",
+      "required": [
+        "objective",
+        "mode"
+      ],
+      "properties": {
+        "objective": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "guided",
+            "independent",
+            "assessment",
+            "review",
+            "worked_example"
+          ]
+        },
+        "problem_key": {
+          "type": "string"
+        },
+        "concept_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "session_checkpoint": {
+      "type": "object",
+      "required": [
+        "activity",
+        "summary",
+        "next_action"
+      ],
+      "properties": {
+        "activity": {
+          "enum": [
+            "understanding",
+            "planning",
+            "implementing",
+            "testing",
+            "reflecting",
+            "reviewing"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        },
+        "pause": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "session_closed": {
+      "type": "object",
+      "required": [
+        "reason",
+        "independent"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "independent": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "hint_delivered": {
+      "type": "object",
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "content": {
+          "type": "string"
+        },
+        "concept_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "evidence_recorded": {
+      "type": "object",
+      "required": [
+        "evidence_type",
+        "producer"
+      ],
+      "properties": {
+        "evidence_type": {
+          "type": "string"
+        },
+        "producer": {
+          "enum": [
+            "learner",
+            "agent"
+          ]
+        },
+        "concept_id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "assessment_recorded": {
+      "type": "object",
+      "required": [
+        "concept_id",
+        "dimension",
+        "score",
+        "rationale",
+        "evidence_ids"
+      ],
+      "properties": {
+        "concept_id": {
+          "type": "string"
+        },
+        "dimension": {
+          "enum": [
+            "recognition",
+            "approach",
+            "correctness",
+            "complexity",
+            "implementation",
+            "transfer"
+          ]
+        },
+        "score": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3
+            },
+            {
+              "const": "unknown"
+            }
+          ]
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "rubric_version": {
+          "type": "string"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "review_updated": {
+      "type": "object",
+      "required": [
+        "concept_id",
+        "outcome",
+        "due"
+      ],
+      "properties": {
+        "concept_id": {
+          "type": "string"
+        },
+        "task_type": {
+          "enum": [
+            "recall",
+            "transfer"
+          ]
+        },
+        "credit": {
+          "enum": [
+            "independent",
+            "assisted"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "independent_correct",
+            "correct_after_help",
+            "lapse",
+            "snoozed",
+            "tool_failure"
+          ]
+        },
+        "interval_days": {
+          "type": "integer"
+        },
+        "due": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "x-tool-emitted": [
+    "attempt_started",
+    "runner_observed",
+    "submission_sent",
+    "submission_outcome_unknown",
+    "job_observed"
+  ]
+}

@@ -1,36 +1,30 @@
-// Package learn is the Algorithm Learning engine: an append-only event log
-// per workspace, a projection folded from it, and the operation handlers the
-// CLI and MCP frontends share (AGENTIC_LEARNING.md sections 5-15).
+// Package learn holds the stateless algorithm-practice tools: attempt
+// scaffolds, bounded local test runs, and judge submissions. It stores no
+// learner state. Each operation returns the events it produced, and the host
+// agent keeps them in its own memory (schemas/event-v2.json).
 //
 // Every operation runs inside one arena owned by its caller; nothing in this
 // package frees individual allocations.
 package learn
 
+import "../safeio"
+import "core:crypto"
+import "core:crypto/sha2"
+import "core:encoding/hex"
 import "core:fmt"
+import "core:os"
 import "core:time"
 
-SCHEMA_VERSION :: 1
-ENGINE_VERSION :: "0.4.0"
-
-// Workspace layout (section 10): the learning subtree sits beside, and never
-// modifies, the legacy .algo files.
-LEARNING_DIR :: ".algo/learning"
-EVENTS_FILE :: "events.jsonl"
-STATE_FILE :: "state.json"
-MANIFEST_FILE :: "manifest.json"
-LOCK_DIR :: ".lock"
+SCHEMA_VERSION :: 2
+ENGINE_VERSION :: "0.5.0"
 
 // Engine_Error is a transport, validation, or operational failure. Domain
 // outcomes such as a wrong answer are data, not errors.
 Engine_Error :: enum {
 	None,
 	Invalid_Input,
-	Invalid_Evidence,
-	Request_Conflict,
-	Stale_Revision,
 	Destination_Exists,
 	Not_Found,
-	Workspace_Locked,
 	Storage_Error,
 	Unsupported_Capability,
 	Auth_Required,
@@ -45,12 +39,8 @@ Engine_Error :: enum {
 ERROR_CODES := [Engine_Error]string {
 	.None                       = "",
 	.Invalid_Input              = "invalid_input",
-	.Invalid_Evidence           = "invalid_evidence",
-	.Request_Conflict           = "request_conflict",
-	.Stale_Revision             = "stale_revision",
 	.Destination_Exists         = "destination_exists",
 	.Not_Found                  = "not_found",
-	.Workspace_Locked           = "workspace_locked",
 	.Storage_Error              = "storage_error",
 	.Unsupported_Capability     = "unsupported_capability",
 	.Auth_Required              = "auth_required",
@@ -61,9 +51,9 @@ ERROR_CODES := [Engine_Error]string {
 	.Submission_Outcome_Unknown = "submission_outcome_unknown",
 }
 
-// CLI exit codes (section 11): 0 completed without a negative or unverified
-// execution outcome, 1 operational failure, 2 invalid input, 3 failed
-// solution, 4 unverified local result, 5 pending operation.
+// CLI exit codes: 0 completed without a negative or unverified execution
+// outcome, 1 operational failure, 2 invalid input, 3 failed solution, 4
+// unverified local result, 5 pending operation.
 EXIT_INVALID_INPUT :: 2
 EXIT_FAILED_SOLUTION :: 3
 EXIT_UNVERIFIED :: 4
@@ -73,11 +63,7 @@ exit_code_for :: proc(e: Engine_Error) -> int {
 	#partial switch e {
 	case .None:
 		return 0
-	case .Invalid_Input,
-	     .Invalid_Evidence,
-	     .Request_Conflict,
-	     .Stale_Revision,
-	     .Destination_Exists:
+	case .Invalid_Input, .Destination_Exists:
 		return EXIT_INVALID_INPUT
 	}
 	return 1
@@ -96,10 +82,11 @@ STATUS_NAMES := [Status]string {
 }
 
 // Result is what every operation produces; the CLI and MCP frontends wrap it
-// in the same envelope (section 11).
+// in the same envelope.
 Result :: struct {
 	status:       Status,
 	data:         Raw_JSON, // an encoded JSON object
+	events:       [dynamic]Event, // for the host agent to keep; never stored here
 	warnings:     [dynamic]string,
 	next_actions: [dynamic]string,
 	err:          Engine_Error,
@@ -107,12 +94,9 @@ Result :: struct {
 	cli_exit:     int,
 }
 
-// Every mutating operation carries a unique request id and the workspace
-// revision it loaded (section 10). expected_revision < 0 means "latest".
+// Request carries the caller's correlation id, echoed in the envelope.
 Request :: struct {
-	request_id:        string,
-	request_hash:      string,
-	expected_revision: int,
+	request_id: string,
 }
 
 // Context identifies the caller. A zero now means the real clock; tests pin it.
@@ -128,17 +112,51 @@ context_now :: proc(ctx: ^Context) -> time.Time {
 }
 
 // Fixed-width UTC stamps ("2026-09-19T15:00:00Z") sort lexicographically in
-// chronological order, so due dates compare as strings.
+// chronological order.
 rfc3339_utc :: proc(t: time.Time) -> string {
 	s, ok := time.time_to_rfc3339(t, 0, false)
 	return s if ok else ""
 }
 
-now_rfc3339 :: proc() -> string {
-	return rfc3339_utc(time.now())
+// new_id mints a random id. Nothing is stored, so ids cannot come from a
+// sequence; 64 random bits keep ids from different hosts apart.
+new_id :: proc(prefix: string) -> string {
+	bytes: [8]byte
+	crypto.rand_bytes(bytes[:])
+	return fmt.aprintf("%s_%s", prefix, string(hex.encode(bytes[:])))
 }
 
-// Ids are minted from the sequence number of the event that creates them.
-fmt_id :: proc(prefix: string, sequence: int) -> string {
-	return fmt.aprintf("%s_%06d", prefix, sequence)
+join :: proc(parts: ..string) -> string {
+	return os.join_path(parts, context.allocator) or_else ""
+}
+
+write_private_file :: proc(path: string, data: string) -> os.Error {
+	return safeio.write_private_file(path, transmute([]byte)data)
+}
+
+hash_hex :: proc(data: string) -> string {
+	digest: [sha2.DIGEST_SIZE_256]byte
+	ctx: sha2.Context_256
+	sha2.init_256(&ctx)
+	sha2.update(&ctx, transmute([]byte)data)
+	sha2.final(&ctx, digest[:])
+	return string(hex.encode(digest[:]))
+}
+
+first_nonzero :: proc(values: ..int) -> int {
+	for v in values {
+		if v != 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+first_nonempty :: proc(values: ..string) -> string {
+	for v in values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

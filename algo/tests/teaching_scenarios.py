@@ -32,10 +32,11 @@ def registered_operations() -> set[str]:
 def main() -> None:
     document = json.loads((ROOT / "tests" / "teaching" / "scenarios.json").read_text())
     scenarios = document["scenarios"]
-    assert document["schema_version"] == 1 and len(scenarios) >= 9
+    assert document["schema_version"] == 2 and len(scenarios) >= 9
     ids = [scenario["id"] for scenario in scenarios]
     assert len(ids) == len(set(ids))
     registered = registered_operations()
+    kinds = set(json.loads((ROOT / "schemas" / "event-v2.json").read_text())["properties"]["type"]["enum"])
     skill = (SKILL / "SKILL.md").read_text()
     references = "\n".join(path.read_text() for path in (SKILL / "references").glob("*.md"))
     corpus = (skill + "\n" + references).lower()
@@ -44,6 +45,8 @@ def main() -> None:
     for scenario in scenarios:
         assert scenario["prompt"] and len(scenario["expected"]) >= 2
         assert set(scenario["operations"]) <= registered, (scenario["id"], set(scenario["operations"]) - registered)
+        assert scenario["events"] and set(scenario["events"]) <= kinds, (scenario["id"], set(scenario["events"]) - kinds)
+        assert all(kind in corpus for kind in scenario["events"]), scenario["id"]
     print(f"PASS: {len(scenarios)} reviewed teaching/recovery scenario contracts")
 
 

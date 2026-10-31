@@ -1,5 +1,16 @@
 # Agentic algorithm learning: end-to-end plugin plan
 
+> **Superseded in part (engine 0.5.0, 2026-10-31).** `algo learn` no longer
+> stores anything: the event store, projection, sessions, hints, assessments,
+> reviews, planning, handoffs, and import/export described below moved to the
+> host agent, which keeps the events the tools return
+> (`schemas/event-v2.json`). The tools that remain are `doctor`,
+> `attempt_start`, `test_run`, `submit`, and `job_check`; see
+> [`learn/README.md`](learn/README.md). The teaching rules below still guide
+> the agent through the plugin skill. The curriculum (section 8) left the tools
+> too: learning paths belong to the agent, and the skill's
+> `references/curriculum.md` keeps the 18 pattern groups as a default path.
+
 Status: implemented on 2026-09-20. Technical acceptance evidence and explicitly
 unrun opt-in checks are recorded in [VERIFICATION.md](VERIFICATION.md).
 
@@ -7,7 +18,7 @@ Changed on 2026-10-20: the bundled problem set was removed. Any problem on a
 supported judge can be practised and tracked by its `<provider>:<slug>` key;
 the concept graph remains. Section 8 and the `problem_search`/`problem_get` rows
 in section 11 describe the current behaviour. The concept graph was then
-replaced by 18 interview pattern groups (see `curriculum/concepts.json`), and
+replaced by 18 interview pattern groups (now the skill's `references/curriculum.md`), and
 agents may record free-form `<group>/<pattern>` sub-patterns that planning and
 progress roll up under their group; the concept-group table in section 8 is
 superseded.

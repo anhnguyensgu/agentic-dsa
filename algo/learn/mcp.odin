@@ -183,7 +183,7 @@ initialize :: proc(server: ^MCP_Server, request: Rpc_Request) {
 	result: Result
 	result.protocolVersion = MCP_PROTOCOL_VERSION
 	result.serverInfo = {"algolearn", ENGINE_VERSION}
-	result.instructions = "Persist evidence-backed algorithm learning in the bound workspace; use job_check for pending remote work."
+	result.instructions = "Stateless algorithm practice tools. Nothing is stored: every result lists the events it produced, and you keep them in your own memory along with any ids you need later. Use job_check with the remote_id from submit for pending verdicts."
 	send_result(server, request.id, to_json(result))
 }
 
@@ -207,9 +207,9 @@ Tool :: struct {
 RESULT_ENVELOPE_FIELDS := []string {
 	"schema_version",
 	"request_id",
-	"workspace_revision",
 	"status",
 	"data",
+	"events",
 	"warnings",
 	"error",
 	"next_actions",
@@ -222,23 +222,14 @@ tools_list :: proc() -> Raw_JSON {
 	for op, i in OPERATIONS {
 		t := &tools[i]
 		t.name = op.name
-		t.description = fmt.aprintf(
-			"Algorithm Learning operation %s; the engine rejects unexpected fields and invalid enums.",
-			op.name,
-		)
+		t.description = op.description
 		t.inputSchema.type = "object"
 		t.inputSchema.properties = make(map[string]Raw_JSON)
 		for field in reflect.struct_fields_zipped(op.params) {
 			t.inputSchema.properties[field.name] = field_schema(field.name, field.type.id)
 		}
-		required := make([dynamic]string)
-		append(&required, ..op.required)
-		if op.mutating {
-			t.inputSchema.properties["request_id"] = field_schema("request_id", string)
-			t.inputSchema.properties["expected_revision"] = field_schema("expected_revision", int)
-			append(&required, "request_id", "expected_revision")
-		}
-		t.inputSchema.required = required[:]
+		t.inputSchema.properties["request_id"] = field_schema("request_id", string)
+		t.inputSchema.required = op.required
 		t.outputSchema = {"object", RESULT_ENVELOPE_FIELDS}
 	}
 
@@ -263,13 +254,14 @@ field_schema :: proc(name: string, type: typeid) -> Raw_JSON {
 		return `{"type":"array","items":{"type":"string"}}`
 	case Raw_JSON:
 		return `{"type":"object"}`
-	case json.Value:
-		if name == "score" {
-			return `{"oneOf":[{"type":"integer","minimum":0,"maximum":3},{"const":"unknown"}]}`
-		}
+	case []Test_Case:
+		return TEST_CASES_SCHEMA
 	}
 	return "{}"
 }
+
+// TEST_CASES_SCHEMA describes test_run's cases: one object per Test_Case.
+TEST_CASES_SCHEMA :: `{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"input":{"type":"string"},"expected":{"type":["string","null"]},"comparator":{"enum":["exact","trimmed","tokens"]},"provenance":{"type":"string"},"oracle_verified":{"type":"boolean"}},"required":["input","comparator","provenance"],"additionalProperties":false}}`
 
 // -- calls ---------------------------------------------------------------------
 
@@ -331,21 +323,14 @@ call_worker :: proc(t: ^thread.Thread) {
 		finish_call(call, error_message(call.id, INVALID_PARAMS, message))
 		return
 	}
-	res: Result
-	revision := 0
-	if store, load_err := load_store(server.workspace); load_err != nil {
-		res = failure_result({code = load_err, message = "could not load the event log"})
-	} else {
-		ctx := Context {
-			workspace = server.workspace,
-			actor     = "agent:mcp",
-			host      = "mcp",
-		}
-		res, _ = run_operation(call.operation, &ctx, &store, input, req)
-		revision = store.revision
+	ctx := Context {
+		workspace = server.workspace,
+		actor     = "agent:mcp",
+		host      = "mcp",
 	}
+	res, _ := run_operation(call.operation, &ctx, input, req)
 
-	envelope := envelope(req, revision, res)
+	envelope := envelope(req, res)
 	Content :: struct {
 		type: string,
 		text: string,
@@ -381,8 +366,8 @@ free_call :: proc(call: ^MCP_Call) {
 	free(call)
 }
 
-// A cancelled call still runs to completion under its durable intent; only
-// its response is replaced by the cancellation error.
+// A cancelled call still runs to completion; only its response, and so its
+// events, are replaced by the cancellation error.
 cancel_call :: proc(server: ^MCP_Server, request_id: Raw_JSON) {
 	sync.lock(&server.pending_mutex)
 	call, found := server.pending[request_id]
@@ -395,7 +380,7 @@ cancel_call :: proc(server: ^MCP_Server, request_id: Raw_JSON) {
 			server,
 			request_id,
 			REQUEST_CANCELLED,
-			"request cancelled; any remote operation continues under its durable intent and will not be replayed",
+			"request cancelled; a submit may still reach the judge, so check the provider's submission history before submitting again",
 		)
 	}
 }

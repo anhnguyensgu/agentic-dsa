@@ -6,14 +6,15 @@ Odin, submitting to online judges, and learning persistently across them.
 ```text
 algo judge                                list the online judge providers
 algo judge <provider> <command> [args]    leetcode, kattis, exercism
-algo learn <command> [args]               Algorithm Learning engine
+algo learn <command> [args]               stateless practice tools for agents
 algo version | help
 ```
 
-`algo learn` is the evidence-backed tutor engine: durable sessions and attempts,
-hint accounting, bounded local execution, honest assessment, spaced review,
-cross-agent handoff, native MCP, portable teaching skill, and provider job
-recovery. Start with [the Algorithm Learning guide](learn/README.md) and see
+`algo learn` is the set of stateless tools a tutoring agent calls: attempt
+scaffolds, bounded local test runs, judge submissions, and verdict polling, over
+a JSON CLI and native MCP. It stores no learner state; each result lists the
+events it produced for the agent to keep. Start with
+[the practice tools guide](learn/README.md) and see
 [the verification report](VERIFICATION.md) for exact tested scope.
 
 Every provider shares one command surface: the same verbs (`list`, `show`,
@@ -57,7 +58,7 @@ Each directory is one Odin package, imported by relative path, so plain
 | `judge/leetcode/` | library | LeetCode provider: GraphQL queries, problem cache, Odin scaffold and runner generation (`local_runner.txt`), remote run/submit, account history, browser and cookie login |
 | `judge/kattis/` | library | Kattis provider: page parsers, sample scaffolds, e-mail login, submission and verdict polling |
 | `judge/exercism/` | library | Exercism provider: passes commands to the official exercism CLI, keeps its workspace in the algo workspace, and lists and caches track catalogues |
-| `learn/` | library | The learning engine: event store, projection, operation registry, one file per operation group, plus its CLI (`cli.odin`) and MCP stdio server (`mcp.odin`) |
+| `learn/` | library | The stateless practice tools: operation registry, emitted events (`events.odin`), one file per operation group, plus its CLI (`cli.odin`) and MCP stdio server (`mcp.odin`) |
 | `safeio/` | library | Shared OS safety code: owner-only atomic file writes and bounded child processes with a credential-free environment |
 
 Dependencies point one way: `main` imports `judge`, the providers, and `learn`;
@@ -232,8 +233,9 @@ are shown when returned by LeetCode. A successful execution with incorrect
 output still exits with the failed-solution code.
 
 Machine integrations use `run-start` or `submit-start` with `--json` to receive
-the durable job ID before polling, then call `check`. This is the boundary used
-by `algo learn`; it prevents a resumed agent from creating a second submission.
+the job ID before polling, then call `check`. This is the boundary `algo learn`
+uses: its `submit` returns the ID to the agent, which polls with it instead of
+submitting again.
 
 ### Account history and statistics
 
@@ -360,12 +362,12 @@ algo judge exercism submit
   `config.json` from GitHub, since the exercism CLI cannot list exercises. It
   shows the practice exercises that can be started, with their difficulty and
   whether they are downloaded, and caches the catalogue in
-  `problems/exercism/.cache/<track>.json` for `algo learn`. `--offline` reads
+  `problems/exercism/.cache/<track>.json`. `--offline` reads
   only the cache.
 - Passed-through commands have no `--json`, and there is no remote verdict:
   `submit` uploads an iteration, and its test results appear only on
   exercism.org.
-- `algo learn` can suggest, download, test, and upload Exercism exercises; see
+- `algo learn` can download, test, and upload Exercism exercises; see
   [its guide](learn/README.md#exercism).
 - The exercism CLI (3.5.8) cannot run the Odin track's tests: `exercism test`
   reports the track as unsupported, which exits with `3`. Run `odin test .` in

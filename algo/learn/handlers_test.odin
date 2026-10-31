@@ -1,50 +1,32 @@
 package learn
 
-// Handler tests: session lifecycle, honest assistance accounting, and the
-// at-most-once review updates (sections 6, 9, and 18 A08/A09).
+// Handler tests: input validation, emitted events, and the provider and
+// problem-key rules that keep names from ever becoming paths.
 
-import "core:encoding/json"
-import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:testing"
 import "core:time"
 
-Fixture :: struct {
-	ctx:   Context,
-	store: Store,
+fake_now :: proc() -> time.Time {
+	t, _ := time.components_to_time(2026, 10, 31, 9, 0, 0)
+	return t
 }
 
-// setup initializes a temporary workspace; the caller removes ctx.workspace.
-setup :: proc(t: ^testing.T) -> (f: Fixture) {
-	ws := temp_workspace(t)
-	f.ctx = {
-		workspace = ws,
-		actor     = "agent:test",
-		host      = "test",
-		now       = fake_now(),
-	}
-	f.store, _ = load_store(ws)
-	res := call(
-		t,
-		&f,
-		"workspace_init",
-		`{"goal":"foundations","language":"odin","timezone":"UTC","experience":"beginner","time_budget_minutes":30}`,
-		{"init", "h0", 0},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	return
+temp_workspace :: proc(t: ^testing.T) -> string {
+	dir, err := os.make_directory_temp("", "algolearn-test-*", context.allocator)
+	testing.expect_value(t, err, nil)
+	return dir
 }
 
-call :: proc(
-	t: ^testing.T,
-	f: ^Fixture,
-	operation, text: string,
-	req := Request{expected_revision = -1},
-) -> Result {
-	input, _, message := new_request(text)
+test_context :: proc(workspace: string) -> Context {
+	return {workspace = workspace, actor = "agent:test", host = "test", now = fake_now()}
+}
+
+call :: proc(t: ^testing.T, ctx: ^Context, operation, text: string) -> Result {
+	input, req, message := new_request(text)
 	testing.expect_value(t, message, "")
-	res, found := run_operation(operation, &f.ctx, &f.store, input, req)
+	res, found := run_operation(operation, ctx, input, req)
 	testing.expect(t, found)
 	return res
 }
@@ -54,413 +36,151 @@ has :: proc(res: Result, fragment: string) -> bool {
 }
 
 @(test)
-handlers_guided_session_records_assistance :: proc(t: ^testing.T) {
-	context.allocator = context.temp_allocator
-	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
-
-	// A guided session with a level-2 hint: practicing, not independent.
-	res := call(
-		t,
-		&f,
-		"session_start",
-		`{"objective":"trace loops","mode":"guided","concept_ids":["foundations-tracing"]}`,
-		{"s1", "h1", 1},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	res = call(
-		t,
-		&f,
-		"hint_record",
-		`{"session_id":"sess_000002","level":2,"concept_ids":["foundations-tracing"],"content":"look for repeated work"}`,
-		{"h1", "h2", 2},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	close := `{"session_id":"sess_000002","reason":"completed"}`
-	res = call(t, &f, "session_close", close, {"c1", "h3", 3})
-	testing.expect_value(t, res.status, Status.Completed)
-
-	// The review item is due tomorrow and carries no independent credit.
-	st := fold(&f.store)
-	testing.expect_value(t, len(st.reviews), 1)
-	testing.expect_value(t, st.reviews[0].credit, Credit.Assisted)
-	testing.expect_value(t, st.reviews[0].due_ts, "2025-09-20T16:40:00Z")
-
-	// Closing twice must not create another review item (section 6).
-	res = call(t, &f, "session_close", close, {"c2", "h4", 4})
-	testing.expect_value(t, res.err, Engine_Error.Request_Conflict)
-	st = fold(&f.store)
-	testing.expect_value(t, len(st.reviews), 1)
-}
-
-@(test)
-handlers_independent_session_promotes_concept :: proc(t: ^testing.T) {
-	context.allocator = context.temp_allocator
-	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
-
-	// Only a level-1 clarification; no solution exposure.
-	call(
-		t,
-		&f,
-		"session_start",
-		`{"objective":"two-pointer window","mode":"independent","concept_ids":["arrays-window"]}`,
-		{"s1", "h1", 1},
-	)
-	call(
-		t,
-		&f,
-		"hint_record",
-		`{"session_id":"sess_000002","level":1,"content":"what happens with one element?"}`,
-		{"h1", "h2", 2},
-	)
-
-	// Independent credit needs a fresh attempt, verified behavior, and score-3
-	// evidence for approach, correctness, and complexity.
-	res := call(
-		t,
-		&f,
-		"attempt_start",
-		`{"session_id":"sess_000002","problem_key":"leetcode:two-sum","language":"odin","runner_kind":"stdin_stdout"}`,
-		{"at1", "hat", 3},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	source := join(
-		f.ctx.workspace,
-		"problems",
-		"leetcode",
-		"two-sum",
-		"att_000004",
-		"solution.odin",
-	)
-	testing.expect_value(
-		t,
-		write_private_file(
-			source,
-			"package main\nimport \"core:fmt\"\nmain :: proc() { fmt.println(3) }\n",
-		),
-		nil,
-	)
-	call(
-		t,
-		&f,
-		"case_add",
-		`{"attempt_id":"att_000004","name":"verified","input":"","expected":"3\n","comparator":"exact","provenance":"manually_checked","oracle_verified":true,"oracle_basis":"constant trace"}`,
-		{"case1", "hcase", 4},
-	)
-	res = call(
-		t,
-		&f,
-		"test_run",
-		`{"attempt_id":"att_000004","mode":"local"}`,
-		{"run1", "hrun", 5},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect_value(t, res.cli_exit, 0)
-	evidence_id := f.store.events[len(f.store.events) - 1].event_id
-
-	for dimension, i in ([?]string{"approach", "correctness", "complexity"}) {
-		Assessment :: struct {
-			session_id, concept_id, dimension: string,
-			score:                             int,
-			rationale, rubric_version:         string,
-			evidence_ids:                      []string,
-		}
-		evidence := [?]string{evidence_id}
-		text, _ := json.marshal(
-			Assessment {
-				"sess_000002",
-				"arrays-window",
-				dimension,
-				3,
-				"learner independently justified this dimension",
-				"1",
-				evidence[:],
-			},
-		)
-		res = call(
-			t,
-			&f,
-			"assessment_record",
-			string(text),
-			{fmt.aprintf("a%d", i), fmt.aprintf("ha%d", i), 6 + i},
-		)
-		testing.expect_value(t, res.status, Status.Completed)
-	}
-
-	res = call(
-		t,
-		&f,
-		"session_close",
-		`{"session_id":"sess_000002","reason":"completed"}`,
-		{"c1", "h3", 9},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect(t, has(res, `"independent":true`))
-
-	st := fold(&f.store)
-	testing.expect_value(t, len(st.reviews), 1)
-	testing.expect_value(t, st.reviews[0].credit, Credit.Independent)
-	testing.expect_value(t, len(st.concepts), 1)
-	testing.expect_value(t, st.concepts[0].state, Concept_Level.Independent)
-	testing.expect_value(t, st.concepts[0].independent_solves, 1)
-}
-
-@(test)
-handlers_heavy_hint_blocks_independence :: proc(t: ^testing.T) {
-	context.allocator = context.temp_allocator
-	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
-
-	call(
-		t,
-		&f,
-		"session_start",
-		`{"objective":"binary search boundary","mode":"independent","concept_ids":["sorting-search"]}`,
-		{"s1", "h1", 1},
-	)
-	// A level-3 hint discloses the central invariant: no independent credit,
-	// even in an independent session (sections 7 and 9).
-	res := call(
-		t,
-		&f,
-		"hint_record",
-		`{"session_id":"sess_000002","level":3,"content":"the loop must keep the target inside [lo, hi)"}`,
-		{"h1", "h2", 2},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect(t, len(res.warnings) > 0)
-
-	res = call(
-		t,
-		&f,
-		"session_close",
-		`{"session_id":"sess_000002","reason":"completed"}`,
-		{"c1", "h3", 3},
-	)
-	testing.expect(t, has(res, `"independent":false`))
-
-	st := fold(&f.store)
-	testing.expect_value(t, st.reviews[0].credit, Credit.Assisted)
-	testing.expect_value(t, st.concepts[0].state, Concept_Level.Practicing)
-}
-
-@(test)
-handlers_review_due_and_snooze :: proc(t: ^testing.T) {
-	context.allocator = context.temp_allocator
-	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
-
-	call(
-		t,
-		&f,
-		"session_start",
-		`{"objective":"window","mode":"independent","concept_ids":["arrays-window"]}`,
-		{"s1", "h1", 1},
-	)
-	call(
-		t,
-		&f,
-		"session_close",
-		`{"session_id":"sess_000002","reason":"completed"}`,
-		{"c1", "h3", 2},
-	)
-
-	// Not due yet: the review is scheduled for tomorrow.
-	testing.expect(t, has(call(t, &f, "review_due", `{}`), `"count":0`))
-
-	// Two days later it is due.
-	f.ctx.now = time.unix(FAKE_NOW + 2 * 24 * 3600, 0)
-	testing.expect(t, has(call(t, &f, "review_due", `{}`), `"count":1`))
-
-	// Snoozing hides it without pretending it was completed (section 9).
-	res := call(
-		t,
-		&f,
-		"review_update",
-		`{"review_id":"rev_000003_0","action":"snooze"}`,
-		{"sn1", "h9", 3},
-	)
-	testing.expect_value(t, res.status, Status.Completed)
-	testing.expect(t, has(call(t, &f, "review_due", `{}`), `"count":0`))
-}
-
-@(test)
 handlers_reject_invalid_inputs :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
 	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
+	ws := temp_workspace(t)
+	defer os.remove_all(ws)
+	ctx := test_context(ws)
 
 	cases := [?]struct {
 		operation, input: string,
-		expected:         Engine_Error,
 	} {
 
 
-		// Unexpected fields are rejected (section 11).
-		{"session_start", `{"objective":"x","mode":"guided","sneaky":"field"}`, .Invalid_Input},
-		// Invalid enums are rejected.
-		{"session_start", `{"objective":"x","mode":"speedrun"}`, .Invalid_Input},
-		// Problem keys name a known provider and a path-safe slug.
-		{
-			"session_start",
-			`{"objective":"x","mode":"guided","problem_key":"two-sum"}`,
-			.Invalid_Input,
-		},
+		// Unexpected fields are rejected, including the old revision envelope.
 		{
 			"attempt_start",
-			`{"session_id":"sess_000002","problem_key":"leetcode:../x","language":"odin"}`,
-			.Invalid_Input,
+			`{"problem_key":"kattis:hello","language":"odin","expected_revision":1}`,
 		},
-		// Hint levels are bounded 0..4 (section 7).
-		{"hint_record", `{"session_id":"sess_000002","level":9}`, .Invalid_Input},
+		// Required fields must be present.
+		{"attempt_start", `{"problem_key":"kattis:hello"}`},
+		// Problem keys name a known provider and a path-safe slug.
+		{"attempt_start", `{"problem_key":"leetcode:../x","language":"odin"}`},
+		// Invalid enums are rejected.
+		{"attempt_start", `{"problem_key":"kattis:hello","language":"odin","action":"move"}`},
+		{"test_run", `{"source_path":"a.odin","runner_kind":"python"}`},
 		// Wrongly typed fields are rejected.
-		{"hint_record", `{"session_id":"sess_000002","level":"high"}`, .Invalid_Input},
-		// Agents cannot produce tool evidence (section 11).
+		{"test_run", `{"source_path":"a.odin","timeout_seconds":"slow"}`},
+		{"test_run", `{"source_path":"a.odin","timeout_seconds":600}`},
+		// Paths stay inside the workspace.
+		{"test_run", `{"source_path":"../escape.odin"}`},
 		{
-			"evidence_record",
-			`{"session_id":"sess_000002","evidence_type":"run","producer":"tool"}`,
-			.Invalid_Evidence,
+			"submit",
+			`{"problem_key":"kattis:hello","language":"odin","source_path":"/etc/passwd","authorization_reference":"x"}`,
 		},
+		// A remote id is never an option of the provider command.
+		{"job_check", `{"provider":"kattis","remote_id":"--help"}`},
+		{"job_check", `{"provider":"codeforces","remote_id":"1"}`},
 	}
 	for c in cases {
-		res := call(t, &f, c.operation, c.input, {"bad", c.input, 1})
-		testing.expectf(t, res.err == c.expected, "%s %s: got %v", c.operation, c.input, res.err)
+		res := call(t, &ctx, c.operation, c.input)
+		testing.expectf(
+			t,
+			res.err == .Invalid_Input,
+			"%s %s: got %v",
+			c.operation,
+			c.input,
+			res.err,
+		)
+		testing.expectf(
+			t,
+			len(res.events) == 0,
+			"%s emitted an event on invalid input",
+			c.operation,
+		)
 	}
 }
 
 @(test)
-handlers_replay_returns_the_original_ids :: proc(t: ^testing.T) {
+attempts_emit_one_event_and_mint_fresh_ids :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
 	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
+	ws := temp_workspace(t)
+	defer os.remove_all(ws)
+	ctx := test_context(ws)
 
-	start := `{"objective":"trace loops","mode":"guided"}`
-	first := call(t, &f, "session_start", start, {"s1", "same", 1})
-	call(t, &f, "hint_record", `{"session_id":"sess_000002","level":0}`, {"h1", "h1", 2})
-	again := call(t, &f, "session_start", start, {"s1", "same", 3})
-	testing.expect(t, has(again, `"replayed":true`))
-	testing.expect(
-		t,
-		has(first, `"session_id":"sess_000002"`) && has(again, `"session_id":"sess_000002"`),
-	)
+	request := `{"problem_key":"kattis:hello","language":"odin","session_id":"s1"}`
+	first := call(t, &ctx, "attempt_start", request)
+	second := call(t, &ctx, "attempt_start", request)
+	testing.expect_value(t, first.status, Status.Completed)
+	testing.expect_value(t, len(first.events), 1)
+	ev := first.events[0]
+	testing.expect_value(t, ev.type, "attempt_started")
+	testing.expect_value(t, ev.schema_version, SCHEMA_VERSION)
+	testing.expect_value(t, ev.session_id, "s1")
+	testing.expect_value(t, ev.actor, "agent:test")
+	testing.expect_value(t, ev.timestamp, "2026-10-31T09:00:00Z")
+	testing.expect(t, strings.has_prefix(ev.event_id, "ev_"))
+	testing.expect(t, strings.has_prefix(ev.attempt_id, "att_"))
+	testing.expect(t, has(first, ev.attempt_id))
+	// Nothing is deduplicated: the same request makes a second attempt.
+	testing.expect(t, second.events[0].attempt_id != ev.attempt_id)
+	testing.expect(t, second.events[0].event_id != ev.event_id)
+	// And nothing is stored beside the attempts.
+	testing.expect(t, !os.exists(join(ws, ".algo")))
 }
 
 @(test)
-handlers_emit_structured_object_arrays :: proc(t: ^testing.T) {
+test_runs_without_verified_cases_are_unverified :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
 	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
+	ws := temp_workspace(t)
+	defer os.remove_all(ws)
+	ctx := test_context(ws)
 
-	call(
-		t,
-		&f,
-		"session_start",
-		`{"objective":"trace loops","mode":"guided","concept_ids":["foundations"]}`,
-		{"s1", "hs", 1},
-	)
-
-	State_Data :: struct {
-		sessions: []Session_View,
-	}
-	state: State_Data
-	testing.expect(t, decode(string(call(t, &f, "state_get", `{}`).data), &state))
-	testing.expect_value(t, len(state.sessions), 1)
-	testing.expect_value(t, state.sessions[0].mode, "guided")
-
-	Plan_Data :: struct {
-		candidates: []Practice_Candidate,
-	}
-	plan: Plan_Data
-	testing.expect(
-		t,
-		decode(
-			string(
-				call(t, &f, "plan_next", `{"topic":"sliding-window","mode":"assessment"}`).data,
-			),
-			&plan,
-		),
-	)
-	testing.expect_value(t, len(plan.candidates), 1)
-	testing.expect_value(t, plan.candidates[0].kind, "new_practice")
-	testing.expect(t, contains(plan.candidates[0].leetcode_tags, "sliding-window"))
-	testing.expect(t, plan.candidates[0].hide_tags_from_learner)
-}
-
-@(test)
-sub_patterns_roll_up_under_their_curriculum_group :: proc(t: ^testing.T) {
-	context.allocator = context.temp_allocator
-	defer free_all(context.temp_allocator)
-	f := setup(t)
-	defer os.remove_all(f.ctx.workspace)
-
-	// A sub-pattern plans with its group's provider tags.
-	Plan_Data :: struct {
-		candidates: []Practice_Candidate,
-	}
-	plan: Plan_Data
-	testing.expect(
-		t,
-		decode(
-			string(call(t, &f, "plan_next", `{"topic":"graphs/topological-sort"}`).data),
-			&plan,
-		),
-	)
-	testing.expect_value(t, plan.candidates[0].concept, "graphs/topological-sort")
-	testing.expect(t, contains(plan.candidates[0].leetcode_tags, "topological-sort"))
-
-	// Progress lists each group, then its sub-patterns; other ids come last.
-	call(
-		t,
-		&f,
-		"session_start",
-		`{"objective":"order courses","mode":"guided","concept_ids":["custom-topic","graphs/topological-sort"]}`,
-		{"s1", "hs", 1},
-	)
-	call(
-		t,
-		&f,
-		"session_close",
-		`{"session_id":"sess_000002","reason":"abandoned"}`,
-		{"c1", "hc", 2},
-	)
-	Progress_Data :: struct {
-		concepts: []Concept_View,
-	}
-	progress: Progress_Data
-	testing.expect(t, decode(string(call(t, &f, "progress_get", `{}`).data), &progress))
-	graphs, sub := -1, -1
-	for c, i in progress.concepts {
-		switch c.concept_id {
-		case "graphs":
-			graphs = i
-		case "graphs/topological-sort":
-			sub = i
-		}
-	}
-	testing.expect_value(t, progress.concepts[0].concept_id, "arrays-hashing")
-	testing.expect(t, graphs >= 0 && sub == graphs + 1)
 	testing.expect_value(
 		t,
-		progress.concepts[len(progress.concepts) - 1].concept_id,
-		"custom-topic",
+		write_private_file(join(ws, "a.odin"), "package main\nmain :: proc() {}\n"),
+		nil,
 	)
+	// Zero cases never count as passing, and still produce evidence to keep.
+	empty := call(t, &ctx, "test_run", `{"source_path":"a.odin","attempt_id":"att_1"}`)
+	testing.expect_value(t, empty.status, Status.Completed)
+	testing.expect_value(t, empty.cli_exit, EXIT_UNVERIFIED)
+	testing.expect(t, has(empty, `"outcome":"unverified"`))
+	testing.expect_value(t, len(empty.events), 1)
+	testing.expect_value(t, empty.events[0].type, "runner_observed")
+	testing.expect_value(t, empty.events[0].attempt_id, "att_1")
 
-	// One independent sub-pattern masters its group for planning.
-	st: State
-	append(&st.concepts, Concept_State{concept_id = "arrays-hashing", state = .Independent})
-	testing.expect_value(t, next_topic(&st), "two-pointers")
-	append(&st.concepts, Concept_State{concept_id = "two-pointers/pair-sum", state = .Retained})
-	testing.expect(t, mastered(&st, "two-pointers"))
-	testing.expect(t, !mastered(&st, "stack"))
-	testing.expect_value(t, next_topic(&st), "stack")
+	// Each case names where its expected output came from.
+	unsourced := call(
+		t,
+		&ctx,
+		"test_run",
+		`{"source_path":"a.odin","cases":[{"input":"","expected":"","comparator":"exact","provenance":""}]}`,
+	)
+	testing.expect_value(t, unsourced.err, Engine_Error.Invalid_Input)
+	// Only Odin sources run locally.
+	testing.expect_value(t, write_private_file(join(ws, "a.py"), "print(1)\n"), nil)
+	python := call(t, &ctx, "test_run", `{"source_path":"a.py"}`)
+	testing.expect_value(t, python.err, Engine_Error.Unsupported_Capability)
+}
+
+@(test)
+submit_refuses_stale_or_unjudged_sources_before_sending :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	defer free_all(context.temp_allocator)
+	ws := temp_workspace(t)
+	defer os.remove_all(ws)
+	ctx := test_context(ws)
+
+	testing.expect_value(t, write_private_file(join(ws, "a.odin"), "package main\n"), nil)
+	leetcode := call(
+		t,
+		&ctx,
+		"submit",
+		`{"problem_key":"leetcode:two-sum","language":"odin","source_path":"a.odin","authorization_reference":"asked"}`,
+	)
+	testing.expect_value(t, leetcode.err, Engine_Error.Unsupported_Capability)
+	stale := call(
+		t,
+		&ctx,
+		"submit",
+		`{"problem_key":"kattis:hello","language":"odin","source_path":"a.odin","source_hash":"00","authorization_reference":"asked"}`,
+	)
+	testing.expect_value(t, stale.err, Engine_Error.Stale_Source)
+	testing.expect_value(t, len(stale.events), 0)
 }
 
 @(test)
@@ -496,54 +216,13 @@ problem_keys_name_any_provider_problem_as_one_path_component :: proc(t: ^testing
 }
 
 @(test)
-independent_eligibility_is_bound_to_current_verified_source :: proc(t: ^testing.T) {
+provider_names_from_requests_never_become_paths :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
 	defer free_all(context.temp_allocator)
 	ws := temp_workspace(t)
 	defer os.remove_all(ws)
 
-	source_path := "problems/local/eligibility/solution.odin"
-	source := join(ws, source_path)
-	original := "package main\nmain :: proc() {}\n"
-	testing.expect_value(t, write_private_file(source, original), nil)
-	st: State
-	append(&st.attempts, Attempt_State{id = "a1", source_path = source_path, fresh = true})
-	session := Session_State {
-		mode                 = .Independent,
-		current_attempt_id   = "a1",
-		has_fresh_attempt    = true,
-		verified_behavior    = true,
-		verified_source_hash = hash_hex(original),
-		approach_score3      = true,
-		correctness_score3   = true,
-		complexity_score3    = true,
-	}
-	testing.expect(t, qualifies_independent(&st, &session, ws))
-
-	// Editing the source after verification removes eligibility.
-	testing.expect_value(
-		t,
-		write_private_file(source, strings.concatenate({original, "// changed\n"})),
-		nil,
-	)
-	testing.expect(t, !qualifies_independent(&st, &session, ws))
-	testing.expect_value(t, write_private_file(source, original), nil)
-
-	session.max_hint_level = 3
-	testing.expect(t, !qualifies_independent(&st, &session, ws))
-	session.max_hint_level = 0
-	session.agent_authored_algorithm = true
-	testing.expect(t, !qualifies_independent(&st, &session, ws))
-}
-
-@(test)
-provider_names_from_the_log_never_become_paths :: proc(t: ^testing.T) {
-	context.allocator = context.temp_allocator
-	defer free_all(context.temp_allocator)
-	ws := temp_workspace(t)
-	defer os.remove_all(ws)
-
-	// An imported event could name any provider; only known ones resolve.
+	// A request could name any provider; only known ones resolve.
 	evil := join(ws, "evil")
 	testing.expect_value(t, write_private_file(evil, "#!/bin/sh\n"), nil)
 	for name in ([?]string{"../evil", "evil", "/bin/sh", ""}) {
