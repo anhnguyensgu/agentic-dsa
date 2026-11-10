@@ -123,7 +123,7 @@ store ran at the same speed as GCC's.
 a `cmp`+`jae <panic>` pair stays in the scalar fallback, which is the code that
 runs here, and in `rust-novec`.
 Dropping it with `get_unchecked` (`rust-unchecked`) takes the large-coin time
-from 433 ms to 271 ms. On small coins the check costs about 8%.
+from 579 ms to 376 ms. On small coins the check costs about 20%.
 
 **Scalar loops differ too.** With vectorization off: Zig unrolls x4 with `cmov`,
 clang unrolls x2 with a conditional store, rustc does not unroll. Branchless is
