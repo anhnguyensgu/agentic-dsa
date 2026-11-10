@@ -83,7 +83,7 @@ nothing, which is the likely reason it is 3x faster than everything else. I did
 not profile to confirm the cause.
 
 **Safe Rust keeps a bounds check.** LLVM hoists it out of the vector loop, but
-`cmp rcx,r14; jae <panic>` stays in the scalar tail and in `rust-novec`.
+a `cmp`+`jae <panic>` pair stays in the scalar tail and in `rust-novec`.
 Dropping it with `get_unchecked` (`rust-unchecked`) takes the large-coin time
 from 433 ms to 271 ms. On small coins the check costs about 8%.
 
