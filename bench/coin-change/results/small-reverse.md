@@ -1,9 +1,11 @@
-| Command | Mean Wall Time [ms] | Change | Factor |
+| Command | Mean Wall Time [s] | Change | Factor |
 |:---|---:|---:|:---|
-| `cpp-gcc` | 962.8 ± 19.9 |  |  |
-| `rust-novec` | 935.5 ± 33.4 | -2.8% |  |
-| `cpp-clang-novec` | 860.5 ± 30.5 | -10.6% |  |
-| `rust-unchecked` | 870.6 ± 21.5 | -9.6% |  |
-| `rust` | 945.6 ± 23.6 | -1.8% |  |
-| `cpp-clang` | 852.7 ± 24.3 | -11.4% |  |
-| `zig` | 956.9 ± 21.9 | -0.6% |  |
+| `odin-unchecked` | 1.166 ± 0.051 |  |  |
+| `odin` | 1.678 ± 0.070 | +43.9% | (1.4x slower) |
+| `cpp-gcc` | 1.381 ± 0.031 | +18.4% |  |
+| `rust-novec` | 1.572 ± 0.180 | +34.8% | (1.3x slower) |
+| `cpp-clang-novec` | 1.230 ± 0.035 | +5.4% |  |
+| `rust-unchecked` | 1.191 ± 0.031 | +2.1% |  |
+| `rust` | 1.445 ± 0.054 | +23.9% |  |
+| `cpp-clang` | 1.194 ± 0.053 | +2.4% |  |
+| `zig` | 1.388 ± 0.039 | +19.1% |  |

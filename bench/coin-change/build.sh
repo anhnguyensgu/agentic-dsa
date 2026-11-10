@@ -28,8 +28,7 @@ rustc $RSFLAGS -C no-vectorize-loops -C no-vectorize-slp coin_change.rs -o bin/r
 g++ $CXXFLAGS coin_change.cpp -o bin/cpp-gcc
 
 # Odin, only when the compiler is installed. Bounds checks are on by default
-# (like safe Rust), so it is built both ways. NOTE: these two lines have not
-# been run yet -- see README.
+# (like safe Rust), so it is built both ways.
 if command -v odin >/dev/null 2>&1; then
     ODINFLAGS="-file -o:aggressive -microarch:native"
     odin build coin_change.odin $ODINFLAGS -out:bin/odin

@@ -1,10 +1,10 @@
-# Coin Change (LeetCode 322) in Zig, Rust and C++
+# Coin Change (LeetCode 322) in Zig, Rust, C++ and Odin
 
-The same bottom-up DP in three languages, benchmarked with hyperfine, with the
+The same bottom-up DP in four languages, benchmarked with hyperfine, with the
 generated assembly compared.
 
 ```text
-coin_change.zig  coin_change.rs  coin_change.cpp   the three implementations
+coin_change.zig  coin_change.rs  coin_change.cpp  coin_change.odin   the implementations
 build.sh    builds every variant into bin/ and disassembles coin_change() into asm/
 bench.sh    checks all outputs agree, then runs hyperfine
 asm/        disassembly of coin_change() from each benchmarked binary
@@ -17,31 +17,39 @@ results/    hyperfine tables from the run reported below
 
 ## Short answer
 
-**The assembly is not the same**, even though Zig, Rust and C++ (clang) all use
-LLVM 22 here and the source is line-for-line equivalent. The inner loop comes
-out in four different shapes, and the timings follow the shape, not the
-language:
+**The assembly is not the same**, even though Zig, Rust, Odin and C++ (clang)
+all use LLVM 22 here and the source is equivalent. The inner loop comes out in
+several different shapes, and the timings follow the shape, not the language:
 
 | Build | Inner loop it got | large coins, mean ms | small coins, mean ms |
 |:---|:---|---:|---:|
-| `cpp-gcc` (GCC 13.3) | 8-wide vector loop, used whenever coin >= 8 | **89** | 964 |
-| `zig` (0.17.1) | scalar, unrolled x4, branchless `cmov` + unconditional store | 255 | 964 |
-| `rust-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 271 | 869 |
-| `cpp-clang` (zig c++, clang 22.1.8) | has a 32-wide vector loop, but runs its scalar fallback here | 330 | **847** |
-| `cpp-clang-novec` | scalar, unrolled x2, compare-and-branch store | 388 | 859 |
-| `rust` (1.97, safe indexing) | as `rust-unchecked`, with a bounds check in the scalar fallback | 433 | 944 |
-| `rust-novec` | scalar, not unrolled, one bounds check per iteration | 542 | 942 |
+| `cpp-gcc` (GCC 13.3) | 8-wide vector loop, used whenever coin >= 8 | **148** | 1391 |
+| `odin-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 374 | **1144** |
+| `zig` (0.17.1) | scalar, unrolled x4, branchless `cmov` + unconditional store | 378 | 1389 |
+| `rust-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 399 | 1197 |
+| `cpp-clang` (zig c++, clang 22.1.8) | has a 32-wide vector loop, but runs its scalar fallback here | 489 | 1208 |
+| `rust` (1.97, safe indexing) | as `rust-unchecked`, with a bounds check in the scalar fallback | 591 | 1468 |
+| `cpp-clang-novec` | scalar, unrolled x2, compare-and-branch store | 610 | 1221 |
+| `rust-novec` | scalar, not unrolled, one bounds check per iteration | 772 | 1553 |
+| `odin` (dev-2026-11, bounds checks on) | as `odin-unchecked`, with two bounds checks in the scalar fallback | 913 | 1692 |
 
-Means are over both run orders, 20 runs each. Run-to-run noise was about
-±1-7%, so on the small-coin workload only the ~10% gap between the two groups
-(`cpp-clang`, `cpp-clang-novec`, `rust-unchecked` vs the rest) is meaningful.
+Means are over both run orders, 20 runs each, all nine binaries in one session.
+This run was noisy: standard deviations were 4-16% of the mean, so gaps under
+about 15% are not meaningful. That covers the `odin-unchecked` / `zig` /
+`rust-unchecked` group on large coins and the `odin-unchecked` / `rust-unchecked`
+/ `cpp-clang` / `cpp-clang-novec` group on small coins.
+
+The host was also about 1.5x slower than in the first session, when the same
+binaries (without Odin) measured GCC 89, Zig 255, rust-unchecked 271, clang
+330, clang-novec 388, rust 433, rust-novec 542 ms on large coins. The order of
+the groups is the same in both sessions; only compare numbers within one run.
 
 - **Large coins** (`186 419 83 408`, amount 10000, 20000 calls): which loop
   actually runs matters up to 6x. GCC wins by a wide margin because it is the
   only build executing vector code on this input (see below).
 - **Small coins** (`1 2 5 10 20 25`): every coin is closer than one vector
-  width, so every build runs scalar code and they land within ~13% of each
-  other.
+  width, so every build runs scalar code. The unchecked builds land within
+  ~20% of each other; the bounds-checked ones trail.
 
 No language is "the fast one". The spread comes from optimizer decisions.
 
@@ -108,40 +116,54 @@ clang unrolls x2 with a conditional store, rustc does not unroll. Branchless is
 better when updates are unpredictable (large coins) and no better when they are
 predictable (small coins).
 
-## Odin (written, not yet measured)
+## Odin
 
 `coin_change.odin` is the same algorithm in idiomatic Odin: `make` / `delete`
 on Odin's default allocator, `core:os`, `core:strconv` and `core:fmt`, with no
-direct libc calls. `build.sh` / `bench.sh` pick it up automatically when `odin`
-is on `PATH`. **It has not been compiled or timed**: the machine these numbers
-came from had no Odin compiler, so the source and its two build lines are
-unverified and there is no Odin row in the table above.
+direct libc calls. It is built twice: `odin` (default, bounds checks on) and
+`odin-unchecked` (`-no-bounds-check`). `build.sh` / `bench.sh` include both
+only when `odin` is on `PATH`.
 
-One difference to keep in mind when it is measured: Odin's `make` returns
-zeroed memory, so the table is written twice per call (zero, then fill with
-the sentinel) where the other three write it once. On Linux the default heap
-allocator still ends up in glibc's `calloc`.
+**Odin gets the same code as clang and rustc.** Its optimizer pipeline runs
+LLVM's loop vectorizer (unlike Zig 0.17), and `asm/odin.s` shows the identical
+4 x 8-lane masked-store loop behind the identical range-overlap guard. So on
+the benchmark coins it also runs its scalar fallback, and it flips the same
+way when the coins cross `amount / 2` (same setup as the table above, 10 runs):
 
-What is known from reading the Odin compiler source rather than from a run:
-its `-o:speed` and `-o:aggressive` pipelines include LLVM's `loop-vectorize`
-pass, unlike Zig 0.17. So Odin should produce a vector loop, with the same
-range-overlap guard as clang and rustc. Bounds checks are on by default, hence
-the `odin` and `odin-unchecked` builds.
+| Coins | gcc | clang | rust-unchecked | odin-unchecked | odin | zig |
+|:---|---:|---:|---:|---:|---:|---:|
+| `4003 4507 4801 4999` | 69 ms | 188 ms | 127 ms | 156 ms | 378 ms | 260 ms |
+| `5003 6007 7001 8009` | 54 ms | **24 ms** | 29 ms | 42 ms | 54 ms | 160 ms |
+
+**Bounds checks cost Odin more than Rust here.** The scalar fallback keeps two
+checks per iteration (`cmp rax,r15; jae` and `cmp r8,r11; je`, both to
+`bounds_check_error`), where Rust keeps one. With checks on, Odin is the
+slowest build on both workloads (913 ms); with `-no-bounds-check` it is in the
+fastest LLVM group (374 ms).
+
+**Allocation differs slightly.** Odin's `make` returns zeroed memory, so the
+table is written twice per call (zero, then fill with the sentinel) where the
+others write it once, and the call goes through the allocator procedure in
+`context` (`runtime::mem_alloc_bytes`) rather than straight to `malloc`. On
+Linux that allocator still ends up in glibc. This is the price of using Odin's
+own allocator and is included in Odin's times.
 
 ## Fairness
 
 - **Same algorithm and types**: `u32` table, wrapping `+ 1`, `usize` indices,
   coin-outer / amount-inner loop, exclusive upper bound. An earlier draft used
-  `c..=amount` in Rust; inclusive ranges block vectorization, so all three use
+  `c..=amount` in Rust; inclusive ranges block vectorization, so all four use
   `a < len`.
 - **Same backend where possible**: C++ is built with `zig c++`, so Zig and C++
-  share LLVM 22.1.8; rustc 1.97 ships LLVM 22.1.6. GCC is a reference point only.
+  share LLVM 22.1.8; Odin was built against LLVM 22.1.8 too; rustc 1.97 ships
+  LLVM 22.1.6. GCC is a reference point only.
 - **Same flags**: `-O3` / `opt-level=3` / `ReleaseFast`, host CPU on all
   (`-march=native`, `target-cpu=native`, `-mcpu=native`), no unwinding,
   `panic=abort`, one codegen unit.
 - **Same allocator and libc**: one `malloc`/`free` per call from the system
-  glibc in all three. Zig calls libc directly instead of using its own
-  allocator and startup code.
+  glibc in Zig, Rust and C++. Zig calls libc directly instead of using its own
+  allocator and startup code. Odin deliberately uses its own allocator; see
+  the Odin section.
 - **Nothing computed at compile time**: coins, amount and repetition count come
   from `argv`, the amount varies per call, and `coin_change` is not inlined
   (checked: each binary has exactly one `call <coin_change>`). Zig needed
@@ -151,9 +173,10 @@ the `odin` and `odin-unchecked` builds.
   across all binaries before timing, and each workload timed in forward and
   reverse order. The two orders agree within noise.
 
-What is *not* equal, and cannot be made equal from source: safe Rust checks
-bounds (hence `rust-unchecked`), and Zig does not auto-vectorize (hence the
-`-novec` builds).
+What is *not* equal, and cannot be made equal from source: safe Rust and
+default Odin check bounds (hence the `-unchecked` builds), Zig does not
+auto-vectorize (hence the `-novec` builds), and Odin uses its own allocator
+interface and I/O packages where the others call glibc directly.
 
 ## Caveats
 
@@ -164,6 +187,7 @@ bounds (hence `rust-unchecked`), and Zig does not auto-vectorize (hence the
 - One amount and two coin sets in the main table. As the section above shows,
   the ranking flips with the coin values, so do not read it as a general
   ordering. At amount 10000 the table is 40 KB and fits in L1/L2.
-- Process startup is included in every time; it is under 1 ms against 90-960 ms.
+- Process startup is included in every time; it is about 1 ms against 150-1700 ms.
 - Compiler versions: Zig 0.17.1, rustc 1.97.0, clang 22.1.8 (bundled with Zig),
-  GCC 13.3.0, hyperfine 2.0.0.
+  Odin dev-2026-11 (commit 85afcb3, built from source against LLVM 22.1.8 from
+  apt.llvm.org), GCC 13.3.0, hyperfine 2.0.0.
