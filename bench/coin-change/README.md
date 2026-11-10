@@ -5,6 +5,7 @@ generated assembly compared.
 
 ```text
 coin_change.zig  coin_change.rs  coin_change.cpp  coin_change.odin   the implementations
+coin_change_simd.zig   Zig again, inner loop vectorized by hand with @Vector
 build.sh    builds every variant into bin/ and disassembles coin_change() into asm/
 bench.sh    checks all outputs agree, then runs hyperfine
 asm/        disassembly of coin_change() from each benchmarked binary
@@ -23,26 +24,29 @@ several different shapes, and the timings follow the shape, not the language:
 
 | Build | Inner loop it got | large coins, mean ms | small coins, mean ms |
 |:---|:---|---:|---:|
-| `cpp-gcc` (GCC 13.3) | 8-wide vector loop, used whenever coin >= 8 | **148** | 1391 |
-| `odin-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 374 | **1144** |
-| `zig` (0.17.1) | scalar, unrolled x4, branchless `cmov` + unconditional store | 378 | 1389 |
-| `rust-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 399 | 1197 |
-| `cpp-clang` (zig c++, clang 22.1.8) | has a 32-wide vector loop, but runs its scalar fallback here | 489 | 1208 |
-| `rust` (1.97, safe indexing) | as `rust-unchecked`, with a bounds check in the scalar fallback | 591 | 1468 |
-| `cpp-clang-novec` | scalar, unrolled x2, compare-and-branch store | 610 | 1221 |
-| `rust-novec` | scalar, not unrolled, one bounds check per iteration | 772 | 1553 |
-| `odin` (dev-2026-11, bounds checks on) | as `odin-unchecked`, with two bounds checks in the scalar fallback | 913 | 1692 |
+| `zig-simd` (hand-written `@Vector`) | 8-wide vector loop, used whenever coin >= 8 | **128** | 1474 |
+| `cpp-gcc` (GCC 13.3) | 8-wide vector loop, used whenever coin >= 8 | 147 | 1374 |
+| `odin-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 325 | **1153** |
+| `rust-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 376 | 1183 |
+| `zig` (0.17.1) | scalar, unrolled x4, branchless `cmov` + unconditional store | 400 | 1335 |
+| `cpp-clang` (zig c++, clang 22.1.8) | has a 32-wide vector loop, but runs its scalar fallback here | 477 | 1175 |
+| `rust` (1.97, safe indexing) | as `rust-unchecked`, with a bounds check in the scalar fallback | 579 | 1455 |
+| `cpp-clang-novec` | scalar, unrolled x2, compare-and-branch store | 602 | 1216 |
+| `rust-novec` | scalar, not unrolled, one bounds check per iteration | 733 | 1476 |
+| `odin` (dev-2026-11, bounds checks on) | as `odin-unchecked`, with two bounds checks in the scalar fallback | 867 | 1691 |
 
-Means are over both run orders, 20 runs each, all nine binaries in one session.
-This run was noisy: standard deviations were 4-16% of the mean, so gaps under
-about 15% are not meaningful. That covers the `odin-unchecked` / `zig` /
-`rust-unchecked` group on large coins and the `odin-unchecked` / `rust-unchecked`
-/ `cpp-clang` / `cpp-clang-novec` group on small coins.
+Means are over both run orders, 20 runs each, all ten binaries in one session.
+`zig-simd` is the only row whose source differs from the others: its inner
+loop is vectorized by hand. Every other row is the same plain loop.
 
-The host was also about 1.5x slower than in the first session, when the same
-binaries (without Odin) measured GCC 89, Zig 255, rust-unchecked 271, clang
-330, clang-novec 388, rust 433, rust-novec 542 ms on large coins. The order of
-the groups is the same in both sessions; only compare numbers within one run.
+Noise: standard deviations were 2-5% on small coins but up to 24% on large
+coins, so on large coins treat gaps under about 15% as ties. That covers
+`zig-simd` / `cpp-gcc`, and `odin-unchecked` / `rust-unchecked` / `zig`.
+
+The host has been about 1.5x slower since the first session, when the same
+binaries (without Odin or `zig-simd`) measured GCC 89, Zig 255, rust-unchecked
+271, clang 330, clang-novec 388, rust 433, rust-novec 542 ms on large coins.
+The order of the groups is the same; only compare numbers within one run.
 
 - **Large coins** (`186 419 83 408`, amount 10000, 20000 calls): which loop
   actually runs matters up to 6x. GCC wins by a wide margin because it is the
@@ -73,6 +77,16 @@ Zig 0.17.1 produced no vector instructions for this loop in any form I tried
 trivial `p[i] = q[i] + 1` loop, while the clang inside the same Zig
 distribution vectorizes the C++ version. The `@memset` fill is scalar too. So
 this is the Zig front end's pipeline, not the source.
+
+**Zig matches GCC once the vector step is written by hand.**
+`coin_change_simd.zig` replaces the inner loop with an explicit
+`@Vector(8, u32)` step behind a `coin >= 8` test, the same distance guard GCC
+derives automatically. It compiles to `vpsubd` / `vpminud` / plain `vmovdqu`
+(`asm/zig-simd.s`) and is 3x faster than plain Zig on large coins, level with
+GCC. On small coins it is about 10% slower than plain Zig; coins 10, 20 and 25
+now take the vector path there, and I have not checked why that costs time.
+With coins above half the amount it reaches ~71 ms, behind clang's 32-wide
+loop at ~23 ms, because it handles 8 elements per step with no interleaving.
 
 **clang and rustc vectorize, but guard the vector loop with a check that
 almost never passes.** They emit 4 x 8 lanes with AVX-512 masked stores:
@@ -138,8 +152,8 @@ way when the coins cross `amount / 2` (same setup as the table above, 10 runs):
 **Bounds checks cost Odin more than Rust here.** The scalar fallback keeps two
 checks per iteration (`cmp rax,r15; jae` and `cmp r8,r11; je`, both to
 `bounds_check_error`), where Rust keeps one. With checks on, Odin is the
-slowest build on both workloads (913 ms); with `-no-bounds-check` it is in the
-fastest LLVM group (374 ms).
+slowest build on both workloads (867 ms); with `-no-bounds-check` it is in the
+fastest auto-vectorizing LLVM group (325 ms).
 
 **Allocation differs slightly.** Odin's `make` returns zeroed memory, so the
 table is written twice per call (zero, then fill with the sentinel) where the
