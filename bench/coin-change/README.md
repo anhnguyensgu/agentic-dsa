@@ -110,11 +110,17 @@ predictable (small coins).
 
 ## Odin (written, not yet measured)
 
-`coin_change.odin` is the same algorithm in Odin, and `build.sh` / `bench.sh`
-pick it up automatically when `odin` is on `PATH`. **It has not been compiled
-or timed**: the machine these numbers came from had no Odin compiler, so the
-source and its two build lines are unverified and there is no Odin row in the
-table above.
+`coin_change.odin` is the same algorithm in idiomatic Odin: `make` / `delete`
+on Odin's default allocator, `core:os`, `core:strconv` and `core:fmt`, with no
+direct libc calls. `build.sh` / `bench.sh` pick it up automatically when `odin`
+is on `PATH`. **It has not been compiled or timed**: the machine these numbers
+came from had no Odin compiler, so the source and its two build lines are
+unverified and there is no Odin row in the table above.
+
+One difference to keep in mind when it is measured: Odin's `make` returns
+zeroed memory, so the table is written twice per call (zero, then fill with
+the sentinel) where the other three write it once. On Linux the default heap
+allocator still ends up in glibc's `calloc`.
 
 What is known from reading the Odin compiler source rather than from a run:
 its `-o:speed` and `-o:aggressive` pipelines include LLVM's `loop-vectorize`
