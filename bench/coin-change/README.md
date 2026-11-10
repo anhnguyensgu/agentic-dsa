@@ -108,6 +108,20 @@ clang unrolls x2 with a conditional store, rustc does not unroll. Branchless is
 better when updates are unpredictable (large coins) and no better when they are
 predictable (small coins).
 
+## Odin (written, not yet measured)
+
+`coin_change.odin` is the same algorithm in Odin, and `build.sh` / `bench.sh`
+pick it up automatically when `odin` is on `PATH`. **It has not been compiled
+or timed**: the machine these numbers came from had no Odin compiler, so the
+source and its two build lines are unverified and there is no Odin row in the
+table above.
+
+What is known from reading the Odin compiler source rather than from a run:
+its `-o:speed` and `-o:aggressive` pipelines include LLVM's `loop-vectorize`
+pass, unlike Zig 0.17. So Odin should produce a vector loop, with the same
+range-overlap guard as clang and rustc. Bounds checks are on by default, hence
+the `odin` and `odin-unchecked` builds.
+
 ## Fairness
 
 - **Same algorithm and types**: `u32` table, wrapping `+ 1`, `usize` indices,

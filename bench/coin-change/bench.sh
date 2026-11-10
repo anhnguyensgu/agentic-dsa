@@ -11,6 +11,10 @@ CORE=${CORE:-2}
 RUNS=${RUNS:-20}
 ORDER="zig cpp-clang rust rust-unchecked cpp-clang-novec rust-novec cpp-gcc"
 REVERSED="cpp-gcc rust-novec cpp-clang-novec rust-unchecked rust cpp-clang zig"
+# The Odin binaries exist only if odin was installed when build.sh ran.
+for b in odin odin-unchecked; do
+    [ -x "bin/$b" ] && ORDER="$ORDER $b" && REVERSED="$b $REVERSED"
+done
 mkdir -p results
 
 run() { # name, order, args...
