@@ -24,20 +24,21 @@ language:
 
 | Build | Inner loop it got | large coins, mean ms | small coins, mean ms |
 |:---|:---|---:|---:|
-| `cpp-gcc` (GCC 13.3) | 8-wide vector, store skipped when nothing changes | **89** | 964 |
+| `cpp-gcc` (GCC 13.3) | 8-wide vector loop, used whenever coin >= 8 | **89** | 964 |
 | `zig` (0.17.1) | scalar, unrolled x4, branchless `cmov` + unconditional store | 255 | 964 |
-| `rust-unchecked` | 32-wide vector, masked stores | 271 | 869 |
-| `cpp-clang` (zig c++, clang 22.1.8) | 32-wide vector, masked stores | 330 | **847** |
+| `rust-unchecked` | has a 32-wide vector loop, but runs its scalar fallback here | 271 | 869 |
+| `cpp-clang` (zig c++, clang 22.1.8) | has a 32-wide vector loop, but runs its scalar fallback here | 330 | **847** |
 | `cpp-clang-novec` | scalar, unrolled x2, compare-and-branch store | 388 | 859 |
-| `rust` (1.97, safe indexing) | 32-wide vector, masked stores, bounds check in the scalar tail | 433 | 944 |
+| `rust` (1.97, safe indexing) | as `rust-unchecked`, with a bounds check in the scalar fallback | 433 | 944 |
 | `rust-novec` | scalar, not unrolled, one bounds check per iteration | 542 | 942 |
 
 Means are over both run orders, 20 runs each. Run-to-run noise was about
 ±1-7%, so on the small-coin workload only the ~10% gap between the two groups
 (`cpp-clang`, `cpp-clang-novec`, `rust-unchecked` vs the rest) is meaningful.
 
-- **Large coins** (`186 419 83 408`, amount 10000, 20000 calls): which loop you
-  get matters up to 6x. GCC wins by a wide margin.
+- **Large coins** (`186 419 83 408`, amount 10000, 20000 calls): which loop
+  actually runs matters up to 6x. GCC wins by a wide margin because it is the
+  only build executing vector code on this input (see below).
 - **Small coins** (`1 2 5 10 20 25`): every coin is closer than one vector
   width, so every build runs scalar code and they land within ~13% of each
   other.
@@ -65,8 +66,8 @@ trivial `p[i] = q[i] + 1` loop, while the clang inside the same Zig
 distribution vectorizes the C++ version. The `@memset` fill is scalar too. So
 this is the Zig front end's pipeline, not the source.
 
-**clang and rustc vectorize** 4 x 8 lanes with AVX-512 masked stores, guarded by
-a runtime check that the coin is at least 32 elements away:
+**clang and rustc vectorize, but guard the vector loop with a check that
+almost never passes.** They emit 4 x 8 lanes with AVX-512 masked stores:
 
 ```asm
 vpaddd    ymm2,ymm1,YMMWORD PTR [rax+r13*4-0x60]
@@ -74,16 +75,31 @@ vpcmpltud k1,ymm2,YMMWORD PTR [r11+r13*4-0x60]
 vmovdqu32 YMMWORD PTR [r11+r13*4-0x60]{k1},ymm2
 ```
 
-That vector loop is *slower* than Zig's scalar one on this machine. `-novec`
-confirms vectorizing only buys clang ~15% here.
+The loop reads `dp[a-c]` and writes `dp[a]` in the same array. LLVM's runtime
+guard asks whether the whole read range and the whole write range overlap, and
+they do unless `coin > amount / 2`. So for `186 419 83 408` the vector loop is
+never entered and the scalar fallback runs. That is why `cpp-clang` is barely
+faster than `cpp-clang-novec`.
 
-**GCC vectorizes 8-wide and tests the mask first** (`kortestb k1,k1` then a
-jump), so it only stores when some lane improved. Most iterations improve
-nothing, which is the likely reason it is 3x faster than everything else. I did
-not profile to confirm the cause.
+**GCC guards on the distance instead** (`lea rax,[rcx-0x4]; cmp rax,0x18`): it
+takes its 8-wide vector loop whenever the coin is at least 8 elements away,
+which is all that correctness needs. That is the whole reason it is ~3x faster.
+
+Measured to confirm (amount 10000, 20000 calls, 10 runs, same machine):
+
+| Coins | gcc | clang | rust-unchecked | zig |
+|:---|---:|---:|---:|---:|
+| `4003 4507 4801 4999` (all just under half) | 62 ms | 186 ms | 130 ms | 230 ms |
+| `5003 6007 7001 8009` (all over half) | 49 ms | **23 ms** | 42 ms | 151 ms |
+
+Once clang's guard passes, its wider loop is about 2x faster than GCC's.
+GCC also tests the mask and skips the store when no lane improved, but that is
+not what makes it fast: a hand-written 8-wide loop that always does the masked
+store ran at the same speed as GCC's.
 
 **Safe Rust keeps a bounds check.** LLVM hoists it out of the vector loop, but
-a `cmp`+`jae <panic>` pair stays in the scalar tail and in `rust-novec`.
+a `cmp`+`jae <panic>` pair stays in the scalar fallback, which is the code that
+runs here, and in `rust-novec`.
 Dropping it with `get_unchecked` (`rust-unchecked`) takes the large-coin time
 from 433 ms to 271 ms. On small coins the check costs about 8%.
 
@@ -123,9 +139,11 @@ bounds (hence `rust-unchecked`), and Zig does not auto-vectorize (hence the
 
 - One machine: a 4-vCPU cloud VM, Intel Xeon @ 2.30GHz with AVX-512 (LLVM
   detects it as `graniterapids`). Shared hardware, no control over frequency
-  scaling. The ranking of vector vs scalar loops is likely to change on CPUs
-  without AVX-512 or with different store-forwarding behaviour.
-- One input size. At amount 10000 the table is 40 KB and fits in L1/L2.
+  scaling. Absolute numbers and gaps are likely to differ on CPUs
+  without AVX-512.
+- One amount and two coin sets in the main table. As the section above shows,
+  the ranking flips with the coin values, so do not read it as a general
+  ordering. At amount 10000 the table is 40 KB and fits in L1/L2.
 - Process startup is included in every time; it is under 1 ms against 90-960 ms.
 - Compiler versions: Zig 0.17.1, rustc 1.97.0, clang 22.1.8 (bundled with Zig),
   GCC 13.3.0, hyperfine 2.0.0.
