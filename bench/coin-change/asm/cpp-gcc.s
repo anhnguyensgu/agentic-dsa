@@ -19,25 +19,25 @@
 	lea    r15,[rbx*4+0x0]
 	lea    ecx,[rdx+0x1]
 	mov    r12,rdi
+	mov    r13,rsi
 	mov    rdi,r15
 	mov    DWORD PTR [rsp+0x18],ecx
-	mov    r13,rsi
 	call   <_Znwm@plt>
+	mov    ecx,DWORD PTR [rsp+0x18]
 	mov    rdi,rax
 	lea    rax,[r15-0x4]
 	mov    rdx,rax
 	shr    rdx,0x2
 	cmp    rax,0x18
-	mov    ecx,DWORD PTR [rsp+0x18]
 	lea    r8,[rdx+0x1]
 	jbe    <coin_change+0x2f9>
 	mov    rsi,r8
+	vpbroadcastd ymm0,ecx
+	mov    rax,rdi
 	shr    rsi,0x3
 	shl    rsi,0x5
 	lea    r9,[rsi+rdi*1]
 	and    esi,0x20
-	vpbroadcastd ymm0,ecx
-	mov    rax,rdi
 	je     <coin_change+0xa0>
 	lea    rax,[rdi+0x20]
 	vmovdqu YMMWORD PTR [rdi],ymm0
@@ -45,8 +45,8 @@
 	je     <coin_change+0xb2>
 	nop    DWORD PTR [rax]
 	vmovdqu YMMWORD PTR [rax],ymm0
-	vmovdqu YMMWORD PTR [rax+0x20],ymm0
 	add    rax,0x40
+	vmovdqu YMMWORD PTR [rax-0x20],ymm0
 	cmp    rax,r9
 	jne    <coin_change+0xa0>
 	mov    rsi,r8
@@ -59,8 +59,8 @@
 	cmp    rdx,0x2
 	jbe    <coin_change+0xec>
 	mov    rdx,r8
-	and    rdx,0xfffffffffffffffc
 	vpbroadcastd xmm0,ecx
+	and    rdx,0xfffffffffffffffc
 	and    r8d,0x3
 	vmovdqu XMMWORD PTR [rdi+rsi*4],xmm0
 	lea    rax,[rax+rdx*4]
@@ -89,8 +89,8 @@
 	cmp    r8,rbx
 	jae    <coin_change+0x185>
 	mov    r9,r14
-	sub    r9,r8
 	lea    rax,[r8*4+0x0]
+	sub    r9,r8
 	cmp    r9,0x2
 	jbe    <coin_change+0x167>
 	lea    rax,[r8*4+0x0]
@@ -114,9 +114,9 @@
 	mov    r15,QWORD PTR [rsp+0x18]
 	mov    edx,DWORD PTR [rdi+r14*4]
 	mov    ebx,0xffffffff
+	mov    rsi,r15
 	cmp    r14,rdx
 	cmovae ebx,edx
-	mov    rsi,r15
 	vzeroupper
 	call   <_ZdlPvm@plt>
 	lea    rsp,[rbp-0x28]
@@ -133,10 +133,10 @@
 	cmp    r9,0x6
 	jbe    <coin_change+0x2e3>
 	mov    r15,rsi
-	shr    r15,0x3
 	add    rax,rdi
 	xor    edx,edx
 	xor    ecx,ecx
+	shr    r15,0x3
 	vpaddd ymm0,ymm1,YMMWORD PTR [rdi+rdx*1]
 	vpcmpltud k1,ymm0,YMMWORD PTR [rax+rdx*1]
 	kortestb k1,k1
@@ -147,8 +147,8 @@
 	jne    <coin_change+0x1dc>
 	mov    rdx,rsi
 	and    rdx,0xfffffffffffffff8
-	lea    rcx,[r8+rdx*1]
 	and    esi,0x7
+	lea    rcx,[r8+rdx*1]
 	mov    rax,rcx
 	je     <coin_change+0x185>
 	sub    r9,rdx
@@ -166,11 +166,11 @@
 	and    esi,0x3
 	je     <coin_change+0x185>
 	mov    rdx,rax
-	sub    rdx,r8
-	mov    edx,DWORD PTR [rdi+rdx*4]
 	lea    rcx,[rax*4+0x0]
-	inc    edx
+	sub    rdx,r8
 	lea    rsi,[rdi+rcx*1]
+	mov    edx,DWORD PTR [rdi+rdx*4]
+	inc    edx
 	cmp    edx,DWORD PTR [rsi]
 	jae    <coin_change+0x26d>
 	mov    DWORD PTR [rsi],edx
@@ -178,8 +178,8 @@
 	cmp    rdx,rbx
 	jae    <coin_change+0x185>
 	sub    rdx,r8
-	mov    edx,DWORD PTR [rdi+rdx*4]
 	lea    rsi,[rdi+rcx*1+0x4]
+	mov    edx,DWORD PTR [rdi+rdx*4]
 	inc    edx
 	cmp    edx,DWORD PTR [rsi]
 	jae    <coin_change+0x28d>
@@ -188,8 +188,8 @@
 	cmp    rax,rbx
 	jae    <coin_change+0x185>
 	sub    rax,r8
-	mov    eax,DWORD PTR [rdi+rax*4]
 	lea    rdx,[rdi+rcx*1+0x8]
+	mov    eax,DWORD PTR [rdi+rax*4]
 	inc    eax
 	cmp    eax,DWORD PTR [rdx]
 	jae    <coin_change+0x185>
