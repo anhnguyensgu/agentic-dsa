@@ -14,6 +14,8 @@ ZIGFLAGS="-O ReleaseFast -mcpu=native -lc -fno-unwind-tables"
 # The three LLVM builds. C++ uses the clang bundled with zig, so Zig and C++
 # share one LLVM (22.1.8); rustc 1.97 ships LLVM 22.1.6.
 zig build-exe $ZIGFLAGS coin_change.zig -femit-bin=bin/zig
+# Zig with the inner loop vectorized by hand; not like-for-like source.
+zig build-exe $ZIGFLAGS coin_change_simd.zig -femit-bin=bin/zig-simd
 zig c++ $CXXFLAGS coin_change.cpp -o bin/cpp-clang
 rustc $RSFLAGS coin_change.rs -o bin/rust
 # Rust without bounds checks, matching C++ operator[] and Zig ReleaseFast.
