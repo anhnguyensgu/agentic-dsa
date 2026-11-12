@@ -12,9 +12,11 @@ RUNS=${RUNS:-20}
 ORDER="zig zig-simd cpp-clang rust rust-unchecked cpp-clang-novec rust-novec cpp-gcc"
 REVERSED="cpp-gcc rust-novec cpp-clang-novec rust-unchecked rust cpp-clang zig-simd zig"
 # The Odin binaries exist only if odin was installed when build.sh ran.
-# The -acc binaries are the accumulator form of the same algorithm.
+# The -acc binaries are the accumulator form of the same algorithm, and the
+# -multi binaries are that form with four independent accumulators.
 ACC="zig-acc cpp-clang-acc cpp-gcc-acc rust-acc rust-unchecked-acc odin-acc odin-unchecked-acc"
-for b in odin odin-unchecked $ACC; do
+MULTI="zig-multi cpp-clang-multi cpp-gcc-multi rust-multi rust-unchecked-multi odin-multi odin-unchecked-multi"
+for b in odin odin-unchecked $ACC $MULTI; do
     [ -x "bin/$b" ] && ORDER="$ORDER $b" && REVERSED="$b $REVERSED"
 done
 mkdir -p results

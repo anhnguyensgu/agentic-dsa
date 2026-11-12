@@ -18,25 +18,25 @@
 	je     <coin_change+0x1b3>
 	lea    r14,[r15*4+0x0]
 	mov    rbx,rdi
+	mov    rdi,r14
 	mov    QWORD PTR [rsp+0x18],rsi
 	lea    r13d,[rdx+0x1]
-	mov    rdi,r14
 	call   <_Znwm@plt>
-	mov    rsi,QWORD PTR [rsp+0x18]
 	mov    r9,rax
 	lea    rax,[r14-0x4]
 	mov    rdx,rax
 	shr    rdx,0x2
 	cmp    rax,0x18
+	mov    rsi,QWORD PTR [rsp+0x18]
 	lea    rdi,[rdx+0x1]
 	jbe    <coin_change+0x1c4>
 	mov    rcx,rdi
-	vpbroadcastd ymm0,r13d
-	mov    rax,r9
 	shr    rcx,0x3
 	shl    rcx,0x5
 	lea    r8,[rcx+r9*1]
 	and    ecx,0x20
+	vpbroadcastd ymm0,r13d
+	mov    rax,r9
 	je     <coin_change+0xa0>
 	lea    rax,[r9+0x20]
 	vmovdqu YMMWORD PTR [r9],ymm0
@@ -44,8 +44,8 @@
 	je     <coin_change+0xb2>
 	xchg   ax,ax
 	vmovdqu YMMWORD PTR [rax],ymm0
+	vmovdqu YMMWORD PTR [rax+0x20],ymm0
 	add    rax,0x40
-	vmovdqu YMMWORD PTR [rax-0x20],ymm0
 	cmp    rax,r8
 	jne    <coin_change+0xa0>
 	mov    rcx,rdi
@@ -59,8 +59,8 @@
 	cmp    rdx,0x2
 	jbe    <coin_change+0xf2>
 	mov    rdx,rdi
-	vpbroadcastd xmm0,r13d
 	and    rdx,0xfffffffffffffffc
+	vpbroadcastd xmm0,r13d
 	and    edi,0x3
 	vmovdqu XMMWORD PTR [r9+rcx*4],xmm0
 	lea    rax,[rax+rdx*4]
@@ -112,10 +112,10 @@
 	jne    <coin_change+0x178>
 	mov    edx,DWORD PTR [r9+r12*4]
 	mov    ebx,0xffffffff
-	mov    rsi,r14
-	mov    rdi,r9
 	cmp    r12,rdx
 	cmovae ebx,edx
+	mov    rsi,r14
+	mov    rdi,r9
 	call   <_ZdlPvm@plt>
 	lea    rsp,[rbp-0x28]
 	mov    eax,ebx

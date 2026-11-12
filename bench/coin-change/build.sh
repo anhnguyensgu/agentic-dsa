@@ -50,6 +50,18 @@ if command -v odin >/dev/null 2>&1; then
     odin build coin_change_acc.odin $ODINFLAGS -out:bin/odin-acc
     odin build coin_change_acc.odin $ODINFLAGS -no-bounds-check -out:bin/odin-unchecked-acc
 fi
+
+# Multiple accumulators (coin_change_multi.*): the accumulator form with the
+# reduction over coins unrolled into four independent running minimums.
+zig build-exe $ZIGFLAGS coin_change_multi.zig -femit-bin=bin/zig-multi
+zig c++ $CXXFLAGS coin_change_multi.cpp -o bin/cpp-clang-multi
+g++ $CXXFLAGS coin_change_multi.cpp -o bin/cpp-gcc-multi
+rustc $RSFLAGS coin_change_multi.rs -o bin/rust-multi
+rustc $RSFLAGS --cfg unchecked coin_change_multi.rs -o bin/rust-unchecked-multi
+if command -v odin >/dev/null 2>&1; then
+    odin build coin_change_multi.odin $ODINFLAGS -out:bin/odin-multi
+    odin build coin_change_multi.odin $ODINFLAGS -no-bounds-check -out:bin/odin-unchecked-multi
+fi
 rm -f bin/*.o
 
 # Disassemble from the binaries that get benchmarked, one instruction per
