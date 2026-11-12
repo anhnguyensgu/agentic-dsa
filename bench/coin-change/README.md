@@ -216,11 +216,6 @@ Same flags, same run, same inputs as the table above (mean ms):
   GCC, and 8-9% slower in Rust. Against the plain loop they only come out
   ahead for Zig and bounds-checked Odin, by about 10%, which is at the edge of
   the noise.
-- **Why the technique has little to work with here.** It pays off when one
-  long chain of dependent operations is the bottleneck. This chain is 4 or 6
-  coins long and restarts for every amount, so there is almost nothing to
-  split, and the unrolled loop adds its own overhead per amount. I did not
-  profile to confirm that this is the whole reason.
 - **More coins do not rescue it.** With 12 coins (amount 10000, 6000 calls, 10
   runs): Zig 350 -> 368 ms and GCC 415 -> 416 ms (ties), clang 294 -> 417,
   unchecked Rust 286 -> 530, unchecked Odin 251 -> 367. The plain loop on the
@@ -233,8 +228,70 @@ Same flags, same run, same inputs as the table above (mean ms):
   in range and no panic path is left in `asm/rust-acc.s`. Odin keeps its
   checks and stays 11-14% behind its unchecked build on large coins.
 
-So for this problem the plain coin-outer loop is the best starting point, and
-vectorizing it (GCC automatically, Zig by hand) is what pays.
+### Why the accumulator forms are slower
+
+Multiple accumulators remove *waiting*: they help when each step must wait for
+the previous step's result. Whether this code is waiting depends on the coins.
+
+**Large coins: nothing is waiting, so extra instructions are pure cost.**
+`dp[a]` depends on entries at least 83 positions back, finished long ago, so
+the CPU already overlaps many amounts. Time then follows the number of
+instructions executed per (coin, amount) pair:
+
+| | plain | one accumulator | four accumulators |
+|:---|---:|---:|---:|
+| Zig, instructions per pair | 7.1 | 13.5 | 15.9 |
+| GCC, instructions per pair | 2.5 | 15.5 | 16.7 |
+| Zig, time (ms) | 265 | 409 | 547 |
+| GCC, time (ms) | 93 | 475 | 589 |
+
+The accumulator forms re-read the coin, test `coin <= a` and pay inner-loop
+bookkeeping for every pair; four accumulators add four initialisations, three
+combining minimums and a leftover-coin check per amount. GCC's plain loop is
+far ahead because it is vectorized. Reordering the coins changes none of these
+times, which is what "no waiting" predicts.
+
+**Small coins: the code is waiting, and there the technique does help.** With
+coin 1, `dp[a]` needs `dp[a-1]`, written one step earlier, so each amount
+waits for the previous one. Zig's plain loop executes the same 7 instructions
+per pair as on large coins but takes 2.5x longer per pair. Four accumulators
+shorten that wait, hence the 7-23% gains above.
+
+**Coin order matters far more than the number of accumulators.** Same
+binaries, same coins, only the order on the command line changed (ms):
+
+| Build | `1 2 5 10 20 25` | `25 20 10 5 2 1` |
+|:---|---:|---:|
+| `cpp-gcc` | 982 | **355** |
+| `rust-unchecked` | 885 | **333** |
+| `odin-unchecked` | 832 | **354** |
+| `cpp-clang` | 882 | 454 |
+| `zig` | 995 | 985 |
+| `zig-simd` | 1062 | 1071 |
+| `zig-acc` | 994 | 627 |
+| `cpp-gcc-acc` | 1292 | 721 |
+| `zig-multi` | 923 | 871 |
+| `cpp-gcc-multi` | 998 | 872 |
+
+With coin 1 last, almost nothing is left for it to improve. The builds whose
+plain loop only stores when the value improves (GCC, clang, Rust, Odin) then
+stop writing, and the wait disappears. Zig's plain and hand-vectorized loops
+store unconditionally, so they keep waiting and do not speed up. In the
+accumulator forms, coin 1 last means its candidate joins at the end of the
+chain of minimums instead of the start.
+
+How this was measured: this VM exposes no hardware performance counters, so
+the instruction counts come from valgrind's cachegrind, run on builds of the
+same sources targeting AVX2 instead of AVX-512 (valgrind cannot execute
+AVX-512). Those builds are not identical to the benchmarked ones: in them, one
+and four accumulators tie on large coins, so the gap between those two is
+compiler-output-specific. The gap between both of them and the plain loop is
+not. "Waiting" is inferred from the reordering experiment and from time per
+instruction, not observed directly.
+
+So for this problem the plain coin-outer loop is the best starting point,
+vectorizing it (GCC automatically, Zig by hand) pays on large coins, and
+processing coins from largest to smallest pays on small ones.
 
 ## Fairness
 
