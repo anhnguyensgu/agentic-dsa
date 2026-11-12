@@ -1,12 +1,19 @@
 | Command | Mean Wall Time [ms] | Change | Factor |
 |:---|---:|---:|:---|
-| `odin-unchecked` | 334.7 ± 46.0 |  |  |
-| `odin` | 869.5 ± 61.1 | +159.8% | (2.6x slower) |
-| `cpp-gcc` | 142.0 ± 5.6 | -57.6% | (2.4x faster) |
-| `rust-novec` | 740.3 ± 31.2 | +121.2% | (2.2x slower) |
-| `cpp-clang-novec` | 593.9 ± 21.3 | +77.5% | (1.8x slower) |
-| `rust-unchecked` | 372.9 ± 22.6 | +11.4% |  |
-| `rust` | 581.0 ± 95.6 | +73.6% | (1.7x slower) |
-| `cpp-clang` | 491.6 ± 65.4 | +46.9% | (1.5x slower) |
-| `zig-simd` | 127.6 ± 4.3 | -61.9% | (2.6x faster) |
-| `zig` | 400.0 ± 94.6 | +19.5% |  |
+| `odin-unchecked-acc` | 870.7 ± 32.2 |  |  |
+| `odin-acc` | 918.8 ± 41.5 | +5.5% |  |
+| `rust-unchecked-acc` | 722.1 ± 44.9 | -17.1% |  |
+| `rust-acc` | 725.5 ± 43.5 | -16.7% |  |
+| `cpp-gcc-acc` | 602.5 ± 28.8 | -30.8% | (1.4x faster) |
+| `cpp-clang-acc` | 851.6 ± 38.9 | -2.2% |  |
+| `zig-acc` | 506.0 ± 41.6 | -41.9% | (1.7x faster) |
+| `odin-unchecked` | 267.4 ± 12.0 | -69.3% | (3.3x faster) |
+| `odin` | 715.9 ± 27.6 | -17.8% |  |
+| `cpp-gcc` | 122.2 ± 6.2 | -86.0% | (7.1x faster) |
+| `rust-novec` | 629.6 ± 17.9 | -27.7% |  |
+| `cpp-clang-novec` | 504.4 ± 22.3 | -42.1% | (1.7x faster) |
+| `rust-unchecked` | 326.3 ± 33.1 | -62.5% | (2.7x faster) |
+| `rust` | 476.9 ± 20.5 | -45.2% | (1.8x faster) |
+| `cpp-clang` | 380.9 ± 16.1 | -56.3% | (2.3x faster) |
+| `zig-simd` | 114.7 ± 9.4 | -86.8% | (7.6x faster) |
+| `zig` | 319.8 ± 31.1 | -63.3% | (2.7x faster) |
