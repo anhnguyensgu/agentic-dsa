@@ -38,6 +38,18 @@ if command -v odin >/dev/null 2>&1; then
 else
     echo "odin not found: skipping the Odin builds"
 fi
+
+# Accumulator form (coin_change_acc.*): loops swapped so each amount reduces
+# over the coins into a register and stores once. Same flags as above.
+zig build-exe $ZIGFLAGS coin_change_acc.zig -femit-bin=bin/zig-acc
+zig c++ $CXXFLAGS coin_change_acc.cpp -o bin/cpp-clang-acc
+g++ $CXXFLAGS coin_change_acc.cpp -o bin/cpp-gcc-acc
+rustc $RSFLAGS coin_change_acc.rs -o bin/rust-acc
+rustc $RSFLAGS --cfg unchecked coin_change_acc.rs -o bin/rust-unchecked-acc
+if command -v odin >/dev/null 2>&1; then
+    odin build coin_change_acc.odin $ODINFLAGS -out:bin/odin-acc
+    odin build coin_change_acc.odin $ODINFLAGS -no-bounds-check -out:bin/odin-unchecked-acc
+fi
 rm -f bin/*.o
 
 # Disassemble from the binaries that get benchmarked, one instruction per
